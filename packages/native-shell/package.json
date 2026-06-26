@@ -1,5 +1,5 @@
 {
-  "name": "@studio/native-shell",
+  "name": "@jfun/native-shell",
   "version": "0.1.0",
   "description": "Capacitor iOS shell reference: NativeFX.swift (AVAudio + Taptic + Firebase), deploy_ios.sh, ExportOptions.plist + signing template (team Y3T546NP6T), the pbxproj hand-registration note. Templates, not a buildable module.",
   "license": "UNLICENSED",

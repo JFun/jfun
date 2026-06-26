@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-/* Scaffold a new vanilla-JS web game with EVERY @studio package pre-wired — most
-   importantly @studio/growth-loop, so "ship without a loop" stops being the path
+/* Scaffold a new vanilla-JS web game with EVERY @jfun package pre-wired — most
+   importantly @jfun/growth-loop, so "ship without a loop" stops being the path
    of least resistance. Copies templates/create-game, swaps the bundle id and
    tokens, vendors the package browser builds, and leaves a runnable game.
 
@@ -70,9 +70,9 @@ async function main() {
   try { await fs.rm(path.join(vdir, ".gitkeep")); } catch (e) {}
   for (const [pkg, file] of VENDOR) {
     await fs.copyFile(path.join(ROOT, "packages", pkg, "src", file), path.join(vdir, file));
-    console.log(`  ↳ vendored @studio/${pkg}`);
+    console.log(`  ↳ vendored @jfun/${pkg}`);
   }
 
-  console.log(`\n✓ ${title} ready.\n\nNext:\n  npm install                       # link @studio/* into the new game\n  cd ${path.relative(ROOT, dest)} && npm run serve   # play it at http://localhost:8000\n  bash scripts/dev/test.sh          # self-test (run after every edit)\n\nThen replace the placeholder rules in web/js/engine.js with your game — the daily\nloop (daily + streak + share + k-funnel) is already wired in web/js/game.js.`);
+  console.log(`\n✓ ${title} ready.\n\nNext:\n  npm install                       # link @jfun/* into the new game\n  cd ${path.relative(ROOT, dest)} && npm run serve   # play it at http://localhost:8000\n  bash scripts/dev/test.sh          # self-test (run after every edit)\n\nThen replace the placeholder rules in web/js/engine.js with your game — the daily\nloop (daily + streak + share + k-funnel) is already wired in web/js/game.js.`);
 }
 main().catch(e => { console.error(e); process.exit(1); });

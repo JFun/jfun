@@ -15,11 +15,11 @@ instance solver-proven solvable with a known par. Never ship an unsolvable one.
 ## §3 — Content (MVP)
 Hand-made instances vs generator; how many; the progression.
 
-## §4 — The growth loop (NOT optional — handbook/03)
+## §4 — The growth loop (NOT optional — docs/handbook/03)
 Daily (scarcity, one attempt, streak) · spoiler-free share card (ownable, carries
 the play link, A/B variants) · the instant-play link · the k-funnel events.
-Wired via @studio/growth-loop.
+Wired via @jfun/growth-loop.
 
 ## §5 — Shell / platform
-Web-first (no-build) → Capacitor iOS (@studio/native-shell). Analytics + audio
-via @studio/* packages.
+Web-first (no-build) → Capacitor iOS (@jfun/native-shell). Analytics + audio
+via @jfun/* packages.

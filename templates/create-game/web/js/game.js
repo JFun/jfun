@@ -1,5 +1,5 @@
 /* __GameName__ — game shell. The interesting part for the studio: the daily loop
-   is ALREADY WIRED via @studio/growth-loop. You shouldn't have to think about
+   is ALREADY WIRED via @jfun/growth-loop. You shouldn't have to think about
    daily/streak/share/k-funnel — replace the engine rules and the loop just works.
 
    This starter is daily-only (one board/day) to make the loop the spine from day

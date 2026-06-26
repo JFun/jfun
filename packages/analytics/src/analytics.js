@@ -1,4 +1,4 @@
-/* @studio/analytics — one Track API → Firebase (native iOS) / gtag (web). Lifted
+/* @jfun/analytics — one Track API → Firebase (native iOS) / gtag (web). Lifted
    from Moraine's analytics.js (canonical) + Lanthorn's legacy-shell guard. The
    module is INERT unless a GA measurement id is set (or running native), and
    always inert inside an iOS test shell so device sessions never pollute the web

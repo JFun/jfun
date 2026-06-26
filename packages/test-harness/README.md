@@ -1,11 +1,11 @@
-# @studio/test-harness
+# @jfun/test-harness
 
 The test discipline, packaged: assertion + golden + determinism + invariant
 helpers, so every package writes tests the same shape (syntax → golden →
 invariants). Plain CJS — a Node test utility.
 
 ```js
-const { harness } = require("@studio/test-harness");
+const { harness } = require("@jfun/test-harness");
 const t = harness("engine");
 t.section("determinism golden");
 t.golden("corner D,U", () => E.key(run(board, ["D","U"])), "100000|...");

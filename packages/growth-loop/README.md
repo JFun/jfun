@@ -1,4 +1,4 @@
-# @studio/growth-loop ★
+# @jfun/growth-loop ★
 
 The hero. A drop-in **daily + streak + spoiler-free share card + k-funnel**, fully
 instrumented — so no future game launches loop-less again. The package owns the
@@ -22,7 +22,7 @@ reads `window.GrowthLoop`:
 Modern (ESM/bundler) consumers import the named API:
 
 ```js
-import { configure, Daily, Streak, ShareCard, LoopTrack } from "@studio/growth-loop";
+import { configure, Daily, Streak, ShareCard, LoopTrack } from "@jfun/growth-loop";
 ```
 
 ## Wire it (the whole loop)
@@ -32,7 +32,7 @@ const GL = window.GrowthLoop;                       // or the ESM import
 GL.configure({
   namespace: "moraine",                             // isolates localStorage
   epoch: new Date("2026-06-25T00:00:00Z"),          // launch day → "#1"
-  track: window.Track,                              // your @studio/analytics sink
+  track: window.Track,                              // your @jfun/analytics sink
 });
 
 // 1. Deterministic daily — one instance for everyone, no server.

@@ -13,7 +13,7 @@ polishing infra while dodging the unglamorous growth work. Don't.
 ## The loop, codified
 
 The one structural reason player N brings player N+1. Four parts, all in
-[`@studio/growth-loop`](../packages/growth-loop/README.md) so every game ships them
+[`@jfun/growth-loop`](../../packages/growth-loop/README.md) so every game ships them
 by default:
 
 1. **Daily = scarcity.** One instance/day, one attempt, a streak. Scarcity is what
@@ -49,5 +49,5 @@ brings N+1, you don't have a loop yet ([Gate 4](00-strategy.md)).
 
 If the monorepo (or any infra) ever becomes the reason a game stays loop-less,
 **stop and build the loop.** Moraine v1.1 was the proof: the first unit of monorepo
-work was also the highest-leverage product work — building `@studio/growth-loop`
+work was also the highest-leverage product work — building `@jfun/growth-loop`
 *and* shipping it into Moraine were the same task.

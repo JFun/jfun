@@ -20,7 +20,7 @@ expensive next stage.
 
 Historically projects jumped greybox → fun → ship and **stalled on no loop**. Gate
 3 is non-negotiable now: a game does not pass to TestFlight until the daily + share
-+ streak loop is real and instrumented. `@studio/growth-loop` exists so this gate
++ streak loop is real and instrumented. `@jfun/growth-loop` exists so this gate
 costs a few lines, not a rebuild.
 
 ## Determinism + solvability are the engineering contract
@@ -28,8 +28,8 @@ costs a few lines, not a rebuild.
 - **Greybox must be bot/solver-validated** — never ship an unsolvable instance
   (CLAUDE.md non-negotiable). The BFS solver proves solvable + optimal par.
 - **Same seed → identical output**, pinned by a golden test. The daily and share
-  loop break the instant two clients disagree. `@studio/web-game-core` (RNG) and
-  `@studio/growth-loop` (daily seed) carry this; their goldens are the contract.
+  loop break the instant two clients disagree. `@jfun/web-game-core` (RNG) and
+  `@jfun/growth-loop` (daily seed) carry this; their goldens are the contract.
 - **Self-test before "done"** — `test.sh` after every change; **UI changes need a
   real render**, not just a clean headless launch.
 
@@ -37,5 +37,5 @@ costs a few lines, not a rebuild.
 
 Wire the funnel before launch so day-1 data is actionable:
 `install → first-instance start → solve → share → link-open → play-from-link`, plus
-D1/D7. `@studio/growth-loop`'s `LoopTrack` bakes the k-funnel in identically across
+D1/D7. `@jfun/growth-loop`'s `LoopTrack` bakes the k-funnel in identically across
 games — don't hand-roll event names ([03](03-distribution.md)).

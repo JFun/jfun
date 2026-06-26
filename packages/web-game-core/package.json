@@ -1,5 +1,5 @@
 {
-  "name": "@studio/web-game-core",
+  "name": "@jfun/web-game-core",
   "version": "0.1.0",
   "description": "Deterministic primitives for the vanilla-JS games: mulberry32 RNG, grid helpers, generic line-clear, BFS solver/validation scaffold. Game rules stay in each game.",
   "license": "UNLICENSED",

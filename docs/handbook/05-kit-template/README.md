@@ -3,7 +3,7 @@
 The blanks every new project starts from (the structure used by `dusk-prd`,
 `gamesmith`, `encore`, `plot-twist`, `gravity-shift-prd`). Copy this folder into a
 new project's `<name>-prd/` and fill it, in order. The gates in
-[02-validation](02-validation.md) map onto these docs.
+[02-validation](../02-validation.md) map onto these docs.
 
 | File | Fill at | Gate |
 |---|---|---|

@@ -1,4 +1,4 @@
-# @studio/audio
+# @jfun/audio
 
 Procedural Web Audio SFX — **no asset files**, generated on the fly, bundles to
 nothing, works offline. Lifted from Moraine's canonical `audio.js`.

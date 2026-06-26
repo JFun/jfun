@@ -16,5 +16,5 @@ conflict, update the handbook. Every page is a ≤2-minute read.
 | [06-lessons](06-lessons.md) | The graveyard — one line each, why it died. **The most valuable page.** |
 
 The code half of the studio (`packages/`, `templates/`) exists to *serve* page 03:
-`@studio/growth-loop` makes "ship with a loop" the default so the lesson on page
+`@jfun/growth-loop` makes "ship with a loop" the default so the lesson on page
 06 stops repeating.

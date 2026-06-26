@@ -1,5 +1,5 @@
 {
-  "name": "@studio/audio",
+  "name": "@jfun/audio",
   "version": "0.1.0",
   "description": "Procedural Web Audio SFX synth — no asset files. Generic named-sound palette (slide/clear/blocked/win/dead/tap).",
   "license": "UNLICENSED",

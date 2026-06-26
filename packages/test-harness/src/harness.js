@@ -1,11 +1,11 @@
-/* @studio/test-harness — the test discipline, packaged. Carries the Lanthorn/
+/* @jfun/test-harness — the test discipline, packaged. Carries the Lanthorn/
    Moraine shape (syntax → determinism golden → solver/bot invariants) as small
    reusable helpers so every package writes golden + invariant tests the same way.
    Plain CJS (a Node test utility, not browser code). Per-game golden FIXTURES and
    board data stay in each game; this is just the scaffolding around them.
 
    Usage:
-     const { harness } = require("@studio/test-harness");
+     const { harness } = require("@jfun/test-harness");
      const t = harness("engine");
      t.section("determinism golden");
      t.golden("corner D,U", () => E.key(run(board, ["D","U"])), "100000|...");

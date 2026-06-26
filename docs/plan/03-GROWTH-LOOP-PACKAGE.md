@@ -1,4 +1,4 @@
-# `@studio/growth-loop` — the hero package
+# `@jfun/growth-loop` — the hero package
 
 *v0.1, June 25, 2026. The one piece of shared code that attacks the real problem (distribution). Build this FIRST, and ship it into Moraine as its first consumer — that single move builds the package AND gives Moraine the loop it launched without.*
 
@@ -9,7 +9,7 @@ Make "ship with a daily + share + streak loop, fully instrumented for virality" 
 ## What it provides (public API sketch)
 
 ```js
-import { Daily, Streak, ShareCard, LoopTrack } from "@studio/growth-loop";
+import { Daily, Streak, ShareCard, LoopTrack } from "@jfun/growth-loop";
 
 // 1. Deterministic daily — same instance for everyone, no server
 const today = Daily.seedForDate(new Date());     // UTC-date → int seed
@@ -48,7 +48,7 @@ LoopTrack.playFromLink({ ref });
 
 ## First consumer: Moraine (do this immediately)
 
-Moraine is in review with finite content (30 boards) and no loop. Wiring `@studio/growth-loop` into it:
+Moraine is in review with finite content (30 boards) and no loop. Wiring `@jfun/growth-loop` into it:
 - adds a **daily board** (curate/rotate from the board bank until the generator exists) → a reason to return past board 30,
 - adds the **share card** ("Moraine #142 — solved in 4 ⭐") → the missing acquisition loop,
 - adds the **streak** → the retention spine,
@@ -58,4 +58,4 @@ So the first unit of monorepo work *is* the highest-leverage product work. That'
 
 ## Definition of done
 
-A game adds `@studio/growth-loop`, passes its daily result + a link, and gets: a deterministic daily, one-attempt lock, a streak, a spoiler-free shareable card, and a full k-funnel in the analytics dashboard — without writing any of that itself. Moraine v1.1 is the proof.
+A game adds `@jfun/growth-loop`, passes its daily result + a link, and gets: a deterministic daily, one-attempt lock, a streak, a spoiler-free shareable card, and a full k-funnel in the analytics dashboard — without writing any of that itself. Moraine v1.1 is the proof.

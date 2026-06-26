@@ -1,4 +1,4 @@
-# @studio/native-shell
+# @jfun/native-shell
 
 The Capacitor iOS shell, as **templates** (not a buildable module). A new game's
 `ios/` is a Capacitor app that loads `web/`; these are the pieces that recur.
@@ -40,5 +40,5 @@ the plugin JS shim isn't bundled. Two consequences:
    pre-populated by a bundled shim.
 
 For the full TestFlight upload flow, icon-alpha gotcha, iPad-orientation rejection,
-and the privacy questionnaire, see the studio handbook (`handbook/01-apple-rules.md`)
+and the privacy questionnaire, see the studio handbook (`docs/handbook/01-apple-rules.md`)
 and the global session playbook.

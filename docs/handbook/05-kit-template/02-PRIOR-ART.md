@@ -1,6 +1,6 @@
 # <Project> — Prior-Art / Differentiation Audit
 
-*Run at Gate 0, before greybox. Method: handbook/04-prior-art-audit.*
+*Run at Gate 0, before greybox. Method: docs/handbook/04-prior-art-audit.*
 
 ## The one-sentence differentiator
 <the original mechanic, stated so it doubles as the reviewer note + the hook>

@@ -7,7 +7,7 @@
 
 ## Gate 4 — what makes player N bring player N+1?
 <ONE sentence. If the honest answer is "nothing", change the concept. This is a
-design constraint, not a marketing afterthought. See handbook/03-distribution.>
+design constraint, not a marketing afterthought. See docs/handbook/03-distribution.>
 
 ## The innovation (and the complexity budget)
 - The one twist: <…>  (felt, not computed — no per-entity mental bookkeeping)
@@ -18,7 +18,7 @@ design constraint, not a marketing afterthought. See handbook/03-distribution.>
 <who it's for · the closest incumbents · how we differ in one line>
 
 ## Status / next gate
-<greybox? fun gate? — see handbook/02-validation>
+<greybox? fun gate? — see docs/handbook/02-validation>
 
 ## Backups
 <fallback name · fallback concept (e.g. the Vita classic playbook)>

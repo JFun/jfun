@@ -1,11 +1,11 @@
 # __GameName__ — coding-session guide
 
 A vanilla-JS web game in the `jfun` studio. **No build step** — `web/` runs with
-`python3 -m http.server`. Ships to iOS via Capacitor (`@studio/native-shell`).
+`python3 -m http.server`. Ships to iOS via Capacitor (`@jfun/native-shell`).
 
 ## The loop is already wired — don't rebuild it
 
-`@studio/growth-loop` powers the **daily + streak + spoiler-free share card +
+`@jfun/growth-loop` powers the **daily + streak + spoiler-free share card +
 k-funnel**. It's configured once in `web/js/game.js` (`GL.configure`). You report a
 result on win — `GL.Daily.markPlayed(day, { swipes, par })` — and get the lock,
 streak, share, and funnel for free. **Never ship loop-less; never hand-roll the
@@ -17,16 +17,16 @@ Replace the placeholder **rules** in `web/js/engine.js` with your game. Keep the
 shape: a **pure, deterministic, seedable** engine (`build(seed)` → same daily for
 everyone) with a **golden + "every daily winnable with a known par" invariant**
 (`scripts/dev/engine-tests.cjs`). Game *rules* live here; reusable primitives come
-from `@studio/web-game-core` (RNG, grid, line-clear, BFS solver).
+from `@jfun/web-game-core` (RNG, grid, line-clear, BFS solver).
 
 ## Studio packages (vendored as browser globals in `web/js/vendor/`)
 
 | Package | Global | Use |
 |---|---|---|
-| `@studio/growth-loop` | `GrowthLoop` | daily/streak/share/k-funnel (wired) |
-| `@studio/web-game-core` | `WebGameCore` | mulberry32 RNG, grid, line-clear, BFS solver |
-| `@studio/analytics` | `Track` | `Track.ev(name, params)` → Firebase/gtag |
-| `@studio/audio` | `Sfx` | procedural SFX (`Sfx.win()`, `Sfx.clear()`, …) |
+| `@jfun/growth-loop` | `GrowthLoop` | daily/streak/share/k-funnel (wired) |
+| `@jfun/web-game-core` | `WebGameCore` | mulberry32 RNG, grid, line-clear, BFS solver |
+| `@jfun/analytics` | `Track` | `Track.ev(name, params)` → Firebase/gtag |
+| `@jfun/audio` | `Sfx` | procedural SFX (`Sfx.win()`, `Sfx.clear()`, …) |
 
 Re-vendor after a package update: copy `packages/*/src/*.js` → `web/js/vendor/`.
 
@@ -41,5 +41,5 @@ Re-vendor after a package update: copy `packages/*/src/*.js` → `web/js/vendor/
 ## Ship
 
 1. `bash scripts/dev/test.sh`
-2. iOS: copy `@studio/native-shell` templates into `ios/`, set team `Y3T546NP6T`,
+2. iOS: copy `@jfun/native-shell` templates into `ios/`, set team `Y3T546NP6T`,
    then `scripts/dev/deploy_ios.sh`. TestFlight flow: see the studio handbook.
