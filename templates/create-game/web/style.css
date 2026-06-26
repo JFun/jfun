@@ -1,0 +1,20 @@
+:root { --bg:#0c0e17; --fg:#e8ecf8; --muted:#8b93ad; --accent:#5b6cff; --good:#ffc24a; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+  font: 16px/1.4 -apple-system, system-ui, sans-serif; }
+#app { max-width: 480px; margin: 0 auto; padding: 24px 18px; display: flex; flex-direction: column; gap: 16px; min-height: 100%; }
+header { text-align: center; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+#hud { color: var(--muted); font-size: 14px; }
+#board { display: grid; gap: 8px; aspect-ratio: 1; }
+.cell { border: none; border-radius: 12px; background: rgba(255,255,255,.05); cursor: pointer; transition: transform .08s, background .12s; }
+.cell.filled { background: var(--accent); }
+.cell:active { transform: scale(.92); }
+.card { text-align: center; padding: 22px; border-radius: 18px; background: #161a2b; }
+.card.hidden { display: none; }
+.card h2 { margin: 0 0 6px; }
+.card p { margin: 4px 0; color: var(--muted); }
+.streak { color: var(--good); font-weight: 700; }
+.btns { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
+button.primary { background: var(--accent); color: #fff; border: none; padding: 12px 28px; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; }
+button.ghost { background: rgba(255,255,255,.1); color: var(--fg); border: none; padding: 12px 18px; border-radius: 12px; font-size: 14px; cursor: pointer; }

@@ -1,0 +1,17 @@
+{
+  "name": "jfun-studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "The studio's shared-infrastructure + knowledge monorepo (com.jfun.*). Web-first vanilla-JS games + framework-agnostic infra. No-build ethos preserved.",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "templates/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "bash scripts/test.sh",
+    "new-game": "node scripts/new-game.mjs"
+  },
+  "license": "UNLICENSED"
+}

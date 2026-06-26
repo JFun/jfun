@@ -1,0 +1,19 @@
+{
+  "name": "create-game-template",
+  "private": true,
+  "version": "0.1.0",
+  "description": "__GameName__ — a vanilla-JS web game with the studio growth loop pre-wired.",
+  "dependencies": {
+    "@studio/growth-loop": "*",
+    "@studio/analytics": "*",
+    "@studio/audio": "*",
+    "@studio/web-game-core": "*"
+  },
+  "devDependencies": {
+    "@studio/test-harness": "*"
+  },
+  "scripts": {
+    "test": "bash scripts/dev/test.sh",
+    "serve": "python3 -m http.server 8000 --directory web"
+  }
+}

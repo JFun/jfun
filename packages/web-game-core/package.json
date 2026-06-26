@@ -1,0 +1,20 @@
+{
+  "name": "@studio/web-game-core",
+  "version": "0.1.0",
+  "description": "Deterministic primitives for the vanilla-JS games: mulberry32 RNG, grid helpers, generic line-clear, BFS solver/validation scaffold. Game rules stay in each game.",
+  "license": "UNLICENSED",
+  "main": "./index.js",
+  "module": "./index.mjs",
+  "browser": "./src/web-game-core.js",
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "require": "./index.js",
+      "browser": "./src/web-game-core.js",
+      "default": "./src/web-game-core.js"
+    },
+    "./browser": "./src/web-game-core.js"
+  },
+  "files": ["src", "index.js", "index.mjs"],
+  "scripts": { "test": "bash scripts/dev/test.sh" }
+}
