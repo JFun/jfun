@@ -1,5 +1,5 @@
 {
-  "name": "@studio/analytics",
+  "name": "@jfun/analytics",
   "version": "0.1.0",
   "description": "One Track API → Firebase (native iOS) / gtag (web). Inert until configured. Stable Firebase-convention event names.",
   "license": "UNLICENSED",

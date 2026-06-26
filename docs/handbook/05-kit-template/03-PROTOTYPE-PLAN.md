@@ -4,7 +4,7 @@
 Answer ONE question: <is the core twist actually fun / graspable?> Nothing else.
 
 ## Build
-No-build HTML (web/ + plain <script> tags). Pull @studio/web-game-core for RNG /
+No-build HTML (web/ + plain <script> tags). Pull @jfun/web-game-core for RNG /
 grid / solver. Engine is pure + seedable from day one.
 
 ## Validation (before any human test)
@@ -14,8 +14,8 @@ grid / solver. Engine is pure + seedable from day one.
 
 ## Fun gate
 ~10 strangers, hands-on. Watch for: graspable in one sentence? fun without
-explanation? want to play again / share? (→ handbook/02 Gate 2–3.)
+explanation? want to play again / share? (→ docs/handbook/02 Gate 2–3.)
 
 ## Kill criteria
-If it's not fun or not graspable at self-test, fall back (handbook/00) — don't
+If it's not fun or not graspable at self-test, fall back (docs/handbook/00) — don't
 polish a failing twist.

@@ -1,7 +1,7 @@
 /* __GameName__ — STARTER engine (REPLACE the rules with your game). This is a
    deliberately trivial placeholder so a freshly-scaffolded game runs and exercises
    the daily loop end-to-end on day one. It builds a small deterministic board from
-   a seed (so everyone gets the same daily) using @studio/web-game-core primitives.
+   a seed (so everyone gets the same daily) using @jfun/web-game-core primitives.
 
    Keep the SHAPE — a pure, deterministic, seedable engine with a golden test — and
    swap in your real rules. The loop wiring in game.js doesn't care what the game
@@ -15,7 +15,7 @@
   "use strict";
   // web-game-core: browser global in the page, require() in node tests.
   const Core = (typeof module !== "undefined" && module.exports)
-    ? require("@studio/web-game-core") : root.WebGameCore;
+    ? require("@jfun/web-game-core") : root.WebGameCore;
   const { makeRNG, EMPTY, FILLED } = Core;
 
   const N = 5;

@@ -1,4 +1,4 @@
-/* @studio/audio — a tiny procedural SFX synth (Web Audio). Lifted from Moraine's
+/* @jfun/audio — a tiny procedural SFX synth (Web Audio). Lifted from Moraine's
    audio.js (canonical). No asset files: every sound is generated on the fly, so it
    bundles to nothing and works offline. iOS needs a user gesture to start audio —
    call Sfx.unlock() on the first pointer/key. A mute preference persists in

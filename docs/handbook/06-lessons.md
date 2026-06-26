@@ -3,7 +3,7 @@
 The most valuable page. ~18 builds; their post-mortems are the real ROI. One line
 each — brutally honest, scannable. **Almost all died the same death: no spread
 loop.** That's why [03-distribution](03-distribution.md) is the spine and
-`@studio/growth-loop` is the hero.
+`@jfun/growth-loop` is the hero.
 
 ## Games
 
@@ -15,7 +15,7 @@ loop.** That's why [03-distribution](03-distribution.md) is the spine and
 | **Underroot** | Complex systems game | Built on early rec — too complex. **Complexity kills; tutorial must be one sentence.** |
 | **Vinegrow** | 3 species × growth × prune | MVP felt too complex. **One mechanic hid four systems** — hold a hard complexity budget. |
 | **Thawline** | Melt + place/match | Graspability fail at self-test — two simultaneous systems, per-piece state. **Twist must be felt, not computed.** |
-| **Moraine** | Solve-to-par gravity puzzle | Genuinely differentiated + solver-proven — **but shipped loop-less** (the old default). Fixed: adopted `@studio/growth-loop` as v1.1 ([03](03-distribution.md)). |
+| **Moraine** | Solve-to-par gravity puzzle | Genuinely differentiated + solver-proven — **but shipped loop-less** (the old default). Fixed: adopted `@jfun/growth-loop` as v1.1 ([03](03-distribution.md)). |
 
 ## Apps
 

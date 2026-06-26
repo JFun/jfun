@@ -4,13 +4,13 @@
   "version": "0.1.0",
   "description": "__GameName__ — a vanilla-JS web game with the studio growth loop pre-wired.",
   "dependencies": {
-    "@studio/growth-loop": "*",
-    "@studio/analytics": "*",
-    "@studio/audio": "*",
-    "@studio/web-game-core": "*"
+    "@jfun/growth-loop": "*",
+    "@jfun/analytics": "*",
+    "@jfun/audio": "*",
+    "@jfun/web-game-core": "*"
   },
   "devDependencies": {
-    "@studio/test-harness": "*"
+    "@jfun/test-harness": "*"
   },
   "scripts": {
     "test": "bash scripts/dev/test.sh",

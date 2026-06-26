@@ -1,10 +1,10 @@
 /* __GameName__ engine tests. Determinism golden + "every daily is winnable with a
    finite par" — the invariant the daily loop leans on (never hand out an
-   unsolvable daily). Uses @studio/test-harness. Replace alongside your real rules. */
+   unsolvable daily). Uses @jfun/test-harness. Replace alongside your real rules. */
 const path = require("path");
-const { harness } = require("@studio/test-harness");
+const { harness } = require("@jfun/test-harness");
 const E = require(path.join(__dirname, "..", "..", "web", "js", "engine.js"));
-const GL = require("@studio/growth-loop");
+const GL = require("@jfun/growth-loop");
 const t = harness("__GAME__ engine");
 
 t.section("determinism golden");

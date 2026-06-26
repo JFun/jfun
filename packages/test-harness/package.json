@@ -1,5 +1,5 @@
 {
-  "name": "@studio/test-harness",
+  "name": "@jfun/test-harness",
   "version": "0.1.0",
   "description": "The test discipline packaged: assertion + golden + determinism + invariant helpers (syntax → golden → invariants).",
   "license": "UNLICENSED",

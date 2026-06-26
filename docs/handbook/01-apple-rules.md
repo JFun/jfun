@@ -29,7 +29,7 @@ Flip* was rejected as "design spam" — same mechanism as Flappy Bird.
 An Apple ID is usually in two teams: a free auto-created "personal team" (can't
 publish, leaves a red-herring cert) and the **paid** team. For this studio:
 **`Y3T546NP6T` ("Qili Chen")**, `tbcql1986@gmail.com`. See
-[`@studio/native-shell`](../packages/native-shell/README.md) for the full upload
+[`@jfun/native-shell`](../../packages/native-shell/README.md) for the full upload
 flow and pbxproj notes.
 
 ## Privacy questionnaire (Firebase Analytics, no ads)

@@ -1,4 +1,4 @@
-# @studio/analytics
+# @jfun/analytics
 
 One `Track` API → Firebase (native iOS) / gtag (web). Lifted from Moraine's
 canonical `analytics.js` + Lanthorn's legacy-shell guard. **Inert** until a GA id
@@ -13,4 +13,4 @@ Track.ev("level_start", { level: 3 });     // Firebase-convention names
 ```
 
 **Event names are a contract — keep them stable.** The dashboards (and
-`@studio/growth-loop`'s k-funnel) depend on exact names. `Track.ev` never throws.
+`@jfun/growth-loop`'s k-funnel) depend on exact names. `Track.ev` never throws.

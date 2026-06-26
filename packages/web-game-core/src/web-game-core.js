@@ -1,4 +1,4 @@
-/* @studio/web-game-core — the deterministic primitives shared by the vanilla-JS
+/* @jfun/web-game-core — the deterministic primitives shared by the vanilla-JS
    games (Lanthorn/Moraine lineage). The REUSABLE parts only: a seeded RNG, grid
    helpers, generic full-line detection, and the BFS solver/validation scaffold.
    The game RULES (Moraine's settle/cascade, Lanthorn's place/lanterns) stay in
