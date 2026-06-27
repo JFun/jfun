@@ -9,7 +9,7 @@
         "http.server",
         "8765",
         "--directory",
-        "/Users/qili/git/moraine/web"
+        "/Users/qili/git/jfun/apps/moraine/web"
       ],
       "port": 8765
     }

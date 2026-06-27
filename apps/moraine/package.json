@@ -1,0 +1,17 @@
+{
+  "name": "moraine",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Moraine — a gravity puzzle you solve. Web + Capacitor iOS.",
+  "dependencies": {
+    "@capacitor-firebase/analytics": "^8.3.0",
+    "@capacitor-firebase/app": "^8.3.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.4.0"
+  },
+  "devDependencies": {
+    "chrome-remote-interface": "^0.34.0"
+  }
+}
