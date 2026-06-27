@@ -11,6 +11,9 @@ for f in web/js/*.js scripts/dev/*.cjs; do
 done
 echo "ok"
 
+echo "— vendor-sync (web/js/growth-loop.js matches @jfun/growth-loop) —"
+node ../../scripts/vendor-sync.mjs --check
+
 echo "— engine tests —"
 node scripts/dev/engine-tests.cjs
 
