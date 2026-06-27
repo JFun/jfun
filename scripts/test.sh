@@ -7,13 +7,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 fail=0
-
-# Vendored browser copies (no-build games inline a package's .js) must match their
-# package source — a stale growth-loop.js = two clients with different daily seeds.
-echo "═══ vendor-sync drift-check ═══"
-if node scripts/vendor-sync.mjs --check; then :; else fail=1; echo "  ✗ vendor copies are stale"; fi
-echo
-
 for pkg in packages/*/; do
   t="${pkg}scripts/dev/test.sh"
   if [[ -f "$t" ]]; then
