@@ -39,6 +39,20 @@ npm test               # fans out to each package's scripts/dev/test.sh
 node scripts/new-game.mjs <name>   # scaffold a new game with the loop pre-wired
 ```
 
-Internal deps use the workspace protocol (`"@jfun/growth-loop": "*"`). Nothing
-is published publicly. Existing repos (Moraine, Lanthorn, …) are **not** migrated
-in — they adopt packages opportunistically. See `docs/plan/` for the full plan.
+Internal deps use the workspace protocol (`"@jfun/growth-loop": "*"`). Nothing is
+published publicly. The two vanilla-JS games now live in `apps/` (`moraine`,
+`lanthorn`); each carries an `apps/<game>/SETUP.md` for its gitignored build
+essentials. The Godot/Unity projects stay in their own repos. See `docs/plan/`.
+
+## Package entry points (why three files per package)
+
+Each package ships the same trio, intentionally:
+
+- **`src/<pkg>.js`** — the real code, a **UMD** module. It's the `browser` entry: a
+  no-build game `<script src>`s it (or vendors a copy) and reads the global. Node
+  `require()`s the same file, so the tests run the exact browser code path.
+- **`index.js`** (CommonJS) and **`index.mjs`** (ESM) — thin re-exports of `src`,
+  with a conditional `exports` map. `index.mjs` imports the one CJS module via
+  Node interop, so ESM and CJS consumers share a single instance — **no dual-package
+  hazard**. This is what lets `import { Daily } from "@jfun/growth-loop"` and
+  `require("@jfun/web-game-core")` both work with zero build step.

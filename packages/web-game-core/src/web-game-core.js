@@ -42,7 +42,10 @@
   // ---- grid helpers ----
   function makeGrid(rows, cols, fill) { return Array.from({ length: rows }, () => Array(cols).fill(fill == null ? EMPTY : fill)); }
   function cloneGrid(g) { return g.map(row => row.slice()); }
-  // Stable string key of a grid (solver visited-set / golden fixtures).
+  // Stable string key of a grid (solver visited-set / golden fixtures). Assumes
+  // SINGLE-DIGIT cell values (0–9) — it concatenates them with no separator, so
+  // fromKey() can split per char. All current games use 0–3; if a game ever needs
+  // cell values ≥ 10, switch both to a per-cell separator.
   function key(g) { return g.map(row => row.join("")).join("|"); }
   function fromKey(str) { return str.split("|").map(row => row.split("").map(Number)); }
 

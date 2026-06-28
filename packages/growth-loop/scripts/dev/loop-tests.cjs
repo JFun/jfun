@@ -52,6 +52,8 @@ console.log("— link round-trip —");
 const link = GL.Daily.buildLink("https://moraine.app/", { d: 142, ref: "ME" });
 ok("link carries d+ref", /[?&]d=142/.test(link) && /[?&]ref=ME/.test(link));
 eq("parseLink recovers", GL.Daily.parseLink("?d=142&ref=ME"), { d: 142, ref: "ME" });
+eq("parseLink ignores a malformed d", GL.Daily.parseLink("?d=abc&ref=ME"), { ref: "ME" });
+eq("parseLink with only ref", GL.Daily.parseLink("?ref=ME"), { ref: "ME" });
 
 console.log("— k-funnel routes to the sink with stable names —");
 events.length = 0;
