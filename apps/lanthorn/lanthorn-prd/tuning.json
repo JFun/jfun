@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "board": { "size": 8, "maxBlockedCells": 14 },
+  "hand": { "slots": 3, "refillWhenEmpty": true },
+  "pieceWeights": {
+    "bandA": { "I2": 3, "I3": 3, "I4": 2, "SQ2": 2, "L3": 2, "T4": 1, "S4": 0, "Z4": 0, "I5": 0 },
+    "bandB": { "I2": 2, "I3": 3, "I4": 2, "SQ2": 2, "L3": 2, "T4": 2, "S4": 1, "Z4": 1, "I5": 0 },
+    "bandC": { "I2": 2, "I3": 2, "I4": 2, "SQ2": 2, "L3": 2, "T4": 2, "S4": 2, "Z4": 2, "I5": 1 }
+  },
+  "lanterns": { "min": 2, "max": 6, "neverAllInOneLine": true },
+  "easyCurve": {
+    "bands": {
+      "A": { "levels": "1-10",  "humanWinTarget": 0.97, "botWinMin": 0.85 },
+      "B": { "levels": "11-30", "humanWinTarget": 0.93, "botWinMin": 0.70 },
+      "C": { "levels": "31-60", "humanWinTarget": 0.88, "botWinMin": 0.55 },
+      "D": { "levels": "61+",   "humanWinTarget": 0.85, "botWinMin": 0.40 }
+    },
+    "worldSize": 20,
+    "breatherAtWorldMidpoint": { "levels": "10, 30, 50, …", "archetype": "A", "note": "easy relief valley mid-world" },
+    "peakAtWorldFinale": { "levels": "20, 40, 60, …", "note": "each world's last level is the hardest of its band — the climax the World-complete card pays off (NOT a breather)" }
+  },
+  "assists": {
+    "freshHandOnLastLantern": { "enabled": false, "perLevel": 1, "note": "cut June 11, 2026 after device playtest - uncommon in genre, confused testers" },
+    "lives": null,
+    "timers": null
+  },
+  "bot": {
+    "runsPerLevel": 100,
+    "heuristic": { "clearBonus": 100, "goalLineProgress": 8, "adjacency": 1, "centerPenalty": 0.25 },
+    "policy": "greedy-1ply"
+  },
+  "greyboxFunGate": { "testers": 10, "mustFinish10Levels": 8, "mustAskForMore": 6 },
+  "webGates": { "D1": 0.35, "D7": 0.12, "noQuitWallBeforeLevel": 50 },
+  "juiceBudgetRatio": { "winCelebration": 3, "failCommiseration": 1 }
+}
