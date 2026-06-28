@@ -1,0 +1,30 @@
+<!-- Headless test project: runs the pure-C# Core's NUnit contract OUTSIDE Unity
+     (and in CI). It LINKS the real Core sources + the real Tests/CoreTests.cs via
+     <Compile Include> — no copies, so there is one source of truth that runs both
+     here (`dotnet test`) and in the Unity Test Runner. NUnit is pinned to 3.x to
+     match Unity's classic Assert API so CoreTests.cs compiles unchanged. -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>Unmake.Core.Tests</AssemblyName>
+    <RootNamespace>Unmake</RootNamespace>
+    <!-- the Unity asmdefs split Core/Tests into separate assemblies; here they
+         compile together, which is fine — Core has no Unity dependency. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Assets\Unmake\Core\**\*.cs" />
+    <Compile Include="..\..\Assets\Unmake\Tests\CoreTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+
+</Project>

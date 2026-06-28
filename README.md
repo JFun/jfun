@@ -1,8 +1,10 @@
 # jfun-studio
 
-The studio's shared-infrastructure + knowledge monorepo for web-first apps/games
-(`com.jfun.*`). npm workspaces, no-build ethos: packages ship as importable ESM,
-the games still run with `python3 -m http.server`.
+The studio's shared-infrastructure + knowledge monorepo for `com.jfun.*` apps/games.
+**Web-first** games (vanilla-JS, no-build ethos: packages ship as importable ESM, the
+games still run with `python3 -m http.server`) **and engine-based games** (Unity/Godot)
+both live here under `apps/`. The shared `@jfun/*` packages serve the web games; engine
+apps bring their own toolchain but honor the same distribution-first directive.
 
 > **Prime directive (`docs/plan/CLAUDE.md`):** building was never the bottleneck —
 > distribution is. The repo earns its existence by serving distribution, so
@@ -11,6 +13,10 @@ the games still run with `python3 -m http.server`.
 ## Layout
 
 ```
+apps/
+  moraine/        vanilla-JS gravity puzzle (web + Capacitor iOS)
+  lanthorn/       vanilla-JS game (web + Capacitor iOS)
+  unmake/         ★ Unity teardown puzzle (iOS/Android) — self-contained engine app
 packages/
   growth-loop/    ★ daily + share card + streak + k-funnel (the hero)
   analytics/      Track API → Firebase (native) / gtag (web)
@@ -40,9 +46,11 @@ node scripts/new-game.mjs <name>   # scaffold a new game with the loop pre-wired
 ```
 
 Internal deps use the workspace protocol (`"@jfun/growth-loop": "*"`). Nothing is
-published publicly. The two vanilla-JS games now live in `apps/` (`moraine`,
-`lanthorn`); each carries an `apps/<game>/SETUP.md` for its gitignored build
-essentials. The Godot/Unity projects stay in their own repos. See `docs/plan/`.
+published publicly. The vanilla-JS games live in `apps/` (`moraine`, `lanthorn`);
+each carries an `apps/<game>/SETUP.md` for its gitignored build essentials.
+**Engine-based games (Unity/Godot) now live in `apps/` too** — e.g. `apps/unmake`, a
+Unity project — self-contained with their own toolchain (they don't vendor the `@jfun/*`
+web packages, but still ship a daily/share loop + analytics). See `docs/plan/`.
 
 ## Package entry points (why three files per package)
 

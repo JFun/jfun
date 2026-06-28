@@ -1,0 +1,3 @@
+m_EditorVersion: 6000.0.0f1
+# Placeholder. Open with your installed Unity 6 LTS (6000.0.x); Unity will rewrite
+# this file (and add the matching revision hash) on first open. See SETUP.md.

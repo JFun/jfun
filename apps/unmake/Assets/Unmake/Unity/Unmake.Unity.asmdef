@@ -1,0 +1,16 @@
+{
+    "name": "Unmake.Unity",
+    "rootNamespace": "Unmake.Unity",
+    "references": [
+        "Unmake.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -12,14 +12,15 @@ The studio's shared-infrastructure + knowledge monorepo. Read `00-CONTEXT.md` (d
 
 ## Scope
 
-- **IN:** web-first projects. Game-stack primitives (vanilla-JS games: Lanthorn/Moraine lineage) + framework-agnostic infra (growth-loop, analytics, native-shell, audio) usable by games and the Capacitor apps.
-- **OUT:** Godot/Unity projects; migrating existing repos; any bundler creeping into the no-build games.
+- **IN:** web-first projects (vanilla-JS games: Lanthorn/Moraine lineage) + framework-agnostic infra (growth-loop, analytics, native-shell, audio) usable by games and the Capacitor apps. **Engine-based game apps (Unity/Godot) are now in-scope too**, living under `apps/<name>` — self-contained, with their own toolchain. They don't consume the no-build `@jfun/*` web packages, but they **must still serve the prime directive**: ship a daily/share/streak loop + analytics (re-implemented natively), because distribution is still the bottleneck.
+- **OUT:** migrating the ~18 existing repos in; any bundler creeping into the no-build *web* games. (An engine app having its own build pipeline is expected — not a violation of the no-build ethos, which governs the web games + packages only.)
 
 ## Tooling
 
 - **npm workspaces**, one root `package.json` (`packages/*`, `templates/*`, `apps/*`). No Nx/Turbo/Lerna unless real pain.
 - **Preserve the no-build ethos** — packages ship as importable ESM; the games still run with `python3 -m http.server`. Add a build step to a package only if a consumer truly needs it.
 - Internal deps via workspace protocol (`@jfun/...`). No public publishing.
+- **Engine apps & npm workspaces:** because the `apps/*` glob is a workspace root, each engine app needs a minimal private `package.json` (name + `"private": true`, no deps) so `npm install` stays happy; the real build lives in the engine (e.g. Unity → iOS/Android). Web games keep using `node scripts/new-game.mjs`; engine apps are scaffolded by hand (a `create-unity-game` template can come later if a second one appears).
 
 ## Build order
 

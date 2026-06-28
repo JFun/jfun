@@ -1,0 +1,50 @@
+# --- Unity generated (rebuilt on open; never commit) ---
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# --- IDE / solution files (regenerated) ---
+.vs/
+.idea/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.tmp
+
+# --- OS noise ---
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+
+# --- Build outputs / signing (see SETUP.md) ---
+*.apk
+*.aab
+*.ipa
+*.app
+*.dSYM.zip
+*.dSYM
+/ios-build/
+/android-build/
+ExportOptions.plist
+*.keystore
+*.mobileprovision
+*.p12
+
+# --- Asset Store / large binaries kept out of git (vendor locally) ---
+Assets/ThirdParty/
+Assets/Plugins/Demigiant/   # DOTween (install locally, see SETUP.md)
+
+# Keep .meta files for committed assets (Unity needs them) — do NOT ignore *.meta

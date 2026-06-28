@@ -1,0 +1,8 @@
+# dotnet build artifacts
+bin/
+obj/
+
+# This headless test project is hand-authored and MUST be committed — re-include it
+# (the Unity .gitignore one level up ignores all *.csproj, since Unity regenerates
+# its own; ours is not Unity-generated).
+!Unmake.Core.Tests.csproj

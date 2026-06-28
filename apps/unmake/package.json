@@ -1,0 +1,13 @@
+{
+  "name": "unmake",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Unmake — a cozy order-of-operations teardown puzzle. Unity engine app (iOS/Android). This package.json exists ONLY so npm workspaces (apps/*) stays happy; there is no JS build here — the real project is the Unity one (open this folder in Unity 6 LTS).",
+  "license": "UNLICENSED",
+  "engineApp": {
+    "engine": "unity",
+    "minEditor": "6000.0",
+    "bundleId": "com.jfun.unmake",
+    "platforms": ["ios", "android"]
+  }
+}
