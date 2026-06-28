@@ -1,0 +1,11 @@
+{
+  "name": "lanthorn",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Lanthorn - lantern block puzzle (web + Capacitor iOS)",
+  "dependencies": {
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/ios": "^8.4.0"
+  }
+}

@@ -12,6 +12,12 @@
         "/Users/qili/git/jfun/apps/moraine/web"
       ],
       "port": 8765
+    },
+    {
+      "name": "lanthorn-web",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8767", "--directory", "/Users/qili/git/jfun/apps/lanthorn/web"],
+      "port": 8767
     }
   ]
 }

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Lanthorn — greybox (grey rectangles only, per house rule)</title>
+<style>
+  :root { --cell: 40px; --line: #9a9a9a; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, system-ui, sans-serif; background: #e8e8e8; color: #333;
+         display: flex; flex-direction: column; align-items: center; min-height: 100vh; touch-action: none; }
+  h1 { font-size: 15px; font-weight: 600; margin: 10px 0 2px; color: #555; }
+  #hud { font-size: 13px; color: #666; margin-bottom: 8px; }
+  #board { position: relative; display: grid; grid-template-columns: repeat(8, var(--cell));
+           grid-template-rows: repeat(8, var(--cell)); gap: 2px; background: #cfcfcf; padding: 4px; border-radius: 6px; }
+  .cell { background: #f4f4f4; border-radius: 3px; position: relative; }
+  .cell.wall { background: #8d8d8d; }
+  .cell.filled { background: #b6b6b6; border: 1px solid var(--line); }
+  .cell.goal::after { content: "◎"; position: absolute; inset: 0; display: flex; align-items: center;
+                      justify-content: center; font-size: 20px; color: #777; }
+  .cell.goal.lit::after { content: "●"; color: #2e2e2e; }
+  .cell.ok { outline: 3px solid #7da87d; outline-offset: -3px; }
+  .cell.bad { outline: 3px solid #c08080; outline-offset: -3px; }
+  .cell.flash { animation: fl .25s; }
+  @keyframes fl { 0% { background: #fff; } 100% { background: #f4f4f4; } }
+  #tray { display: flex; gap: 18px; margin: 14px 0 6px; min-height: 96px; align-items: center; }
+  .piece { display: grid; gap: 2px; cursor: grab; touch-action: none; }
+  .piece .pc { width: 22px; height: 22px; background: #a9a9a9; border: 1px solid var(--line); border-radius: 3px; }
+  .piece.used { visibility: hidden; }
+  #ghost { position: fixed; pointer-events: none; display: none; z-index: 10; opacity: .85; }
+  #ghost .pc { width: var(--cell); height: var(--cell); }
+  #overlay { position: fixed; inset: 0; background: rgba(40,40,40,.55); display: none;
+             align-items: center; justify-content: center; z-index: 20; }
+  #overlay .card { background: #f6f6f6; border-radius: 10px; padding: 22px 28px; text-align: center; max-width: 320px; }
+  #overlay h2 { margin: 0 0 6px; font-size: 18px; }
+  #overlay p { margin: 4px 0 12px; font-size: 13px; color: #666; }
+  button { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid #999;
+           background: #eee; cursor: pointer; margin: 0 4px; }
+  button.primary { background: #d8d8d8; font-weight: 600; }
+  #stats { font-size: 11px; color: #888; margin: 6px 0 14px; white-space: pre; text-align: center; }
+  #botout { font: 12px/1.5 ui-monospace, monospace; white-space: pre; padding: 20px; }
+  .sentence { font-size: 12px; color: #777; margin: 2px 0 10px; }
+</style>
+</head>
+<body>
+<h1>LANTHORN — greybox</h1>
+<div class="sentence">Fill a row or column through a ◎ to light it. Light them all.</div>
+<div id="hud"></div>
+<div id="board"></div>
+<div id="tray"></div>
+<div id="stats"></div>
+<div id="ghost"></div>
+<div id="overlay"><div class="card"><h2 id="ovTitle"></h2><p id="ovText"></p><div id="ovBtns"></div></div></div>
+<div id="botout"></div>
+<script src="engine.js"></script>
+<script>
+(function () {
+  const E = globalThis.LanthornEngine;
+  const N = E.N;
+
+  // ---------- bot mode ----------
+  if (location.search.includes("bot=1")) {
+    document.getElementById("board").style.display = "none";
+    document.getElementById("tray").style.display = "none";
+    const out = document.getElementById("botout");
+    let txt = "bot-sim (greedy 1-ply, 100 seed-variants/level, no assist)\n\nlvl band  win%  bandMin  verdict\n";
+    for (const lv of E.LEVELS) {
+      const r = E.simulateLevel(lv, 100);
+      txt += String(r.id).padStart(3) + "  " + r.band + "  " + (r.winRate*100).toFixed(0).padStart(4) + "%  " +
+             (r.bandMin*100).toFixed(0).padStart(5) + "%  " + (r.winRate >= r.bandMin ? "PASS" : "FAIL") + "\n";
+    }
+    out.textContent = txt;
+    return;
+  }
+
+  // ---------- session state ----------
+  let levelIdx = 0, g = null;
+  const session = E.LEVELS.map(() => ({ attempts: 0, wins: 0 }));
+
+  const boardEl = document.getElementById("board");
+  const trayEl = document.getElementById("tray");
+  const hudEl = document.getElementById("hud");
+  const statsEl = document.getElementById("stats");
+  const ghost = document.getElementById("ghost");
+  const overlay = document.getElementById("overlay");
+
+  function startLevel(i, isRetry) {
+    levelIdx = i;
+    g = E.newGame(E.LEVELS[i]);
+    if (!isRetry) session[i].attempts++;
+    else session[i].attempts++;
+    overlay.style.display = "none";
+    render();
+  }
+
+  // ---------- render ----------
+  const cells = [];
+  function buildBoard() {
+    boardEl.innerHTML = "";
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      const d = document.createElement("div");
+      d.className = "cell"; d.dataset.r = r; d.dataset.c = c;
+      boardEl.appendChild(d); cells.push(d);
+    }
+  }
+  function render(flashLines) {
+    const lv = g.level;
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      const d = cells[r * N + c];
+      d.className = "cell";
+      if (g.grid[r][c] === 2) d.classList.add("wall");
+      if (g.grid[r][c] === 1) d.classList.add("filled");
+      const ln = g.lanterns.find(l => l.r === r && l.c === c);
+      if (ln) { d.classList.add("goal"); if (ln.lit) d.classList.add("lit"); }
+      if (flashLines && (flashLines.rows.includes(r) || flashLines.cols.includes(c))) d.classList.add("flash");
+    }
+    trayEl.innerHTML = "";
+    g.hand.forEach((sh, idx) => trayEl.appendChild(makePieceEl(sh, idx)));
+    const left = g.lanterns.filter(l => !l.lit).length;
+    hudEl.textContent = `level ${lv.id}/10 · lanterns left ${left} · pieces ${g.piecesUsed}`;
+    statsEl.textContent = session.map((s, i) => `L${i + 1} ${s.wins}/${s.attempts}`).join("  ");
+  }
+  function makePieceEl(shapeKey, handIdx) {
+    const cellsArr = E.SHAPES[shapeKey];
+    const maxR = Math.max(...cellsArr.map(x => x[0])) + 1;
+    const maxC = Math.max(...cellsArr.map(x => x[1])) + 1;
+    const el = document.createElement("div");
+    el.className = "piece"; el.dataset.idx = handIdx; el.dataset.shape = shapeKey;
+    el.style.gridTemplateRows = `repeat(${maxR}, 22px)`;
+    el.style.gridTemplateColumns = `repeat(${maxC}, 22px)`;
+    const set = new Set(cellsArr.map(x => x[0] + "," + x[1]));
+    for (let r = 0; r < maxR; r++) for (let c = 0; c < maxC; c++) {
+      const d = document.createElement("div");
+      if (set.has(r + "," + c)) d.className = "pc"; else d.style.visibility = "hidden";
+      el.appendChild(d);
+    }
+    el.addEventListener("pointerdown", ev => startDrag(ev, el));
+    return el;
+  }
+
+  // ---------- drag ----------
+  let drag = null;
+  function startDrag(ev, el) {
+    if (g.over) return;
+    ev.preventDefault();
+    const shapeKey = el.dataset.shape, handIdx = +el.dataset.idx;
+    const cellsArr = E.SHAPES[shapeKey];
+    const maxR = Math.max(...cellsArr.map(x => x[0])) + 1;
+    const maxC = Math.max(...cellsArr.map(x => x[1])) + 1;
+    ghost.innerHTML = "";
+    ghost.style.display = "grid";
+    ghost.style.gridTemplateRows = `repeat(${maxR}, var(--cell))`;
+    ghost.style.gridTemplateColumns = `repeat(${maxC}, var(--cell))`;
+    ghost.style.gap = "2px";
+    const set = new Set(cellsArr.map(x => x[0] + "," + x[1]));
+    for (let r = 0; r < maxR; r++) for (let c = 0; c < maxC; c++) {
+      const d = document.createElement("div");
+      if (set.has(r + "," + c)) { d.className = "pc"; d.style.background = "#a0a0a0"; d.style.border = "1px solid #888"; d.style.borderRadius = "4px"; }
+      else d.style.visibility = "hidden";
+      ghost.appendChild(d);
+    }
+    el.classList.add("used");
+    drag = { shapeKey, handIdx, el };
+    moveDrag(ev);
+    window.addEventListener("pointermove", moveDrag);
+    window.addEventListener("pointerup", endDrag, { once: true });
+  }
+  function boardCellAt(x, y) {
+    const rect = boardEl.getBoundingClientRect();
+    const cs = rect.width / N;
+    const c = Math.floor((x - rect.left) / cs), r = Math.floor((y - rect.top) / cs);
+    if (r < 0 || c < 0 || r >= N || c >= N) return null;
+    return { r, c };
+  }
+  function anchorFor(ev) {
+    // anchor = top-left of shape under finger, lifted slightly for thumb visibility
+    const at = boardCellAt(ev.clientX, ev.clientY - 30);
+    return at;
+  }
+  function moveDrag(ev) {
+    ghost.style.left = (ev.clientX - 20) + "px";
+    ghost.style.top = (ev.clientY - 50) + "px";
+    cells.forEach(d => d.classList.remove("ok", "bad"));
+    const at = anchorFor(ev);
+    if (!at) return;
+    const legal = E.canPlace(g, drag.shapeKey, at.r, at.c);
+    for (const [dr, dc] of E.SHAPES[drag.shapeKey]) {
+      const rr = at.r + dr, cc = at.c + dc;
+      if (rr >= 0 && cc >= 0 && rr < N && cc < N) cells[rr * N + cc].classList.add(legal ? "ok" : "bad");
+    }
+  }
+  function endDrag(ev) {
+    window.removeEventListener("pointermove", moveDrag);
+    ghost.style.display = "none";
+    cells.forEach(d => d.classList.remove("ok", "bad"));
+    const at = anchorFor(ev);
+    let placed = null;
+    if (at) placed = E.place(g, drag.handIdx, at.r, at.c);
+    if (!placed) drag.el.classList.remove("used");
+    drag = null;
+    if (placed) {
+      render(placed.cleared);
+      if (g.over) setTimeout(showEnd, 280);
+    }
+  }
+
+  // ---------- overlays ----------
+  function showEnd() {
+    const t = document.getElementById("ovTitle"), p = document.getElementById("ovText"), b = document.getElementById("ovBtns");
+    overlay.style.display = "flex"; b.innerHTML = "";
+    if (g.won) {
+      session[levelIdx].wins++;
+      t.textContent = "All lanterns lit ✓";
+      p.textContent = `${g.piecesUsed} pieces. (Imagine them floating up — theme comes after the fun gate.)`;
+      if (levelIdx < E.LEVELS.length - 1) addBtn(b, "Next level", () => startLevel(levelIdx + 1), true);
+      else addBtn(b, "Done — 10/10!", () => { overlay.style.display = "none"; }, true);
+    } else {
+      t.textContent = "No piece fits";
+      p.textContent = "Same level, same pieces — free retry.";
+      if (E.assistEligible(g)) addBtn(b, "Fresh hand (1 lantern left!)", () => {
+        E.useAssist(g); overlay.style.display = "none"; render();
+        if (g.over) setTimeout(showEnd, 100);
+      }, true);
+      addBtn(b, "Retry", () => startLevel(levelIdx, true), !E.assistEligible(g));
+    }
+  }
+  function addBtn(parent, label, fn, primary) {
+    const btn = document.createElement("button");
+    if (primary) btn.className = "primary";
+    btn.textContent = label; btn.addEventListener("click", fn);
+    parent.appendChild(btn);
+  }
+
+  // testing shortcut
+  window.addEventListener("keydown", e => {
+    if (e.key === "n" && levelIdx < E.LEVELS.length - 1) startLevel(levelIdx + 1);
+    if (e.key === "p" && levelIdx > 0) startLevel(levelIdx - 1);
+  });
+
+  buildBoard();
+  startLevel(0);
+})();
+</script>
+</body>
+</html>
