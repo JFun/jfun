@@ -98,7 +98,7 @@
   function parseLink(search) {
     const q = new URLSearchParams(search != null ? search : (root.location ? root.location.search : ""));
     const out = {};
-    if (q.has("d")) out.d = parseInt(q.get("d"), 10);
+    if (q.has("d")) { const d = parseInt(q.get("d"), 10); if (!isNaN(d)) out.d = d; }   // ignore a malformed ?d=
     if (q.has("ref")) out.ref = q.get("ref");
     return out;
   }
@@ -282,17 +282,13 @@
   // dashboards depend on them). Derived: share-rate, link-CTR, k.
   // =====================================================================
   const LoopTrack = {
-    dailyStart(day) { track("daily_start", { day: norm(day), seed: seedForDate(dayDate(day)) }); },
+    dailyStart(day) { track("daily_start", { day: norm(day), seed: seedForDay(norm(day)) }); },
     dailySolve(r) { r = r || {}; track("daily_solve", { swipes: r.swipes, par: r.par, beatPar: (r.swipes != null && r.par != null) ? (r.swipes <= r.par) : undefined }); },
     cardShare(r) { r = r || {}; track("card_share", { variant: r.variant, channel: r.channel }); },
     linkOpen(r) { r = r || {}; track("link_open", { ref: r.ref, variant: r.variant }); },
     playFromLink(r) { r = r || {}; track("play_from_link", { ref: r.ref, variant: r.variant }); },
   };
   function norm(day) { return (day == null) ? dayIndex() : day; }
-  function dayDate(day) { // reconstruct a Date from a dayIndex for seedForDate (UTC noon — safe)
-    if (day == null) return new Date();
-    return new Date(day * DAY_MS + DAY_MS / 2);
-  }
 
   return { configure, Daily, Streak, ShareCard, LoopTrack, VERSION: "0.1.0" };
 });
