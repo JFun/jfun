@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Restore</title>
+<style>
+  :root{
+    --bg:#14110d; --panel:#1d1812; --ink:#efe6d4; --muted:#9a8d76;
+    --gold:#c9a227; --gold-soft:#e7c560; --frame:#3a2e1c; --seam:#0a0805;
+    --good:#5ea668; --warn:#d4a23a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:radial-gradient(120% 90% at 50% -10%,#231b12 0%,var(--bg) 60%);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    min-height:100%;padding:14px 12px 28px;gap:12px;
+    overflow-x:hidden;user-select:none;-webkit-user-select:none;touch-action:manipulation;
+  }
+  header{width:100%;max-width:460px;text-align:center;}
+  h1{margin:0;font-size:26px;letter-spacing:3px;font-weight:600;
+     background:linear-gradient(180deg,var(--gold-soft),var(--gold));
+     -webkit-background-clip:text;background-clip:text;color:transparent;}
+  .how{margin:3px 0 0;font-size:12.5px;color:var(--muted);}
+  .meta{display:flex;gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap;}
+  .chip{background:var(--panel);border:1px solid #2c2418;border-radius:999px;
+        padding:5px 11px;font-size:12px;color:var(--ink);}
+  .chip b{color:var(--gold-soft);}
+  /* gilded frame + stage */
+  .frame{position:relative;width:min(92vw,380px);aspect-ratio:1/1;
+    padding:14px;border-radius:10px;
+    background:linear-gradient(135deg,#5a4421,#2c2010 45%,#6b521f);
+    box-shadow:0 12px 40px rgba(0,0,0,.55),inset 0 0 0 2px #1a130a;}
+  .matte{position:absolute;inset:14px;border-radius:4px;background:#0d0a06;
+    box-shadow:inset 0 0 24px rgba(0,0,0,.8);}
+  #stage{position:absolute;inset:14px;border-radius:4px;overflow:hidden;}
+  #art{position:absolute;inset:0;}
+  #art.sepia{filter:sepia(.95) brightness(.78) contrast(.92) saturate(.55);}
+  #art.heal{transition:filter 1.5s ease;}
+  .hole{position:absolute;border:1.5px dashed rgba(201,162,39,.45);
+    background:rgba(0,0,0,.55);border-radius:2px;
+    box-shadow:inset 0 0 14px rgba(0,0,0,.75);}
+  .hole.lit{border-color:var(--gold-soft);box-shadow:inset 0 0 18px rgba(201,162,39,.4);}
+  .hole.filled{border-color:transparent;background:transparent;box-shadow:none;}
+  .shimmer{position:absolute;border-radius:2px;pointer-events:none;
+    box-shadow:0 0 0 2px var(--gold-soft),0 0 22px 6px rgba(231,197,96,.85);
+    opacity:0;}
+  .shimmer.go{animation:heal .7s ease-out forwards;}
+  @keyframes heal{0%{opacity:1;transform:scale(1.18);}100%{opacity:0;transform:scale(1);}}
+  /* fragment tray */
+  .tray{width:min(92vw,380px);display:flex;flex-wrap:wrap;gap:12px;
+    justify-content:center;align-items:center;min-height:96px;
+    background:var(--panel);border:1px solid #2a2216;border-radius:12px;padding:12px;}
+  .tray .lbl{width:100%;text-align:center;font-size:11px;color:var(--muted);
+    letter-spacing:1px;text-transform:uppercase;margin:-2px 0 2px;}
+  .frag{position:relative;width:72px;height:72px;border-radius:3px;
+    cursor:grab;touch-action:none;
+    box-shadow:0 4px 12px rgba(0,0,0,.5),inset 0 0 0 1px rgba(0,0,0,.4);
+    transition:transform .12s,box-shadow .12s;}
+  .frag:active{cursor:grabbing;}
+  .frag.dragging{z-index:50;box-shadow:0 10px 24px rgba(0,0,0,.6),0 0 0 2px var(--gold-soft);transform:scale(1.04);}
+  .frag.placed{display:none;}
+  .frag.bounce{animation:bounce .35s;}
+  @keyframes bounce{0%,100%{transform:translate(0,0);}25%{transform:translate(-6px,0) rotate(-3deg);}75%{transform:translate(6px,0) rotate(3deg);}}
+  /* museum + share */
+  .museum{width:min(92vw,460px);background:var(--panel);border:1px solid #2a2216;
+    border-radius:12px;padding:12px;}
+  .museum h2{margin:0 0 8px;font-size:13px;letter-spacing:2px;color:var(--muted);
+    text-transform:uppercase;font-weight:600;text-align:center;}
+  .wall{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .slot{aspect-ratio:1/1;border-radius:4px;background:#0e0b07;
+    border:1px solid #241c11;display:flex;align-items:center;justify-content:center;
+    font-size:18px;color:#3b3120;}
+  .slot.full{border-color:#4a3a1c;box-shadow:0 0 0 1px #4a3a1c,inset 0 0 10px rgba(0,0,0,.6);}
+  .actions{display:flex;gap:10px;justify-content:center;margin-top:12px;flex-wrap:wrap;}
+  button{font-family:inherit;font-size:14px;border-radius:999px;padding:11px 20px;
+    border:1px solid var(--frame);background:linear-gradient(180deg,#2a2114,#1c160d);
+    color:var(--ink);cursor:pointer;letter-spacing:.5px;}
+  button.primary{background:linear-gradient(180deg,var(--gold-soft),var(--gold));
+    color:#1a130a;border-color:var(--gold);font-weight:600;}
+  button:active{transform:translateY(1px);}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);
+    background:#241c11;color:var(--ink);border:1px solid var(--gold);
+    padding:11px 16px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;
+    transition:opacity .25s,transform .25s;max-width:90vw;text-align:center;white-space:pre-line;z-index:200;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .reveal{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;background:rgba(10,8,5,.0);opacity:0;pointer-events:none;
+    transition:opacity .5s;}
+  .reveal.show{opacity:1;}
+  .reveal .badge{background:rgba(20,16,10,.78);border:1px solid var(--gold);
+    border-radius:12px;padding:14px 18px;text-align:center;}
+  .reveal .t{font-size:17px;color:var(--gold-soft);font-weight:600;letter-spacing:1px;}
+  .reveal .s{font-size:12.5px;color:var(--ink);margin-top:4px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>RESTORE</h1>
+  <p class="how">Drag each torn fragment back into its hole — heal the seams, flood the color back.</p>
+  <div class="meta">
+    <span class="chip">Day <b id="day">142</b></span>
+    <span class="chip">🔥 Streak <b id="streak">7</b></span>
+    <span class="chip">⏱ <b id="timer">0.0s</b></span>
+  </div>
+</header>
+
+<div class="frame">
+  <div class="matte"></div>
+  <div id="stage">
+    <div id="art" class="sepia"></div>
+  </div>
+</div>
+
+<div class="tray" id="tray"><div class="lbl">Fragments</div></div>
+
+<div class="museum">
+  <h2>Your Museum Wall</h2>
+  <div class="wall" id="wall"></div>
+  <div class="actions">
+    <button id="share" class="primary">Share</button>
+    <button id="reset">New Canvas</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  // ---- deterministic "today" seed ----
+  var SEED = 142;   // Day N, fixed for the prototype
+  var STREAK = 7;   // consecutive-day streak stub
+  function rng(s){return function(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;};}
+
+  var stage=document.getElementById('stage'),
+      art=document.getElementById('art'),
+      tray=document.getElementById('tray'),
+      toastEl=document.getElementById('toast');
+
+  // ---- the masterpiece: a layered SVG gradient "painting" ----
+  function painting(){
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%">'+
+      '<defs>'+
+      '<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">'+
+        '<stop offset="0" stop-color="#f2c46b"/><stop offset="0.45" stop-color="#e08b53"/>'+
+        '<stop offset="0.75" stop-color="#9c4f6b"/><stop offset="1" stop-color="#3d2a55"/></linearGradient>'+
+      '<radialGradient id="sun" cx="0.72" cy="0.34" r="0.22">'+
+        '<stop offset="0" stop-color="#fff4cf"/><stop offset="1" stop-color="#f2c46b" stop-opacity="0"/></radialGradient>'+
+      '</defs>'+
+      '<rect width="100" height="100" fill="url(#sky)"/>'+
+      '<circle cx="72" cy="34" r="11" fill="#ffe9b0"/>'+
+      '<rect width="100" height="100" fill="url(#sun)"/>'+
+      '<path d="M0,70 L22,52 L40,66 L60,46 L78,62 L100,48 L100,100 L0,100 Z" fill="#2f3d4a" opacity="0.92"/>'+
+      '<path d="M0,82 L30,70 L52,80 L74,68 L100,80 L100,100 L0,100 Z" fill="#1c2730"/>'+
+      '<ellipse cx="50" cy="92" rx="46" ry="7" fill="#101820" opacity="0.6"/>'+
+      '<circle cx="20" cy="22" r="1.3" fill="#fff6dd"/><circle cx="34" cy="14" r="1" fill="#fff6dd"/>'+
+      '<circle cx="50" cy="20" r="0.9" fill="#fff6dd"/>'+
+      '</svg>';
+  }
+  art.innerHTML=painting();
+
+  // hole definitions in % of stage (x,y,w,h)
+  var HOLES=[
+    {id:'A',x:8,y:10,w:30,h:30},
+    {id:'B',x:60,y:18,w:30,h:30},
+    {id:'C',x:14,y:58,w:32,h:30},
+    {id:'D',x:58,y:60,w:32,h:28}
+  ];
+
+  var holeEls={}, shimmers={}, state, startTime, ticking;
+
+  // build a fragment's visual: the SVG painting clipped to the hole region.
+  function fragSVG(h, decoyTint){
+    // crop the full painting to the hole window by translating the viewBox
+    var vbX=h.x, vbY=h.y, vbW=h.w, vbH=h.h;
+    var inner=painting().replace('viewBox="0 0 100 100"','viewBox="'+vbX+' '+vbY+' '+vbW+' '+vbH+'"');
+    var tint = decoyTint ? '<rect x="'+vbX+'" y="'+vbY+'" width="'+vbW+'" height="'+vbH+'" fill="'+decoyTint+'" opacity="0.42"/>' : '';
+    // inject tint just before closing svg
+    if(tint) inner = inner.replace('</svg>', tint+'</svg>');
+    return inner;
+  }
+
+  function setup(){
+    state={placed:0, firstTry:{}, attempts:{}, done:false};
+    startTime=Date.now();
+    // clear stage holes
+    Object.keys(holeEls).forEach(function(k){holeEls[k].remove();});
+    Object.keys(shimmers).forEach(function(k){shimmers[k].remove();});
+    holeEls={};shimmers={};
+    // clear seated color stamps + any lingering reveal badge from a prior round
+    stage.querySelectorAll('.healfill,.reveal').forEach(function(n){n.remove();});
+    // tray reset
+    tray.innerHTML='<div class="lbl">Fragments</div>';
+    art.className='sepia';
+
+    // create holes on stage
+    HOLES.forEach(function(h){
+      var el=document.createElement('div');
+      el.className='hole';
+      el.style.left=h.x+'%';el.style.top=h.y+'%';
+      el.style.width=h.w+'%';el.style.height=h.h+'%';
+      stage.appendChild(el);holeEls[h.id]=el;
+      var sh=document.createElement('div');
+      sh.className='shimmer';
+      sh.style.left=h.x+'%';sh.style.top=h.y+'%';
+      sh.style.width=h.w+'%';sh.style.height=h.h+'%';
+      stage.appendChild(sh);shimmers[h.id]=sh;
+      state.attempts[h.id]=0;
+    });
+
+    // build fragments: 4 correct + 2 decoys (deduction layer)
+    var pieces=[];
+    HOLES.forEach(function(h){pieces.push({hole:h.id,decoy:false,h:h});});
+    // decoys: near-fit, wrong-tint copies of two holes
+    pieces.push({hole:'A',decoy:true,h:HOLES[0],tint:'#3aa0d0'}); // too cool/blue
+    pieces.push({hole:'D',decoy:true,h:HOLES[3],tint:'#d03a4a'}); // too warm/red
+
+    // deterministic shuffle
+    var r=rng(SEED*97+3);
+    for(var i=pieces.length-1;i>0;i--){var j=Math.floor(r()*(i+1));var t=pieces[i];pieces[i]=pieces[j];pieces[j]=t;}
+
+    pieces.forEach(function(p,idx){
+      var f=document.createElement('div');
+      f.className='frag';
+      f.innerHTML=fragSVG(p.h, p.decoy?p.tint:null);
+      f.dataset.hole=p.hole;f.dataset.decoy=p.decoy?'1':'0';
+      tray.appendChild(f);
+      attachDrag(f);
+    });
+    updateTimer();
+  }
+
+  // ---------- drag handling (pointer = touch + mouse) ----------
+  function attachDrag(f){
+    var ox,oy,dragging=false,pid=null;
+    function clearLit(){Object.keys(holeEls).forEach(function(k){holeEls[k].classList.remove('lit');});}
+    function down(e){
+      if(state.done) return;
+      var p=point(e);
+      dragging=true;pid=e.pointerId;
+      var r=f.getBoundingClientRect();
+      ox=p.x-r.left;oy=p.y-r.top;
+      // float it
+      f.classList.add('dragging');
+      f.style.position='fixed';
+      f.style.width=r.width+'px';f.style.height=r.height+'px';
+      f.style.left=r.left+'px';f.style.top=r.top+'px';
+      document.body.appendChild(f);
+      moveTo(r.left,r.top);
+      // capture so the pointer stream stays bound to the fragment even after
+      // it's reparented to <body> (critical for reliable touch dragging)
+      try{ f.setPointerCapture(e.pointerId); }catch(err){}
+      window.addEventListener('pointermove',move,{passive:false});
+      window.addEventListener('pointerup',up);
+      window.addEventListener('pointercancel',cancel);
+      e.preventDefault();
+    }
+    function move(e){
+      if(!dragging || (pid!=null && e.pointerId!==pid))return;
+      var p=point(e);
+      moveTo(p.x-ox,p.y-oy);
+      // light the hovered correct hole
+      clearLit();
+      var over=holeUnder(p.x,p.y);
+      if(over && !holeEls[over].classList.contains('filled')) holeEls[over].classList.add('lit');
+      e.preventDefault();
+    }
+    function teardown(){
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',up);
+      window.removeEventListener('pointercancel',cancel);
+      try{ if(pid!=null) f.releasePointerCapture(pid); }catch(err){}
+      pid=null;
+    }
+    function up(e){
+      if(!dragging || (pid!=null && e.pointerId!==pid))return;
+      dragging=false;
+      var p=point(e);
+      teardown();
+      var over=holeUnder(p.x,p.y);
+      clearLit();
+      var isDecoy=f.dataset.decoy==='1';
+      if(over && over===f.dataset.hole && !isDecoy && !holeEls[over].classList.contains('filled')){
+        seat(f,over);
+      } else {
+        if(over){ state.attempts[over]=(state.attempts[over]||0)+1; }
+        bounceHome(f);
+      }
+    }
+    // pointercancel (browser stole the gesture, e.g. mistaken scroll) — never
+    // leave a fragment orphaned in mid-air; always send it home so the puzzle
+    // stays solvable.
+    function cancel(){
+      if(!dragging)return;
+      dragging=false;
+      teardown();
+      clearLit();
+      bounceHome(f);
+    }
+    function moveTo(x,y){f.style.left=x+'px';f.style.top=y+'px';}
+    function bounceHome(f){
+      f.classList.remove('dragging');
+      f.classList.add('bounce');
+      f.style.position='';f.style.left='';f.style.top='';f.style.width='';f.style.height='';
+      tray.appendChild(f);
+      setTimeout(function(){f.classList.remove('bounce');},360);
+    }
+    f.addEventListener('pointerdown',down);
+  }
+
+  function point(e){return {x:e.clientX,y:e.clientY};}
+  function holeUnder(x,y){
+    var sr=stage.getBoundingClientRect();
+    for(var i=0;i<HOLES.length;i++){
+      var h=HOLES[i];
+      var hx=sr.left+sr.width*h.x/100, hy=sr.top+sr.height*h.y/100,
+          hw=sr.width*h.w/100, hh=sr.height*h.h/100;
+      if(x>=hx&&x<=hx+hw&&y>=hy&&y<=hy+hh) return h.id;
+    }
+    return null;
+  }
+
+  // ---------- seating a correct fragment ----------
+  function seat(f,holeId){
+    var hole=holeEls[holeId];
+    // record first-try correctness for the share grid
+    if(state.firstTry[holeId]===undefined)
+      state.firstTry[holeId]= (state.attempts[holeId]||0)===0;
+    // place the fragment's art permanently into the hole
+    var h=HOLES.filter(function(x){return x.id===holeId;})[0];
+    var fill=document.createElement('div');
+    fill.style.position='absolute';
+    fill.style.left=h.x+'%';fill.style.top=h.y+'%';
+    fill.style.width=h.w+'%';fill.style.height=h.h+'%';
+    fill.innerHTML=fragSVG(h,null);
+    fill.firstChild.style.width='100%';fill.firstChild.style.height='100%';
+    // match current sepia look until the reveal
+    fill.style.filter=art.classList.contains('sepia')?
+      'sepia(.95) brightness(.78) contrast(.92) saturate(.55)':'none';
+    fill.className='healfill';
+    stage.appendChild(fill);
+    hole.classList.add('filled');
+    // heal shimmer
+    var sh=shimmers[holeId];sh.classList.remove('go');void sh.offsetWidth;sh.classList.add('go');
+    f.classList.add('placed');
+    click();
+    state.placed++;
+    if(state.placed>=HOLES.length) finish();
+  }
+
+  // tactile "click" via WebAudio (no assets)
+  var actx=null;
+  function click(freq){
+    try{
+      actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+      var o=actx.createOscillator(),g=actx.createGain();
+      o.frequency.value=freq||520;o.type='triangle';
+      o.connect(g);g.connect(actx.destination);
+      g.gain.setValueAtTime(.12,actx.currentTime);
+      g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+.12);
+      o.start();o.stop(actx.currentTime+.13);
+    }catch(e){}
+  }
+
+  // ---------- the REVEAL: un-fade sepia -> full color ----------
+  function finish(){
+    state.done=true;clearInterval(ticking);
+    var secs=((Date.now()-startTime)/1000);
+    state.seconds=secs;
+    setTimeout(function(){
+      art.classList.add('heal');
+      art.classList.remove('sepia');
+      // un-sepia all the seated fills together for one wash
+      document.querySelectorAll('.healfill').forEach(function(fl){
+        fl.style.transition='filter 1.5s ease';fl.style.filter='none';
+      });
+      click(660);setTimeout(function(){click(880);},160);setTimeout(function(){click(1040);},320);
+      showReveal(secs);
+      addToMuseum();
+    },420);
+  }
+
+  function showReveal(secs){
+    var r=document.createElement('div');
+    r.className='reveal';
+    r.innerHTML='<div class="badge"><div class="t">🖼️ Restored</div>'+
+                '<div class="s">in '+secs.toFixed(0)+'s · joined your museum</div></div>';
+    stage.appendChild(r);
+    requestAnimationFrame(function(){r.classList.add('show');});
+    setTimeout(function(){r.classList.remove('show');setTimeout(function(){r.remove();},600);},2600);
+  }
+
+  // ---------- museum wall (localStorage) ----------
+  function loadWall(){
+    try{return JSON.parse(localStorage.getItem('restore_wall')||'[]');}catch(e){return [];}
+  }
+  function saveWall(w){try{localStorage.setItem('restore_wall',JSON.stringify(w));}catch(e){}}
+  function renderWall(){
+    var wall=document.getElementById('wall'),w=loadWall();
+    wall.innerHTML='';
+    var total=12;
+    for(var i=0;i<total;i++){
+      var s=document.createElement('div');s.className='slot';
+      if(w[i]){s.classList.add('full');s.textContent=w[i];}
+      wall.appendChild(s);
+    }
+  }
+  function addToMuseum(){
+    var arts=['🌅','🏔️','🌊','🌲','🌙','🏛️','🌻','🍃'];
+    var w=loadWall();
+    w.push(arts[w.length%arts.length]);
+    saveWall(w);renderWall();
+    // streak is a stable daily stub (consecutive days added). It "lights up"
+    // for today the moment you restore, rather than inflating per-piece.
+    document.getElementById('streak').textContent=STREAK;
+    document.querySelector('.meta .chip:nth-child(2)').style.color='var(--gold-soft)';
+  }
+
+  // ---------- share: spoiler-safe first-try grid ----------
+  function buildShare(){
+    var line=HOLES.map(function(h){
+      return state.firstTry[h.id]?'🟩':'🟨';
+    }).join('');
+    var secs=state.seconds?state.seconds.toFixed(0):'--';
+    return 'Restore · Day '+SEED+'\n'+line+'\n🖼️ restored in '+secs+'s';
+  }
+
+  // ---------- helpers ----------
+  function updateTimer(){
+    document.getElementById('timer').textContent=
+      ((Date.now()-startTime)/1000).toFixed(1)+'s';
+  }
+  function toast(msg){
+    toastEl.textContent=msg;toastEl.classList.add('show');
+    clearTimeout(toastEl._t);
+    toastEl._t=setTimeout(function(){toastEl.classList.remove('show');},2400);
+  }
+
+  // ---------- wire up ----------
+  document.getElementById('share').addEventListener('click',function(){
+    if(!state.done){toast('Finish restoring the piece to share your result!');return;}
+    var txt=buildShare();
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(function(){toast('Copied to clipboard:\n\n'+txt);},
+        function(){toast(txt);});
+    } else { toast(txt); }
+  });
+  document.getElementById('reset').addEventListener('click',function(){
+    setup();
+  });
+
+  // start
+  document.getElementById('day').textContent=SEED;
+  document.getElementById('streak').textContent=STREAK;
+  renderWall();
+  setup();
+  ticking=setInterval(function(){if(!state.done)updateTimer();},100);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Prototypes — early concepts</title>
+<style>
+  :root{
+    --bg:#0b0d12;
+    --card:#161a24;
+    --card2:#1b2030;
+    --edge:#252b3a;
+    --edge2:#323a52;
+    --ink:#eef1f8;
+    --mut:#9aa3b8;
+    --acc:#6ea8ff;
+    --acc2:#9d7bff;
+    --kept:#ffce6b;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 700px at 12% -8%, #1a2340 0%, rgba(26,35,64,0) 60%),
+      radial-gradient(1000px 800px at 100% 0%, #2a1c44 0%, rgba(42,28,68,0) 55%),
+      var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+  }
+  .wrap{
+    max-width:1120px;
+    margin:0 auto;
+    padding:28px 18px 64px;
+  }
+  header.top{
+    padding:18px 4px 26px;
+  }
+  .eyebrow{
+    font-size:12px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--acc);
+    font-weight:700;
+    margin:0 0 10px;
+  }
+  h1{
+    margin:0 0 12px;
+    font-size:clamp(28px,7vw,44px);
+    line-height:1.08;
+    letter-spacing:-0.02em;
+    background:linear-gradient(120deg,#fff 0%,#cdd6ee 55%,#9d7bff 120%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  .sub{
+    margin:0;
+    max-width:640px;
+    color:var(--mut);
+    font-size:clamp(14px,3.6vw,16px);
+  }
+  .sub b{color:#d7deef;font-weight:600;}
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+    gap:16px;
+    margin-top:26px;
+  }
+  .card{
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    background:linear-gradient(160deg,var(--card2) 0%,var(--card) 70%);
+    border:1px solid var(--edge);
+    border-radius:18px;
+    padding:18px 18px 16px;
+    text-decoration:none;
+    color:inherit;
+    overflow:hidden;
+    transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+    min-height:188px;
+  }
+  .card::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:radial-gradient(420px 200px at 100% 0%, rgba(110,168,255,.10), transparent 60%);
+    opacity:0;
+    transition:opacity .2s ease;
+    pointer-events:none;
+  }
+  .card:hover, .card:active{
+    transform:translateY(-3px);
+    border-color:var(--edge2);
+    box-shadow:0 14px 34px rgba(0,0,0,.42);
+  }
+  .card:hover::before{opacity:1;}
+  .cardhead{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .num{
+    font-variant-numeric:tabular-nums;
+    font-size:12px;
+    font-weight:700;
+    color:var(--acc2);
+    letter-spacing:.06em;
+    background:rgba(157,123,255,.12);
+    border:1px solid rgba(157,123,255,.26);
+    border-radius:8px;
+    padding:3px 8px;
+  }
+  .title{
+    font-size:21px;
+    font-weight:700;
+    letter-spacing:-0.01em;
+    margin:0;
+  }
+  .kept{
+    margin-left:auto;
+    font-size:11px;
+    font-weight:700;
+    color:var(--kept);
+    background:rgba(255,206,107,.10);
+    border:1px solid rgba(255,206,107,.34);
+    border-radius:999px;
+    padding:3px 9px;
+    white-space:nowrap;
+  }
+  .pitch{
+    color:var(--mut);
+    font-size:14px;
+    margin:0 0 14px;
+    flex:1;
+  }
+  .play{
+    align-self:flex-start;
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    font-weight:700;
+    font-size:15px;
+    color:#0b0d12;
+    background:linear-gradient(120deg,var(--acc) 0%,var(--acc2) 100%);
+    border-radius:11px;
+    padding:9px 16px;
+    margin-top:auto;
+    box-shadow:0 6px 16px rgba(110,168,255,.26);
+  }
+  .play .arw{font-size:13px;transition:transform .18s ease;}
+  .card:hover .play .arw{transform:translateX(3px);}
+  footer.foot{
+    margin-top:40px;
+    color:#6b7388;
+    font-size:12.5px;
+    text-align:center;
+  }
+  @media (max-width:480px){
+    .grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <p class="eyebrow">Early-stage concepts</p>
+    <h1>Ten prototypes to pick from</h1>
+    <p class="sub">A round of playable web sketches to choose a direction. This batch is tuned for <b>a little deeper, still easy to start</b> — pick the one that earns a second tap.</p>
+  </header>
+
+  <main class="grid">
+
+    <a class="card" href="01-excavate.html">
+      <div class="cardhead"><span class="num">01</span><h2 class="title">Excavate</h2></div>
+      <p class="pitch">Spend a scarce budget of digs to uncover a buried photo, reading hot-and-cold hints to triangulate the subject and name it in as few moves as possible.</p>
+      <span class="play">Play <span class="arw">&#9656;</span></span>
+    </a>
+
+    <a class="card" href="02-mosaic.html">
+      <div class="cardhead"><span class="num">02</span><h2 class="title">Mosaic</h2></div>
+      <p class="pitch">Pack the day's stained-glass shards edge-to-edge with no gaps and watch a hidden picture light up.</p>
+      <span class="play">Play <span class="arw">&#9656;</span></span>
+    </a>
+
+    <a class="card" href="03-prism.html">
+      <div class="cardhead"><span class="num">03</span><h2 class="title">Prism</h2></div>
+      <p class="pitch">Rotate mirrors and prisms to bend a beam of light onto every target — split white into color and route each hue home in a new daily puzzle.</p>
+      <span class="play">Play <span class="arw">&#9656;</span></span>
+    </a>
+
+    <a class="card" href="04-unblur.html">
+      <div class="cardhead"><span class="num">04</span><h2 class="title">Unblur</h2><span class="kept">&#9733; kept</span></div>
+      <p class="pitch">Tap where the photo looks clearest, sharpen it region-by-region, and guess what it is in the fewest focuses.</p>
+      <span class="play">Play <span class="arw">&#9656;</span></span>
+    </a>
+
+    <a class="card" href="05-restore.html">
+      <div class="cardhead"><span class="num">05</span><h2 class="title">Restore</h2><span class="kept">&#9733; kept</span></div>
+      <p class="pitch">Drag torn fragments back into a cracked masterpiece — seams heal, colour floods back, the piece joins your museum.</p>
+      <span class="play">Play <span class="arw">&#9656;</span></span>
+    </a>
+
+    <a class="card" href="06-pan.html">
+      <div class="cardhead"><span class="num">06</span><h2 class="title">Pan</h2><span class="kept">&#9733; kept</span></div>
+      <p class="pitch">Pan and zoom around a tight daily crop and name the picture it was lifted from.</p>
+      <span class="play">Play <span class="arw">&#9656;</span></span>
+    </a>
+
+    <a class="card" href="07-cascade.html">
+      <div class="cardhead"><span class="num">07</span><h2 class="title">Cascade</h2></div>
+      <p class="pitch">Place slope tiles to thread a pouring stream through every glowing basin before it runs off the edge — a daily one-puzzle flow with streaks and a fountain collection.</p>
+      <span class="play">Play <span class="arw">&#9656;</span></span>
+    </a>
+
+    <a class="card" href="08-terrace.html">
+      <div class="cardhead"><span class="num">08</span><h2 class="title">Terrace</h2></div>
+      <p class="pitch">Drop land onto an isometric plot and watch equal-height tiles fuse and rise — shape the contour to chain sweeping plateau cascades in a new solvable puzzle every day.</p>
+      <span class="play">Play <span class="arw">&#9656;</span></span>
+    </a>
+
+    <a class="card" href="09-tilt.html">
+      <div class="cardhead"><span class="num">09</span><h2 class="title">Tilt</h2></div>
+      <p class="pitch">Tilt the whole tray to roll every marble at once, snapping them into a pegboard to reveal today's pixel creature.</p>
+      <span class="play">Play <span class="arw">&#9656;</span></span>
+    </a>
+
+    <a class="card" href="10-acreage.html">
+      <div class="cardhead"><span class="num">10</span><h2 class="title">Acreage</h2></div>
+      <p class="pitch">Match terrain edges from today's tile bag — rivers to rivers, fields to fields — and grow the prettiest, highest-scoring little world.</p>
+      <span class="play">Play <span class="arw">&#9656;</span></span>
+    </a>
+
+  </main>
+
+  <footer class="foot">10 prototypes &middot; &#9733; kept = carried over from the last round &middot; open any card to play</footer>
+</div>
+</body>
+</html>

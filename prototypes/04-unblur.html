@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Unblur</title>
+<style>
+  :root{
+    --bg:#0e0d13; --panel:#171520; --ink:#efeaf6; --muted:#8e88a4;
+    --accent:#e9b96b; --accent2:#7bd0c7; --line:#272336;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    background:radial-gradient(120% 90% at 50% -10%, #1a1726 0%, var(--bg) 60%);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+    min-height:100%; padding:14px 12px 24px;
+  }
+  .wrap{width:100%; max-width:460px;}
+  header{display:flex; align-items:baseline; justify-content:space-between; gap:8px;}
+  h1{font-size:24px; margin:0; letter-spacing:.5px; font-weight:700;}
+  h1 .dot{color:var(--accent);}
+  .day{font-size:12px; color:var(--muted); text-align:right; line-height:1.4;}
+  .day b{color:var(--accent2);}
+  .how{font-size:13px; color:var(--muted); margin:6px 0 12px;}
+  .stage{
+    position:relative; width:100%; aspect-ratio:1/1; border-radius:18px; overflow:hidden;
+    background:#000; box-shadow:0 18px 50px rgba(0,0,0,.55), inset 0 0 0 1px var(--line);
+    touch-action:none; cursor:crosshair;
+  }
+  .stage canvas{position:absolute; inset:0; width:100%; height:100%; display:block;}
+  .vignette{position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(120% 120% at 50% 50%, transparent 55%, rgba(0,0,0,.55) 100%);}
+  .shimmer{position:absolute; inset:0; pointer-events:none; opacity:0;
+    background:linear-gradient(115deg, transparent 30%, rgba(255,255,255,.55) 50%, transparent 70%);
+    background-size:250% 250%;}
+  .shimmer.go{animation:sh .9s ease-out 1;}
+  @keyframes sh{0%{opacity:.0; background-position:120% 0}15%{opacity:.9}100%{opacity:0; background-position:-60% 0}}
+  .hud{display:flex; align-items:center; justify-content:space-between; margin:10px 2px 0;}
+  .budget{display:flex; gap:5px;}
+  .pip{width:13px; height:13px; border-radius:50%; background:#2c2740; box-shadow:inset 0 0 0 1px #3a3454;}
+  .pip.used{background:var(--accent); box-shadow:0 0 8px rgba(233,185,107,.6);}
+  .status{font-size:13px; color:var(--muted);}
+  .guessrow{display:flex; gap:8px; margin-top:12px;}
+  input[type=text]{
+    flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    border-radius:12px; padding:12px 14px; font-size:15px; outline:none;
+  }
+  input[type=text]:focus{border-color:var(--accent2);}
+  button{
+    border:0; border-radius:12px; padding:12px 16px; font-size:15px; font-weight:600;
+    background:var(--accent); color:#23190a; cursor:pointer;
+  }
+  button.ghost{background:var(--panel); color:var(--ink); box-shadow:inset 0 0 0 1px var(--line);}
+  button:active{transform:translateY(1px);}
+  .toast{min-height:20px; text-align:center; font-size:14px; margin-top:10px; color:var(--accent2);}
+  .toast.bad{color:#e98a8a;}
+  .album{margin-top:18px;}
+  .album h2{font-size:12px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin:0 0 8px;}
+  .shelf{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px;}
+  .frame{
+    flex:0 0 auto; width:58px; height:58px; border-radius:10px; background:var(--panel);
+    box-shadow:inset 0 0 0 1px var(--line); display:flex; align-items:center; justify-content:center;
+    color:#3a3454; font-size:20px; overflow:hidden;
+  }
+  .frame canvas{width:100%; height:100%; display:block;}
+  .share{margin-top:16px; text-align:center;}
+  .share button{width:100%;}
+  .sharebox{margin-top:10px; background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:12px; font-size:15px; line-height:1.5; white-space:pre-wrap; display:none; user-select:all;}
+  .streak{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Un<span class="dot">●</span>blur</h1>
+    <div class="day">Day <b id="dayN">142</b><br>🔥 streak <span class="streak" id="streak">6</span></div>
+  </header>
+  <div class="how">Tap where the photo looks <b>clearest</b> — find the subject in the fewest focuses, then guess.</div>
+
+  <div class="stage" id="stage">
+    <canvas id="blurC"></canvas>
+    <canvas id="fxC"></canvas>
+    <div class="vignette"></div>
+    <div class="shimmer" id="shimmer"></div>
+  </div>
+
+  <div class="hud">
+    <div class="budget" id="budget"></div>
+    <div class="status" id="status">8 focuses left</div>
+  </div>
+
+  <div class="guessrow">
+    <input type="text" id="guess" placeholder="what is it?" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button id="guessBtn">Guess</button>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <div class="album">
+    <h2>Developed photos</h2>
+    <div class="shelf" id="shelf"></div>
+  </div>
+
+  <div class="share">
+    <button class="ghost" id="shareBtn">Share result</button>
+    <div class="sharebox" id="sharebox"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var SIZE = 520;                 // internal canvas resolution
+  var BUDGET = 8;
+  var R = 0.16;                   // focus radius (fraction of size)
+
+  // ---- deterministic "today" ----
+  // Day number derives from the real date so the puzzle rotates daily (stub launch epoch).
+  var EPOCH = Date.UTC(2026,0,1);                 // day 1 = 2026-01-01
+  var now = new Date();
+  var todayUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  var todaySeed = Math.max(1, Math.floor((todayUTC - EPOCH)/864e5) + 1);
+
+  // ---- the daily scenes (vivid SVG so it works offline) ----
+  // Each scene draws a clear picture; the "subject" hotspot is where detail hides.
+  var SCENES = [
+    { answer:["fox","red fox"], emoji:"🦊", svg:function(c){
+        var g=c; g.fillStyle="#243b2e"; g.fillRect(0,0,SIZE,SIZE);
+        for(var i=0;i<60;i++){g.fillStyle="rgba(120,180,140,"+(0.04+0.05*Math.random())+")";g.beginPath();g.arc(Math.random()*SIZE,Math.random()*SIZE,30+Math.random()*60,0,7);g.fill();}
+        // body
+        g.fillStyle="#d96a2b"; g.beginPath(); g.ellipse(SIZE*0.5,SIZE*0.62,SIZE*0.22,SIZE*0.15,0,0,7); g.fill();
+        // head (the subject)
+        g.fillStyle="#e07a35"; g.beginPath(); g.moveTo(SIZE*0.5,SIZE*0.22); g.lineTo(SIZE*0.34,SIZE*0.5); g.lineTo(SIZE*0.66,SIZE*0.5); g.closePath(); g.fill();
+        // ears
+        g.beginPath(); g.moveTo(SIZE*0.37,SIZE*0.3); g.lineTo(SIZE*0.3,SIZE*0.16); g.lineTo(SIZE*0.45,SIZE*0.27); g.fill();
+        g.beginPath(); g.moveTo(SIZE*0.63,SIZE*0.3); g.lineTo(SIZE*0.7,SIZE*0.16); g.lineTo(SIZE*0.55,SIZE*0.27); g.fill();
+        // face white
+        g.fillStyle="#fff"; g.beginPath(); g.moveTo(SIZE*0.5,SIZE*0.5); g.lineTo(SIZE*0.43,SIZE*0.33); g.lineTo(SIZE*0.57,SIZE*0.33); g.closePath(); g.fill();
+        // eyes + nose
+        g.fillStyle="#1a1a1a"; g.beginPath(); g.arc(SIZE*0.44,SIZE*0.36,SIZE*0.018,0,7); g.arc(SIZE*0.56,SIZE*0.36,SIZE*0.018,0,7); g.fill();
+        g.beginPath(); g.arc(SIZE*0.5,SIZE*0.47,SIZE*0.02,0,7); g.fill();
+      }, hot:[0.5,0.4] },
+    { answer:["lighthouse"], emoji:"🗼", svg:function(c){
+        var g=c; var sky=g.createLinearGradient(0,0,0,SIZE); sky.addColorStop(0,"#143055"); sky.addColorStop(1,"#3a6ea5"); g.fillStyle=sky; g.fillRect(0,0,SIZE,SIZE);
+        g.fillStyle="#22506a"; g.fillRect(0,SIZE*0.7,SIZE,SIZE*0.3);
+        // tower
+        g.fillStyle="#f2efe9"; g.beginPath(); g.moveTo(SIZE*0.44,SIZE*0.25); g.lineTo(SIZE*0.56,SIZE*0.25); g.lineTo(SIZE*0.6,SIZE*0.72); g.lineTo(SIZE*0.4,SIZE*0.72); g.closePath(); g.fill();
+        g.fillStyle="#c0392b"; for(var k=0;k<3;k++){g.fillRect(SIZE*0.4,SIZE*(0.33+k*0.13),SIZE*0.2,SIZE*0.06);}
+        // lantern (subject) at top
+        g.fillStyle="#2c2c34"; g.fillRect(SIZE*0.45,SIZE*0.16,SIZE*0.1,SIZE*0.1);
+        g.fillStyle="#ffe07a"; g.beginPath(); g.arc(SIZE*0.5,SIZE*0.21,SIZE*0.045,0,7); g.fill();
+        g.strokeStyle="rgba(255,224,122,.5)"; g.lineWidth=SIZE*0.01; g.beginPath(); g.moveTo(SIZE*0.5,SIZE*0.21); g.lineTo(SIZE*0.85,SIZE*0.1); g.stroke();
+      }, hot:[0.5,0.2] },
+    { answer:["balloon","hot air balloon"], emoji:"🎈", svg:function(c){
+        var g=c; var sky=g.createLinearGradient(0,0,0,SIZE); sky.addColorStop(0,"#fbd1a2"); sky.addColorStop(1,"#e98a5a"); g.fillStyle=sky; g.fillRect(0,0,SIZE,SIZE);
+        // balloon (subject)
+        var cols=["#c0392b","#e1a93b","#2c7fb8","#27ae60"];
+        for(var s=0;s<6;s++){g.fillStyle=cols[s%4]; g.beginPath(); g.ellipse(SIZE*0.5,SIZE*0.4,SIZE*0.22,SIZE*0.27,0,(s/6)*7-1.57,((s+1)/6)*7-1.57); g.lineTo(SIZE*0.5,SIZE*0.4); g.fill();}
+        g.fillStyle="rgba(0,0,0,.15)"; g.beginPath(); g.ellipse(SIZE*0.5,SIZE*0.4,SIZE*0.22,SIZE*0.27,0,0,7); g.fill();
+        // basket
+        g.strokeStyle="#5a3b22"; g.lineWidth=SIZE*0.006; g.beginPath(); g.moveTo(SIZE*0.4,SIZE*0.62); g.lineTo(SIZE*0.45,SIZE*0.74); g.moveTo(SIZE*0.6,SIZE*0.62); g.lineTo(SIZE*0.55,SIZE*0.74); g.stroke();
+        g.fillStyle="#5a3b22"; g.fillRect(SIZE*0.45,SIZE*0.74,SIZE*0.1,SIZE*0.08);
+      }, hot:[0.5,0.4] },
+    { answer:["cat"], emoji:"🐱", svg:function(c){
+        var g=c; g.fillStyle="#2a2336"; g.fillRect(0,0,SIZE,SIZE);
+        g.fillStyle="#4b4258"; g.beginPath(); g.ellipse(SIZE*0.5,SIZE*0.7,SIZE*0.26,SIZE*0.18,0,0,7); g.fill();
+        // head subject
+        g.fillStyle="#6b6076"; g.beginPath(); g.arc(SIZE*0.5,SIZE*0.42,SIZE*0.17,0,7); g.fill();
+        g.beginPath(); g.moveTo(SIZE*0.36,SIZE*0.32); g.lineTo(SIZE*0.32,SIZE*0.16); g.lineTo(SIZE*0.46,SIZE*0.28); g.fill();
+        g.beginPath(); g.moveTo(SIZE*0.64,SIZE*0.32); g.lineTo(SIZE*0.68,SIZE*0.16); g.lineTo(SIZE*0.54,SIZE*0.28); g.fill();
+        g.fillStyle="#7bd0c7"; g.beginPath(); g.ellipse(SIZE*0.43,SIZE*0.42,SIZE*0.025,SIZE*0.04,0,0,7); g.ellipse(SIZE*0.57,SIZE*0.42,SIZE*0.025,SIZE*0.04,0,0,7); g.fill();
+        g.fillStyle="#111"; g.beginPath(); g.arc(SIZE*0.43,SIZE*0.42,SIZE*0.01,0,7); g.arc(SIZE*0.57,SIZE*0.42,SIZE*0.01,0,7); g.fill();
+        g.fillStyle="#e98a8a"; g.beginPath(); g.moveTo(SIZE*0.5,SIZE*0.5); g.lineTo(SIZE*0.47,SIZE*0.46); g.lineTo(SIZE*0.53,SIZE*0.46); g.fill();
+      }, hot:[0.5,0.42] }
+  ];
+
+  var scene = SCENES[todaySeed % SCENES.length];
+
+  // ---- canvases ----
+  var stage = document.getElementById('stage');
+  var blurC = document.getElementById('blurC'), fxC = document.getElementById('fxC');
+  blurC.width=blurC.height=SIZE; fxC.width=fxC.height=SIZE;
+  var bctx = blurC.getContext('2d'), fctx = fxC.getContext('2d');
+
+  // sharp source rendered offscreen
+  var src = document.createElement('canvas'); src.width=src.height=SIZE;
+  var sctx = src.getContext('2d');
+  scene.svg(sctx);
+
+  // mask (where focus has cleared) — alpha channel
+  var mask = document.createElement('canvas'); mask.width=mask.height=SIZE;
+  var mctx = mask.getContext('2d');
+
+  // blurred version: downscale -> upscale
+  var small = document.createElement('canvas'); var SS=18; small.width=small.height=SS;
+  var smctx = small.getContext('2d');
+
+  var taps = [];      // {x,y} normalized
+  var solved = false;
+
+  function renderBlur(){
+    // heavy blur via tiny downscale
+    smctx.clearRect(0,0,SS,SS);
+    smctx.drawImage(src,0,0,SS,SS);
+    bctx.imageSmoothingEnabled=true;
+    bctx.clearRect(0,0,SIZE,SIZE);
+    bctx.drawImage(small,0,0,SIZE,SIZE);
+    // composite sharp through mask
+    if(taps.length){
+      var tmp=document.createElement('canvas'); tmp.width=tmp.height=SIZE;
+      var t=tmp.getContext('2d');
+      t.drawImage(src,0,0);
+      t.globalCompositeOperation='destination-in';
+      t.drawImage(mask,0,0);
+      bctx.drawImage(tmp,0,0);
+    }
+  }
+
+  function addFocus(nx,ny){
+    if(solved || taps.length>=BUDGET) return;
+    taps.push({x:nx,y:ny});
+    // grow mask with a soft circle
+    var x=nx*SIZE, y=ny*SIZE, rad=R*SIZE;
+    var grd=mctx.createRadialGradient(x,y,rad*0.2,x,y,rad);
+    grd.addColorStop(0,'rgba(0,0,0,1)'); grd.addColorStop(0.7,'rgba(0,0,0,1)'); grd.addColorStop(1,'rgba(0,0,0,0)');
+    mctx.fillStyle=grd; mctx.beginPath(); mctx.arc(x,y,rad,0,7); mctx.fill();
+    renderBlur(); ripple(nx,ny); updateHud();
+    if(taps.length>=BUDGET && !solved){ toast("No focuses left — take your best guess.", true); }
+  }
+
+  // focus-ring ripple on the fx layer
+  function ripple(nx,ny){
+    var x=nx*SIZE, y=ny*SIZE, start=performance.now();
+    function step(now){
+      var p=(now-start)/450; if(p>1){fctx.clearRect(0,0,SIZE,SIZE); return;}
+      fctx.clearRect(0,0,SIZE,SIZE);
+      fctx.strokeStyle='rgba(233,185,107,'+(1-p)+')'; fctx.lineWidth=4*(1-p)+1;
+      fctx.beginPath(); fctx.arc(x,y,(R*SIZE)*(0.3+p*0.9),0,7); fctx.stroke();
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function updateHud(){
+    var b=document.getElementById('budget'); b.innerHTML='';
+    for(var i=0;i<BUDGET;i++){var p=document.createElement('div'); p.className='pip'+(i<taps.length?' used':''); b.appendChild(p);}
+    var left=BUDGET-taps.length;
+    document.getElementById('status').textContent = solved ? '🎯 in '+taps.length+' focuses' : left+' focus'+(left===1?'':'es')+' left';
+  }
+
+  function toast(msg,bad){var t=document.getElementById('toast'); t.textContent=msg; t.className='toast'+(bad?' bad':'');}
+
+  // ---- input ----
+  function eventToNorm(e){
+    var r=stage.getBoundingClientRect();
+    var cx=(e.touches?e.touches[0].clientX:e.clientX)-r.left;
+    var cy=(e.touches?e.touches[0].clientY:e.clientY)-r.top;
+    return {x:Math.max(0,Math.min(1,cx/r.width)), y:Math.max(0,Math.min(1,cy/r.height))};
+  }
+  function onTap(e){ e.preventDefault(); var n=eventToNorm(e); addFocus(n.x,n.y); }
+  stage.addEventListener('pointerdown', onTap);
+  // fallback for browsers w/o pointer events
+  if(!window.PointerEvent){ stage.addEventListener('touchstart',onTap,{passive:false}); stage.addEventListener('mousedown',onTap); }
+
+  // ---- guessing ----
+  function norm(s){return (s||'').toLowerCase().replace(/[^a-z ]/g,'').trim();}
+  function submitGuess(){
+    if(solved) return;
+    var g=norm(document.getElementById('guess').value);
+    if(!g){ toast('Type what you think it is.',true); return; }
+    var ok = scene.answer.some(function(a){return norm(a)===g || g.indexOf(norm(a))>=0;});
+    if(ok){ win(); } else { toast('Not quite — keep focusing.',true); }
+  }
+  document.getElementById('guessBtn').addEventListener('click',submitGuess);
+  document.getElementById('guess').addEventListener('keydown',function(e){if(e.key==='Enter')submitGuess();});
+
+  function win(){
+    solved=true;
+    // snap fully sharp
+    bctx.clearRect(0,0,SIZE,SIZE); bctx.drawImage(src,0,0);
+    var sh=document.getElementById('shimmer'); sh.classList.remove('go'); void sh.offsetWidth; sh.classList.add('go');
+    toast('🎯 '+scene.answer[0]+' — solved in '+taps.length+' focuses!');
+    updateHud();
+    saveToAlbum();
+    renderAlbum();
+    recordSolve();
+  }
+
+  // ---- album (localStorage of solved thumbnails) ----
+  var KEY='unblur_album_v1';
+  function loadAlbum(){ try{return JSON.parse(localStorage.getItem(KEY))||[];}catch(_){return [];} }
+  function saveToAlbum(){
+    var alb=loadAlbum();
+    var thumb=document.createElement('canvas'); thumb.width=thumb.height=64; thumb.getContext('2d').drawImage(src,0,0,64,64);
+    var rec={emoji:scene.emoji, n:taps.length, day:todaySeed, img:thumb.toDataURL('image/png')};
+    // de-dupe by day
+    alb=alb.filter(function(r){return r.day!==todaySeed;}); alb.unshift(rec);
+    try{localStorage.setItem(KEY,JSON.stringify(alb.slice(0,24)));}catch(_){}
+  }
+  function renderAlbum(){
+    var shelf=document.getElementById('shelf'); shelf.innerHTML='';
+    var alb=loadAlbum();
+    // seed a few stub frames so the shelf reads as "filling"
+    var slots=Math.max(6, alb.length+3);
+    for(var i=0;i<slots;i++){
+      var f=document.createElement('div'); f.className='frame';
+      if(alb[i]){ var im=new Image(); im.src=alb[i].img; im.style.width='100%'; im.style.height='100%'; im.style.objectFit='cover'; f.appendChild(im); }
+      else { f.textContent='○'; }
+      shelf.appendChild(f);
+    }
+  }
+
+  // ---- spoiler-safe share ----
+  // emoji row encodes WHERE + ORDER of focus, never the answer.
+  function quadEmoji(t){
+    // 9-zone grid mapped to directional dots; reveals path, not subject
+    var col=Math.min(2,Math.floor(t.x*3)), row=Math.min(2,Math.floor(t.y*3));
+    var simple=[['↖','⬆','↗'],['⬅','🎯','➡'],['↙','⬇','↘']]; // direction = where focus went
+    return simple[row][col];
+  }
+  document.getElementById('shareBtn').addEventListener('click',function(){
+    var row = taps.length ? taps.map(quadEmoji).join('') : '⚪⚪⚪';
+    var line = solved ? ('🎯 in '+taps.length+' focuses') : '…still developing';
+    var txt = 'Unblur Day '+todaySeed+'\n'+row+'\n'+line+'\n(spoiler-safe — shows my focus path, not the photo)';
+    var box=document.getElementById('sharebox'); box.style.display='block'; box.textContent=txt;
+    if(navigator.clipboard){ navigator.clipboard.writeText(txt).then(function(){toast('Result copied to clipboard.');},function(){}); }
+    if(navigator.share){ try{navigator.share({text:txt});}catch(_){} }
+  });
+
+  // ---- daily / streak hook (persisted) ----
+  var SKEY='unblur_streak_v1';
+  function loadStreak(){ try{return JSON.parse(localStorage.getItem(SKEY))||{day:0,streak:0,best:0};}catch(_){return {day:0,streak:0,best:0};} }
+  function renderStreak(){
+    var s=loadStreak();
+    document.getElementById('streak').textContent = s.streak||0;
+  }
+  function recordSolve(){
+    var s=loadStreak();
+    if(s.day===todaySeed) return;                 // already counted today
+    s.streak = (s.day===todaySeed-1) ? (s.streak||0)+1 : 1; // consecutive day extends, gap resets
+    s.best = Math.max(s.best||0, s.streak);
+    s.day = todaySeed;
+    try{localStorage.setItem(SKEY,JSON.stringify(s));}catch(_){}
+    renderStreak();
+  }
+
+  // ---- boot ----
+  document.getElementById('dayN').textContent=todaySeed;
+  renderStreak();
+  renderBlur(); updateHud(); renderAlbum();
+})();
+</script>
+</body>
+</html>

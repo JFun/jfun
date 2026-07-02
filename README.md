@@ -40,9 +40,10 @@ node scripts/new-game.mjs <name>   # scaffold a new game with the loop pre-wired
 ```
 
 Internal deps use the workspace protocol (`"@jfun/growth-loop": "*"`). Nothing is
-published publicly. The two vanilla-JS games now live in `apps/` (`moraine`,
-`lanthorn`); each carries an `apps/<game>/SETUP.md` for its gitignored build
-essentials. The Godot/Unity projects stay in their own repos. See `docs/plan/`.
+published publicly. The vanilla-JS games now live in `apps/` (`moraine`,
+`lanthorn`, `excavate`); each carries an `apps/<game>/SETUP.md` for its gitignored
+build essentials. `apps/excavate` is a cozy hot/cold dig-and-name puzzle (Capacitor
+iOS, `com.jfun.excavate`). The Godot/Unity projects stay in their own repos. See `docs/plan/`.
 
 ## Package entry points (why three files per package)
 

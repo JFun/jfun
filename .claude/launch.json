@@ -18,6 +18,18 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8767", "--directory", "/Users/qili/git/jfun/apps/lanthorn/web"],
       "port": 8767
+    },
+    {
+      "name": "prototypes",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8770", "--directory", "/Users/qili/git/jfun/prototypes"],
+      "port": 8770
+    },
+    {
+      "name": "excavate-web",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8780", "--directory", "/Users/qili/git/jfun/apps/excavate/web"],
+      "port": 8780
     }
   ]
 }
