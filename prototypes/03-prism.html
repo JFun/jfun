@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Prism</title>
+<style>
+  :root{
+    --bg:#070912; --bg2:#0d1124; --ink:#e8ecff; --dim:#7c83a8;
+    --line:#1c2240; --accent:#7df9ff; --gold:#ffd479;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none;}
+  html,body{margin:0; height:100%;}
+  body{
+    background:
+      radial-gradient(1200px 700px at 50% -10%, #16204a 0%, transparent 60%),
+      radial-gradient(900px 600px at 10% 110%, #1a0e2e 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+    min-height:100%;
+    overflow-x:hidden;
+    touch-action:manipulation;
+  }
+  #wrap{width:100%; max-width:520px; padding:14px 14px 28px; display:flex; flex-direction:column; gap:12px;}
+  header{display:flex; flex-direction:column; align-items:center; gap:2px; margin-top:6px;}
+  h1{
+    margin:0; font-size:30px; font-weight:800; letter-spacing:.22em;
+    background:linear-gradient(90deg,#ff5b6e,#ffd479,#7df9ff,#9d7bff,#ff5b6e);
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+    background-size:200% auto; animation:sheen 6s linear infinite;
+  }
+  @keyframes sheen{to{background-position:200% center;}}
+  .sub{font-size:12px; color:var(--dim); letter-spacing:.04em; text-align:center;}
+  .meta{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; font-size:12px;}
+  .pill{
+    background:var(--bg2); border:1px solid var(--line); border-radius:999px;
+    padding:5px 11px; color:var(--dim);
+  }
+  .pill b{color:var(--ink); font-weight:700;}
+  .pill .g{color:var(--gold);}
+  #stage{position:relative; width:100%; aspect-ratio:1/1; background:var(--bg2);
+    border:1px solid var(--line); border-radius:18px; overflow:hidden;
+    box-shadow:0 18px 50px -20px #000, inset 0 0 60px -30px #4af;}
+  canvas{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;}
+  #hud{display:flex; justify-content:space-between; align-items:center; gap:10px;}
+  .turns{font-size:13px; color:var(--dim);}
+  .turns b{color:var(--ink);}
+  .btns{display:flex; gap:8px;}
+  button{
+    font-family:inherit; font-size:13px; font-weight:700; color:var(--ink);
+    background:var(--bg2); border:1px solid var(--line); border-radius:11px;
+    padding:9px 14px; cursor:pointer; transition:transform .08s, border-color .2s, background .2s;
+  }
+  button:active{transform:scale(.94);}
+  button.primary{background:linear-gradient(180deg,#1d2b5e,#16203f); border-color:#3a55a8; color:#dfe8ff;}
+  .tip{font-size:12.5px; color:var(--dim); text-align:center; min-height:18px; transition:color .3s;}
+  .tip b{color:var(--accent);}
+  /* collection cathedral */
+  #coll{display:flex; flex-direction:column; gap:6px;}
+  #coll .lbl{font-size:11px; color:var(--dim); letter-spacing:.12em; text-transform:uppercase; text-align:center;}
+  #window{display:grid; grid-template-columns:repeat(6,1fr); gap:5px; padding:0 2px;}
+  .tile{aspect-ratio:1/1; border-radius:6px; border:1px solid var(--line); background:#0a0e1e; overflow:hidden;}
+  .tile canvas{position:static;}
+  /* overlay */
+  #overlay{position:fixed; inset:0; background:rgba(4,6,14,.82); backdrop-filter:blur(6px);
+    display:none; align-items:center; justify-content:center; padding:20px; z-index:50;}
+  #card{width:100%; max-width:360px; background:linear-gradient(180deg,#10162e,#0a0e1e);
+    border:1px solid #2a3566; border-radius:20px; padding:24px 22px; text-align:center;
+    box-shadow:0 30px 80px -20px #000;}
+  #card h2{margin:0 0 4px; font-size:24px; letter-spacing:.06em;}
+  #card .res{font-size:14px; color:var(--gold); margin:6px 0 14px; font-weight:700;}
+  #grid{font-size:22px; letter-spacing:3px; line-height:1.5; margin:10px 0 16px;}
+  #card p{font-size:13px; color:var(--dim); margin:8px 0;}
+  .row{display:flex; gap:10px; margin-top:6px;}
+  .row button{flex:1;}
+  .toast{position:fixed; left:50%; top:18px; transform:translateX(-50%) translateY(-40px);
+    background:#16203f; border:1px solid #3a55a8; color:#dfe8ff; padding:9px 16px; border-radius:999px;
+    font-size:13px; font-weight:700; opacity:0; transition:.35s; z-index:60; pointer-events:none;}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <h1>PRISM</h1>
+    <div class="sub">Tap an optic to rotate it. Bend the beam onto every target.</div>
+    <div class="meta">
+      <span class="pill">Prism <b id="dayNo">#1</b></span>
+      <span class="pill">Streak <b class="g" id="streak">0</b></span>
+      <span class="pill" id="parPill">Par <b>—</b></span>
+    </div>
+  </header>
+
+  <div id="stage"><canvas id="cv"></canvas></div>
+
+  <div id="hud">
+    <div class="turns">Turns <b id="turns">0</b></div>
+    <div class="btns">
+      <button id="undoBtn">Undo</button>
+      <button id="resetBtn">Reset</button>
+    </div>
+  </div>
+  <div class="tip" id="tip">Rotate the mirror so the beam turns the corner.</div>
+
+  <div id="coll">
+    <div class="lbl">Cathedral Window</div>
+    <div id="window"></div>
+  </div>
+</div>
+
+<div id="overlay">
+  <div id="card">
+    <h2 id="cardTitle">Solved!</h2>
+    <div class="res" id="cardRes"></div>
+    <div id="grid"></div>
+    <p id="cardSub"></p>
+    <div class="row">
+      <button class="primary" id="shareBtn">Share</button>
+      <button id="closeBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(()=>{
+"use strict";
+/* ---------- deterministic RNG ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const DAY0=Date.UTC(2026,0,1);
+const todayIdx=Math.floor((Date.now()-DAY0)/86400000);
+const DAY=Math.max(1, todayIdx+1);
+
+/* ---------- direction helpers ----------
+   dirs: 0=up,1=right,2=down,3=left  (vectors) */
+const DV=[[0,-1],[1,0],[0,1],[-1,0]];
+
+/* Optic types:
+   'mirror'  : reflects. orientation 0 = '/'  (NE-SW), 1 = '\' (NW-SE). rotate toggles.
+   'prism'   : splits white -> 3 colored beams, OR passes a colored beam straight.
+               orientation 0..3 sets the "axis"; we model a prism as splitting an
+               incoming WHITE beam into three colored beams fanned around the
+               incoming direction (left-turn, straight, right-turn). Rotating the
+               prism rotates which output dirs carry which color.
+   Mirror reflection map:
+     '/'(o0):  up->right, right->up, down->left, left->down
+     '\'(o1):  up->left, left->up, down->right, right->down
+*/
+const MIRROR={
+  0:{0:1,1:0,2:3,3:2},   // '/'
+  1:{0:3,3:0,2:1,1:2}    // '\'
+};
+
+/* Colors for split beams */
+const COL={
+  R:{hex:'#ff5168', glow:'#ff8a98', name:'R', emo:'🟥'},
+  G:{hex:'#46e88a', glow:'#9bffc4', name:'G', emo:'🟩'},
+  B:{hex:'#5aa9ff', glow:'#a9d2ff', name:'B', emo:'🟦'},
+  W:{hex:'#fdfdff', glow:'#ffffff', name:'W', emo:'⬜'}
+};
+const ORDER=['R','G','B'];
+
+/* ---------- level model ---------- */
+let N=6;               // grid size
+let cells;             // map "x,y" -> optic {type,o}
+let source;            // {x,y,dir,color:'W'}
+let targets;           // [{x,y,color, lit:false}]
+let par=0;
+let turns=0;
+let history=[];        // stack of "x,y" rotated
+let solved=false;
+let beamSegs=[];       // computed segments for render
+let litSet=new Set();  // target keys currently lit
+
+/* ---------- level generation ----------
+   Reverse-generate: build a solved board, then scramble rotations seeded.
+   We construct simple guaranteed-solvable layouts that ramp by weekday index.
+*/
+function key(x,y){return x+','+y;}
+
+function genLevel(seed){
+  const rng=mulberry32(seed*2654435761>>>0);
+  // tier by day-of-week-ish ramp (1..6), Sunday loops to a calm one
+  const dow=((DAY-1)%7); // 0..6
+  const tier=Math.min(6, dow===0?1:dow); // Mon..Sat ramp, Sun easy
+
+  // We place a SOLVED configuration on a path, then scramble.
+  // Strategy: random walk a beam from a source, drop mirrors at each turn,
+  // and place a prism + colored targets for higher tiers.
+  // Try the target tier, then degrade tier-by-tier so a stubborn seed still
+  // yields a real, proven-solvable board rather than the bare fallback.
+  for(let t=tier;t>=1;t--){
+    for(let attempts=0;attempts<300;attempts++){
+      const lvl=tryBuild(rng,t);
+      if(lvl) return lvl;
+    }
+  }
+  return fallback();
+}
+
+function inb(x,y){return x>=0&&y>=0&&x<N&&y<N;}
+
+/* Pure simulator over an explicit config (no globals). Returns the count of
+   targets lit. Used to PROVE a generated level is solvable before shipping it. */
+function simulateConfig(gridN, src, placedMap, tgts){
+  const targetByKey=new Map();
+  for(const t of tgts) targetByKey.set(key(t.x,t.y),t);
+  const litKeys=new Set();
+  const visited=new Set();
+  const inbN=(x,y)=>x>=0&&y>=0&&x<gridN&&y<gridN;
+  const q=[{x:src.x,y:src.y,dir:src.dir,color:'W'}];
+  let guard=0;
+  while(q.length && guard++<2000){
+    let {x,y,dir,color}=q.shift();
+    let steps=0;
+    while(steps++<300){
+      const nx=x+DV[dir][0], ny=y+DV[dir][1];
+      if(!inbN(nx,ny)) break;
+      const k=key(nx,ny);
+      const vk=k+':'+dir+':'+color;
+      if(visited.has(vk)) break;
+      visited.add(vk);
+      if(targetByKey.has(k)){
+        const t=targetByKey.get(k);
+        if(t.color===color) litKeys.add(k);
+        break;
+      }
+      const op=placedMap.get(k);
+      if(op){
+        if(op.type==='mirror'){
+          const nd=MIRROR[op.o][dir];
+          if(nd===undefined) break;
+          dir=nd; x=nx; y=ny; continue;
+        } else {
+          if(color==='W'){
+            const baseDirs=[(dir+3)%4, dir, (dir+1)%4];
+            for(let i=0;i<3;i++) q.push({x:nx,y:ny,dir:baseDirs[i],color:ORDER[(i+op.o)%3]});
+            break;
+          } else { x=nx; y=ny; continue; }
+        }
+      }
+      x=nx; y=ny;
+    }
+  }
+  let lit=0;
+  for(const t of tgts) if(litKeys.has(key(t.x,t.y))) lit++;
+  return lit;
+}
+
+function tryBuild(rng,tier){
+  N = tier<=2?6 : tier<=4?7 : 8;   // board size follows the tier actually built
+  const local=cells=new Map();
+  const tgts=[];
+  const placed=new Map(); // key->optic (solved orientation)
+  // choose source on an edge, pointing inward
+  const edges=[
+    {x:0,y:(1+Math.floor(rng()*(N-2))),dir:1},
+    {x:N-1,y:(1+Math.floor(rng()*(N-2))),dir:3},
+    {x:(1+Math.floor(rng()*(N-2))),y:0,dir:2},
+    {x:(1+Math.floor(rng()*(N-2))),y:N-1,dir:0},
+  ];
+  const src=edges[Math.floor(rng()*edges.length)];
+  const occupied=new Set([key(src.x,src.y)]);
+
+  const usesPrism = tier>=3;
+  // number of pure targets
+  let pureTargets = usesPrism? 0 : (tier>=2?2:1);
+
+  // ---- Build pure-routing chains for each pure target ----
+  function carveChain(startX,startY,startDir,color,minTurns,maxTurns){
+    let x=startX,y=startY,dir=startDir;
+    const localPlaced=[];
+    const localCells=[];
+    const turnsN=minTurns+Math.floor(rng()*(maxTurns-minTurns+1));
+    let done=0;
+    let guard=0;
+    while(done<turnsN && guard++<60){
+      // travel forward a random run
+      const run=1+Math.floor(rng()*2);
+      for(let s=0;s<run;s++){ x+=DV[dir][0]; y+=DV[dir][1];
+        if(!inb(x,y)||occupied.has(key(x,y))) return null;
+      }
+      // place a mirror that turns left or right
+      const turnR=rng()<0.5;
+      const ndir=turnR?(dir+1)%4:(dir+3)%4;
+      // mirror orientation that maps dir->ndir
+      let o=-1;
+      if(MIRROR[0][dir]===ndir)o=0; else if(MIRROR[1][dir]===ndir)o=1;
+      if(o<0) return null;
+      localPlaced.push({x,y,o}); localCells.push(key(x,y));
+      occupied.add(key(x,y));
+      dir=ndir; done++;
+    }
+    // travel to a final cell for the target
+    const run=1+Math.floor(rng()*2);
+    for(let s=0;s<run;s++){ x+=DV[dir][0]; y+=DV[dir][1];
+      if(!inb(x,y)||occupied.has(key(x,y))) return null;
+    }
+    occupied.add(key(x,y));
+    return {placed:localPlaced, target:{x,y,color,fromDir:dir}};
+  }
+
+  if(usesPrism){
+    // Route white to a prism, prism splits into colored chains.
+    // place a prism a few steps in
+    let x=src.x,y=src.y,dir=src.dir;
+    const pre=[];
+    const preturns=1+Math.floor(rng()*2);
+    let cx=x,cy=y,cdir=dir,guard=0;
+    let ok=true;
+    for(let t=0;t<preturns;t++){
+      const run=1+Math.floor(rng()*2);
+      for(let s=0;s<run;s++){cx+=DV[cdir][0];cy+=DV[cdir][1]; if(!inb(cx,cy)||occupied.has(key(cx,cy))){ok=false;break;}}
+      if(!ok)break;
+      const turnR=rng()<.5; const ndir=turnR?(cdir+1)%4:(cdir+3)%4;
+      let o=MIRROR[0][cdir]===ndir?0:(MIRROR[1][cdir]===ndir?1:-1);
+      if(o<0){ok=false;break;}
+      pre.push({x:cx,y:cy,o}); occupied.add(key(cx,cy)); cdir=ndir;
+    }
+    if(!ok) return null;
+    // move to prism cell
+    const prun=1+Math.floor(rng()*2);
+    for(let s=0;s<prun;s++){cx+=DV[cdir][0];cy+=DV[cdir][1]; if(!inb(cx,cy)||occupied.has(key(cx,cy))) return null;}
+    const prismCell={x:cx,y:cy,dir:cdir};
+    occupied.add(key(cx,cy));
+    // MUST match the simulator exactly: at prism orientation 0 the three outputs
+    // (i=0 left, i=1 straight, i=2 right around incoming dir) carry ORDER[i] = R,G,B.
+    const outDirs=[(cdir+3)%4, cdir, (cdir+1)%4]; // left, straight, right
+    const colorChains=[];
+    let cok=true;
+    const nColors = tier>=5?3:2; // tier3-4 two colors, tier5-6 three
+    // pick which output slots to actually use a target for (others fan off-board harmlessly)
+    const slots = nColors===2? [1,2] : [0,1,2]; // straight+right, or all three
+    for(const i of slots){
+      const od=outDirs[i]; const col=ORDER[i];
+      // start one cell out from prism in od
+      let sx=cx+DV[od][0], sy=cy+DV[od][1];
+      if(!inb(sx,sy)||occupied.has(key(sx,sy))){cok=false;break;}
+      const ch=carveChain(cx,cy,od, col, 0, 2);
+      if(!ch){cok=false;break;}
+      colorChains.push(ch);
+    }
+    if(!cok) return null;
+    // assemble
+    for(const m of pre) placed.set(key(m.x,m.y),{type:'mirror',o:m.o});
+    placed.set(key(prismCell.x,prismCell.y),{type:'prism',o:0,inDir:prismCell.dir});
+    for(const ch of colorChains){
+      for(const m of ch.placed) placed.set(key(m.x,m.y),{type:'mirror',o:m.o});
+      tgts.push({x:ch.target.x,y:ch.target.y,color:ch.target.color});
+    }
+  } else {
+    // pure routing: one or two white targets
+    let firstDir=src.dir;
+    const chain1=carveChain(src.x,src.y,firstDir,'W',1, tier>=2?2:1);
+    if(!chain1) return null;
+    for(const m of chain1.placed) placed.set(key(m.x,m.y),{type:'mirror',o:m.o});
+    tgts.push({x:chain1.target.x,y:chain1.target.y,color:'W'});
+    if(pureTargets>=2){
+      // a second target branched via an extra mirror off first chain's last mirror?
+      // simpler: a separate short chain from source won't work (single beam).
+      // Instead: insert a beam splitter would need prism; for tier2 keep it a longer single chain w/ 2 targets along path:
+      // place an extra target ON the straight path beyond first target is impossible (target absorbs).
+      // So tier2 = single white target but more mirrors -> just keep one target, more turns.
+      tgts.length=1;
+    }
+  }
+
+  if(tgts.length===0) return null;
+
+  // PROVE the solved configuration actually lights every target before we ship
+  // it. Beams that pass straight through a cell can be diverted by a later
+  // chain's mirror; this check rejects any such poisoned layout deterministically.
+  if(simulateConfig(N, src, placed, tgts) !== tgts.length) return null;
+
+  // store solved orientations
+  const solvedO=new Map();
+  for(const [k,v] of placed) solvedO.set(k, v.o);
+
+  // SCRAMBLE: rotate some optics seeded; scramble depth = par
+  const keys=[...placed.keys()];
+  // shuffle deterministic
+  for(let i=keys.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[keys[i],keys[j]]=[keys[j],keys[i]];}
+  let scrambleSteps = Math.min( keys.length*2, 2 + tier + Math.floor(rng()*tier) );
+  let pp=0;
+  for(let s=0;s<scrambleSteps;s++){
+    const k=keys[s%keys.length];
+    const op=placed.get(k);
+    rotateOpticO(op);
+    pp++;
+  }
+  // recompute true par as min rotations from scrambled->solved per optic
+  let realPar=0;
+  for(const [k,op] of placed){
+    const cur=op.o, want=solvedO.get(k);
+    if(op.type==='mirror'){ realPar += (cur!==want)?1:0; }
+    else { realPar += ((want-cur+4)%4); } // prism 0..3
+  }
+  if(realPar===0){ // ensure at least 1 move
+    const k=keys[0]; rotateOpticO(placed.get(k));
+    const op=placed.get(k); const want=solvedO.get(k);
+    realPar = op.type==='mirror'? (op.o!==want?1:0) : ((want-op.o+4)%4);
+    if(realPar===0) return null;
+  }
+
+  return {N, src, placed, solvedO, targets:tgts, par:realPar};
+}
+
+function rotateOpticO(op){
+  if(op.type==='mirror') op.o^=1;
+  else op.o=(op.o+1)%4;
+}
+
+function fallback(){
+  // tiny guaranteed L puzzle
+  N=6;
+  const src={x:0,y:2,dir:1};
+  const placed=new Map();
+  placed.set(key(3,2),{type:'mirror',o:1}); // scrambled (want 0)
+  const solvedO=new Map([[key(3,2),0]]);
+  return {N,src,placed,solvedO,targets:[{x:3,y:0,color:'W'}],par:1};
+}
+
+/* ---------- beam simulation ----------
+   Returns segments [{x1,y1,x2,y2,color}] and which targets lit.
+   Light enters from source, travels grid cells. Each prism split spawns child beams.
+*/
+function simulate(){
+  beamSegs=[];
+  litSet=new Set();
+  const targetByKey=new Map();
+  for(const t of targets) targetByKey.set(key(t.x,t.y),t);
+  const MAXSEG=400;
+  let segCount=0;
+  const visited=new Set(); // prevent infinite loops: cell+dir+color
+
+  // queue of beams
+  const q=[{x:source.x,y:source.y,dir:source.dir,color:'W'}];
+  while(q.length){
+    let b=q.shift();
+    let {x,y,dir,color}=b;
+    let px=x, py=y;
+    let steps=0;
+    while(steps++<200 && segCount<MAXSEG){
+      const nx=x+DV[dir][0], ny=y+DV[dir][1];
+      if(!inb(nx,ny)){
+        // exit board: draw partial seg to edge
+        beamSegs.push({x1:px,y1:py,x2:nx,y2:ny,color, clipped:true}); segCount++;
+        break;
+      }
+      const k=key(nx,ny);
+      const vk=k+':'+dir+':'+color;
+      if(visited.has(vk)){ beamSegs.push({x1:px,y1:py,x2:nx,y2:ny,color}); segCount++; break;}
+      visited.add(vk);
+
+      // target?
+      if(targetByKey.has(k)){
+        const t=targetByKey.get(k);
+        beamSegs.push({x1:px,y1:py,x2:nx,y2:ny,color}); segCount++;
+        // lit if color matches (white target lit by white)
+        if(t.color===color) litSet.add(k);
+        // beam absorbed at target
+        break;
+      }
+      // optic?
+      const op=cells.get(k);
+      if(op){
+        beamSegs.push({x1:px,y1:py,x2:nx,y2:ny,color}); segCount++;
+        if(op.type==='mirror'){
+          const nd=MIRROR[op.o][dir];
+          if(nd===undefined){ break; } // hit flat side -> absorbed
+          dir=nd; px=nx; py=ny; x=nx; y=ny;
+          continue;
+        } else { // prism
+          if(color==='W'){
+            // split into 3 colored beams: left,straight,right; orientation rotates assignment
+            const baseDirs=[(dir+3)%4, dir, (dir+1)%4];
+            // orientation o cycles which color goes to which output
+            for(let i=0;i<3;i++){
+              const outDir=baseDirs[i];
+              const colName=ORDER[(i+op.o)%3];
+              q.push({x:nx,y:ny,dir:outDir,color:colName});
+            }
+          } else {
+            // colored beam passes straight through a prism (re-combine not modeled)
+            px=nx;py=ny;x=nx;y=ny; continue;
+          }
+          break;
+        }
+      }
+      // empty cell, keep going
+      x=nx; y=ny;
+    }
+  }
+  // update target lit flags
+  for(const t of targets) t.lit=litSet.has(key(t.x,t.y));
+  solved = targets.every(t=>t.lit);
+}
+
+/* ---------- rendering ---------- */
+const cv=document.getElementById('cv');
+const ctx=cv.getContext('2d');
+let DPR=Math.min(window.devicePixelRatio||1, 2.5);
+let cssSize=360, cell=60, pad=0;
+
+function fit(){
+  const stage=document.getElementById('stage');
+  const r=stage.getBoundingClientRect();
+  cssSize=r.width;
+  cv.width=Math.round(cssSize*DPR);
+  cv.height=Math.round(cssSize*DPR);
+  pad=cssSize*0.06;
+  cell=(cssSize-pad*2)/N;
+}
+function cx2(gx){return pad+(gx+0.5)*cell;}
+function cy2(gy){return pad+(gy+0.5)*cell;}
+
+let glow=0;            // beam re-snap flash 0..1
+let flares=[];         // target flare particles
+let pops=[];           // rotation pops
+
+function draw(){
+  const w=cssSize;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,w,w);
+
+  // grid
+  ctx.lineWidth=1;
+  ctx.strokeStyle='rgba(120,140,200,0.10)';
+  for(let i=0;i<=N;i++){
+    const p=pad+i*cell;
+    ctx.beginPath();ctx.moveTo(pad,p);ctx.lineTo(w-pad,p);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(p,pad);ctx.lineTo(p,w-pad);ctx.stroke();
+  }
+
+  // targets (draw base rings)
+  for(const t of targets){
+    const X=cx2(t.x),Y=cy2(t.y); const c=COL[t.color];
+    ctx.save();
+    if(t.lit){
+      const pulse=0.5+0.5*Math.sin(performance.now()/260);
+      ctx.shadowColor=c.glow; ctx.shadowBlur=22+10*pulse;
+      ctx.fillStyle=c.hex; ctx.globalAlpha=0.95;
+      ctx.beginPath();ctx.arc(X,Y,cell*0.30,0,7);ctx.fill();
+      ctx.globalAlpha=1; ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(255,255,255,0.9)';
+      ctx.beginPath();ctx.arc(X,Y,cell*0.13,0,7);ctx.fill();
+    } else {
+      ctx.shadowBlur=0;
+      ctx.strokeStyle=c.hex; ctx.globalAlpha=0.5; ctx.lineWidth=3;
+      ctx.beginPath();ctx.arc(X,Y,cell*0.28,0,7);ctx.stroke();
+      ctx.globalAlpha=0.18; ctx.fillStyle=c.hex;
+      ctx.beginPath();ctx.arc(X,Y,cell*0.28,0,7);ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // beam segments
+  const flash=glow;
+  for(const s of beamSegs){
+    const c=COL[s.color];
+    let X1=cx2(s.x1),Y1=cy2(s.y1);
+    let X2,Y2;
+    if(s.clipped){ // to edge midpoint
+      X2=pad+(s.x2+0.5)*cell; Y2=pad+(s.y2+0.5)*cell;
+      // clamp within board edge
+      X2=Math.max(pad,Math.min(w-pad,X2));
+      Y2=Math.max(pad,Math.min(w-pad,Y2));
+    } else { X2=cx2(s.x2);Y2=cy2(s.y2); }
+    ctx.save();
+    ctx.lineCap='round';
+    ctx.shadowColor=c.glow; ctx.shadowBlur=(10+flash*16);
+    ctx.strokeStyle=c.glow; ctx.globalAlpha=0.35+flash*0.4;
+    ctx.lineWidth=cell*0.16;
+    ctx.beginPath();ctx.moveTo(X1,Y1);ctx.lineTo(X2,Y2);ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.strokeStyle=c.hex; ctx.globalAlpha=0.95;
+    ctx.lineWidth=cell*0.07;
+    ctx.beginPath();ctx.moveTo(X1,Y1);ctx.lineTo(X2,Y2);ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.globalAlpha=0.7;
+    ctx.lineWidth=cell*0.025;
+    ctx.beginPath();ctx.moveTo(X1,Y1);ctx.lineTo(X2,Y2);ctx.stroke();
+    ctx.restore();
+  }
+
+  // source
+  {
+    const X=cx2(source.x),Y=cy2(source.y);
+    ctx.save();
+    ctx.shadowColor='#fff'; ctx.shadowBlur=18;
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(X,Y,cell*0.16,0,7);ctx.fill();
+    ctx.shadowBlur=0;
+    // little arrow
+    ctx.fillStyle='rgba(255,255,255,0.5)';
+    ctx.restore();
+  }
+
+  // optics
+  for(const [k,op] of cells){
+    const [gx,gy]=k.split(',').map(Number);
+    const X=cx2(gx),Y=cy2(gy);
+    drawOptic(X,Y,op,k);
+  }
+
+  // pops
+  for(const p of pops){
+    ctx.save();
+    ctx.globalAlpha=p.life;
+    ctx.strokeStyle='#cfe0ff'; ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(p.X,p.Y, (1-p.life)*cell*0.7, 0,7);ctx.stroke();
+    ctx.restore();
+  }
+  // flares
+  for(const f of flares){
+    ctx.save();
+    ctx.globalAlpha=f.life;
+    const c=COL[f.color];
+    ctx.fillStyle=c.glow;
+    ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,7);ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawOptic(X,Y,op,k){
+  const r=cell*0.30;
+  ctx.save();
+  // hover-able tile — pulse the tap targets until the player's first rotation
+  const hint = (turns===0 && !solved) ? 0.5+0.5*Math.sin(performance.now()/320) : 0;
+  ctx.fillStyle='rgba(80,100,170,'+(0.10+hint*0.10)+')';
+  ctx.strokeStyle='rgba(140,160,230,'+(0.25+hint*0.45)+')';
+  ctx.lineWidth=1+hint*1.2;
+  roundRect(X-cell*0.36,Y-cell*0.36,cell*0.72,cell*0.72,7);
+  ctx.fill();ctx.stroke();
+  ctx.lineWidth=1;
+
+  // smooth rotation animation
+  const anim=opticAnim.get(k);
+  let drawO=op.o;
+  ctx.translate(X,Y);
+  if(op.type==='mirror'){
+    let ang=op.o===0? -Math.PI/4 : Math.PI/4; // '/' vs '\'
+    if(anim){ ang = anim.from + (anim.to-anim.from)*ease(anim.t); }
+    ctx.rotate(ang);
+    ctx.lineCap='round';
+    // mirror bar
+    ctx.shadowColor='#bfe3ff'; ctx.shadowBlur=8;
+    const grad=ctx.createLinearGradient(-r,0,r,0);
+    grad.addColorStop(0,'#9fc4ff');grad.addColorStop(.5,'#ffffff');grad.addColorStop(1,'#9fc4ff');
+    ctx.strokeStyle=grad; ctx.lineWidth=cell*0.13;
+    ctx.beginPath();ctx.moveTo(-r,0);ctx.lineTo(r,0);ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.strokeStyle='rgba(255,255,255,0.85)'; ctx.lineWidth=cell*0.04;
+    ctx.beginPath();ctx.moveTo(-r,0);ctx.lineTo(r,0);ctx.stroke();
+  } else {
+    // prism: triangle, orientation rotates it
+    let ang=op.o*(Math.PI/2);
+    if(anim){ ang = anim.from + (anim.to-anim.from)*ease(anim.t); }
+    ctx.rotate(ang + Math.PI/4);
+    ctx.shadowColor='#ffffff'; ctx.shadowBlur=10;
+    const g=ctx.createLinearGradient(-r,-r,r,r);
+    g.addColorStop(0,'rgba(255,90,110,0.9)');
+    g.addColorStop(0.5,'rgba(70,232,138,0.9)');
+    g.addColorStop(1,'rgba(90,169,255,0.9)');
+    ctx.fillStyle=g;
+    ctx.beginPath();
+    ctx.moveTo(0,-r); ctx.lineTo(r,r); ctx.lineTo(-r,r); ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.strokeStyle='rgba(255,255,255,0.8)'; ctx.lineWidth=2;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function ease(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+
+const opticAnim=new Map(); // k -> {from,to,t}
+
+/* ---------- animation loop ---------- */
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(glow>0) glow=Math.max(0,glow-dt*2.2);
+  for(const [k,a] of opticAnim){ a.t+=dt*6; if(a.t>=1){opticAnim.delete(k);} }
+  for(let i=pops.length-1;i>=0;i--){pops[i].life-=dt*2.2; if(pops[i].life<=0)pops.splice(i,1);}
+  for(let i=flares.length-1;i>=0;i--){const f=flares[i]; f.life-=dt*1.6; f.r+=dt*60; if(f.life<=0)flares.splice(i,1);}
+  draw();
+  requestAnimationFrame(loop);
+}
+
+/* ---------- interaction ---------- */
+function rotate(k){
+  if(solved) return;
+  const op=cells.get(k);
+  if(!op) return;
+  const fromAng = op.type==='mirror' ? (op.o===0?-Math.PI/4:Math.PI/4) : op.o*(Math.PI/2);
+  rotateOpticO(op);
+  const toAng = op.type==='mirror' ? (op.o===0?-Math.PI/4:Math.PI/4) : op.o*(Math.PI/2);
+  // for mirror, animate +90 visually nicely:
+  let f=fromAng, t=toAng;
+  if(op.type==='mirror'){ f=fromAng; t=fromAng+Math.PI/2; } // always sweep +90
+  opticAnim.set(k,{from:f,to:t,t:0});
+  const [gx,gy]=k.split(',').map(Number);
+  pops.push({X:cx2(gx),Y:cy2(gy),life:1});
+  history.push(k);
+  turns++;
+  document.getElementById('turns').textContent=turns;
+  glow=1;
+  const before=solved;
+  const litBefore=new Set(litSet);
+  simulate();
+  // flare newly-lit targets
+  for(const t of targets){ if(t.lit && !litBefore.has(key(t.x,t.y))){
+    for(let i=0;i<10;i++) flares.push({x:cx2(t.x),y:cy2(t.y),r:2+Math.random()*4,life:1,color:t.color});
+  }}
+  updateTip();
+  if(solved && !before){ onSolve(); }
+}
+
+function pointToCell(clientX,clientY){
+  const r=cv.getBoundingClientRect();
+  const lx=(clientX-r.left)/r.width*cssSize;
+  const ly=(clientY-r.top)/r.height*cssSize;
+  const gx=Math.floor((lx-pad)/cell);
+  const gy=Math.floor((ly-pad)/cell);
+  if(gx<0||gy<0||gx>=N||gy>=N) return null;
+  return key(gx,gy);
+}
+cv.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  const k=pointToCell(e.clientX,e.clientY);
+  if(k && cells.has(k)) rotate(k);
+  else if(!solved && turns===0) toast('Tap a glowing optic to rotate it');
+});
+
+document.getElementById('undoBtn').onclick=()=>{
+  if(solved||history.length===0) return;
+  const k=history.pop();
+  const op=cells.get(k);
+  // undo a +90 rotation = rotate back
+  if(op.type==='mirror') op.o^=1; else op.o=(op.o+3)%4;
+  turns=Math.max(0,turns-1);
+  document.getElementById('turns').textContent=turns;
+  glow=1; simulate(); updateTip();
+};
+document.getElementById('resetBtn').onclick=()=>{ startLevel(true); };
+
+/* ---------- tips (progressive teaching) ---------- */
+const TIPS={
+  intro:'Rotate the mirror so the beam turns the corner.',
+  mirror:'Each rotation reroutes the <b>whole</b> path — plan ahead.',
+  prism:'White light hits a <b>prism</b> and fans into colors. Match each to its target.',
+  close:'So close — one beam is missing its target.',
+  lit:'Targets lit: '
+};
+function updateTip(){
+  const tip=document.getElementById('tip');
+  const hasPrism=[...cells.values()].some(o=>o.type==='prism');
+  const litN=targets.filter(t=>t.lit).length, total=targets.length;
+  if(solved){ tip.innerHTML='✦ All targets lit ✦'; return; }
+  if(litN>0 && litN===total-1){ tip.innerHTML=TIPS.close; return; }
+  if(litN>0){ tip.innerHTML=`Lit <b>${litN}/${total}</b> — keep bending.`; return; }
+  if(hasPrism){ tip.innerHTML=TIPS.prism; return; }
+  if(turns===0){ tip.innerHTML=TIPS.intro; return; }
+  tip.innerHTML=TIPS.mirror;
+}
+
+/* ---------- solve / share / collection ---------- */
+let bestTurns=null;
+function onSolve(){
+  // confetti-ish flares from all targets
+  for(const t of targets){
+    for(let i=0;i<14;i++) flares.push({x:cx2(t.x),y:cy2(t.y),r:2+Math.random()*5,life:1+Math.random()*0.5,color:t.color});
+  }
+  glow=1;
+  bestTurns=turns;
+  saveProgress();
+  freezeTile();
+  renderWindow();
+  setTimeout(showCard, 650);
+}
+
+function showCard(){
+  const ov=document.getElementById('overlay');
+  document.getElementById('cardTitle').textContent = turns<=par?'Brilliant!':'Solved!';
+  const delta=turns-par;
+  document.getElementById('cardRes').textContent =
+    `Prism #${DAY} — ${turns} turns, par ${par}` + (turns<par?'  ✦ under par!':delta===0?'  ✦ on par':'');
+  document.getElementById('grid').textContent = buildShareGrid();
+  document.getElementById('cardSub').textContent =
+    `Streak ${load().streak}  ·  ${countSolved()} tiles in your window`;
+  ov.style.display='flex';
+}
+document.getElementById('closeBtn').onclick=()=>{document.getElementById('overlay').style.display='none';};
+
+function buildShareGrid(){
+  // spoiler-safe: a 3-row beam glyph + colored target dots, NOT the layout
+  const colors=targets.map(t=>COL[t.color].emo);
+  // row representing the turns vs par as a progress bar
+  let bar='';
+  const fill=Math.max(1,Math.min(7,Math.round((par/Math.max(1,turns))*7)));
+  for(let i=0;i<7;i++) bar+= i<fill?'🟨':'⬛';
+  return `🔆${'➖'.repeat(2)}${colors.join('')}\n${bar}`;
+}
+function buildShareText(){
+  return `Prism #${DAY} — ${turns} turns, par ${par}\n${buildShareGrid()}\n` ;
+}
+document.getElementById('shareBtn').onclick=async()=>{
+  const txt=buildShareText();
+  try{
+    if(navigator.share){ await navigator.share({text:txt}); return; }
+  }catch(e){}
+  try{ await navigator.clipboard.writeText(txt); toast('Copied result!'); }
+  catch(e){ toast('Copy failed'); }
+};
+
+function toast(m){
+  const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),1600);
+}
+
+/* ---------- persistence ---------- */
+const LS='prism.v1';
+function load(){ try{return JSON.parse(localStorage.getItem(LS))||{};}catch(e){return {};} }
+function save(o){ try{localStorage.setItem(LS,JSON.stringify(o));}catch(e){} }
+function countSolved(){ const d=load(); return Object.keys(d.tiles||{}).length; }
+
+function saveProgress(){
+  const d=load();
+  d.tiles=d.tiles||{};
+  const wasSolved=!!d.tiles[DAY];
+  d.tiles[DAY]={turns,par};
+  // streak
+  if(d.lastDay===DAY-1) d.streak=(d.streak||0)+ (wasSolved?0:1);
+  else if(d.lastDay!==DAY) d.streak=1;
+  d.streak=Math.max(1,d.streak||1);
+  d.lastDay=DAY;
+  save(d);
+  document.getElementById('streak').textContent=d.streak;
+}
+
+/* ---------- collection: stained-glass tiles ---------- */
+function freezeTile(){
+  // snapshot current beam pattern into a compact descriptor
+  const d=load();
+  d.patterns=d.patterns||{};
+  d.patterns[DAY]=beamSegs.map(s=>({a:[s.x1,s.y1],b:[s.x2,s.y2],c:s.color}));
+  d.patSize=d.patSize||{}; d.patSize[DAY]=N;
+  save(d);
+}
+function renderWindow(){
+  const win=document.getElementById('window');
+  win.innerHTML='';
+  const d=load();
+  const pats=d.patterns||{};
+  // show last up to 12 days as tiles, plus today
+  const days=[];
+  for(let i=Math.max(1,DAY-11);i<=DAY;i++) days.push(i);
+  for(const dd of days){
+    const tile=document.createElement('div');
+    tile.className='tile';
+    const c=document.createElement('canvas');
+    const sz=72; c.width=sz; c.height=sz;
+    tile.appendChild(c);
+    const cx=c.getContext('2d');
+    cx.fillStyle='#0a0e1e'; cx.fillRect(0,0,sz,sz);
+    if(pats[dd]){
+      const gn=(d.patSize&&d.patSize[dd])||6;
+      const p=sz*0.08, cl=(sz-p*2)/gn;
+      cx.lineCap='round';
+      for(const s of pats[dd]){
+        const col=COL[s.c]||COL.W;
+        const X1=p+(s.a[0]+0.5)*cl, Y1=p+(s.a[1]+0.5)*cl;
+        let X2=p+(s.b[0]+0.5)*cl, Y2=p+(s.b[1]+0.5)*cl;
+        X2=Math.max(p,Math.min(sz-p,X2)); Y2=Math.max(p,Math.min(sz-p,Y2));
+        cx.strokeStyle=col.glow; cx.globalAlpha=0.5; cx.lineWidth=cl*0.34;
+        cx.beginPath();cx.moveTo(X1,Y1);cx.lineTo(X2,Y2);cx.stroke();
+        cx.strokeStyle=col.hex; cx.globalAlpha=1; cx.lineWidth=cl*0.16;
+        cx.beginPath();cx.moveTo(X1,Y1);cx.lineTo(X2,Y2);cx.stroke();
+      }
+      if(dd===DAY) tile.style.borderColor='#ffd479';
+    } else {
+      cx.strokeStyle='rgba(120,140,200,0.12)';
+      cx.strokeRect(sz*0.3,sz*0.3,sz*0.4,sz*0.4);
+    }
+    win.appendChild(tile);
+  }
+}
+
+/* ---------- level lifecycle ---------- */
+let levelData=null;
+function startLevel(reset){
+  if(!reset || !levelData){
+    levelData=genLevel(DAY);
+  }
+  N=levelData.N;
+  source={x:levelData.src.x, y:levelData.src.y, dir:levelData.src.dir, color:'W'};
+  // rebuild cells fresh each (reset restores scrambled state)
+  cells=new Map();
+  for(const [k,v] of levelData.placed){
+    cells.set(k,{type:v.type,o:v.o});
+  }
+  targets=levelData.targets.map(t=>({x:t.x,y:t.y,color:t.color,lit:false}));
+  par=levelData.par;
+  turns=0; history=[]; solved=false;
+  document.getElementById('turns').textContent='0';
+  document.getElementById('dayNo').textContent='#'+DAY;
+  document.getElementById('parPill').innerHTML='Par <b>'+par+'</b>';
+  const d=load(); document.getElementById('streak').textContent=d.streak||0;
+  fit();
+  simulate();
+  updateTip();
+  renderWindow();
+}
+
+/* genLevel mutates global `cells`; we must snapshot the *scrambled placed* set.
+   Fix: capture placed orientations into levelData.placed (already a Map of optic objects).
+   But tryBuild used global cells. We re-key here. */
+
+window.addEventListener('resize',()=>{ DPR=Math.min(window.devicePixelRatio||1,2.5); fit(); });
+
+/* boot */
+startLevel(false);
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

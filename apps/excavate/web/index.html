@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Excavate</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="title">Ex<span class="pick">cavate</span></div>
+    <div class="day"><b id="dayN">Level 1</b><button id="colBtn" class="colbtn">🗃 Collection</button></div>
+  </header>
+  <div class="how" id="how">Dig the <em>warm</em> tiles — then name what's buried.</div>
+
+  <div class="stats">
+    <div class="stat" id="budgetStat"><div class="v" id="budget">7</div><div class="l">Digs Left</div></div>
+    <div class="stat"><div class="v" id="par">4</div><div class="l">Target Digs</div></div>
+  </div>
+
+  <div class="boardwrap">
+    <canvas id="photo"></canvas>
+    <div id="grid"></div>
+  </div>
+
+  <div class="guesswrap">
+    <div class="choices" id="choices"></div>
+    <button class="btn" id="guessBtn">Name it</button>
+  </div>
+</div>
+
+<div class="ov hidden" id="ov"><div class="card" id="ovCard">
+  <div class="ovhead"><span class="level-ribbon"><span class="pick">⛏</span> LEVEL <span class="num" id="ovLvl">1</span></span></div>
+  <div class="headline" id="ovTitle">Unearthed!</div>
+  <div class="stage">
+    <div class="sunburst"><div class="rays"></div></div>
+    <div class="glowpool"></div>
+    <div class="rarity-aura" id="ovAura"></div>
+    <span class="sparkle s1">✦</span><span class="sparkle s2">✦</span><span class="sparkle s3">✧</span><span class="sparkle s4">✦</span><span class="sparkle s5">✧</span>
+    <div class="mound"><span class="pebble p1"></span><span class="pebble p2"></span><span class="pebble p3"></span><span class="pebble p4"></span><span class="pebble p5"></span></div>
+    <div class="cast"></div>
+    <div class="objects" id="ovObjects"></div>
+  </div>
+  <div class="caption">
+    <div class="obj-name" id="ovName"></div>
+    <span class="rarity-ribbon" id="ovRarity"></span>
+  </div>
+  <div class="ovpar" id="ovPar"></div>
+  <button class="ovbtn" id="nextBtn">Next level</button>
+  <button class="ovbtn ghost" id="retryBtn" style="display:none">Retry</button>
+</div></div>
+
+<div class="intro hidden" id="intro"><div class="introcard">
+  <div class="introbadge">NEW</div>
+  <canvas id="introViz" width="260" height="150"></canvas>
+  <h2 id="introTitle"></h2>
+  <p id="introBlurb"></p>
+  <button class="btn" id="introBtn">Dig!</button>
+</div></div>
+
+<div class="collscreen hidden" id="collscreen">
+  <div class="collhead">
+    <b>Collection</b><span id="collCount" class="collcount"></span>
+    <button id="collClose" class="collclose" aria-label="Close">✕</button>
+  </div>
+  <div class="collbody" id="collBody"></div>
+</div>
+
+<canvas class="fx" id="fx"></canvas>
+<div class="toast" id="toast"></div>
+
+<script src="js/vendor/web-game-core.js"></script>
+<script src="js/vendor/analytics.js"></script>
+<script src="js/vendor/audio.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

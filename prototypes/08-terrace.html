@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Terrace</title>
+<style>
+  :root{
+    --bg0:#0b0f16; --bg1:#121a26; --ink:#e8eef7; --muted:#8da0b8;
+    --accent:#6fe3c8; --accent2:#ffcf6f; --warn:#ff7a8a; --line:#23314a;
+    --gold:#ffd479;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:
+      radial-gradient(120% 90% at 50% -10%, #1a2740 0%, var(--bg0) 60%) fixed;
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    min-height:100%; overflow:hidden; user-select:none;
+    touch-action:none;
+  }
+  .wrap{width:100%;max-width:520px;display:flex;flex-direction:column;align-items:center;
+    padding:8px 10px env(safe-area-inset-bottom) 10px;gap:6px;height:100vh;height:100dvh;}
+  header{width:100%;display:flex;align-items:center;justify-content:space-between;}
+  .title{font-weight:800;letter-spacing:.5px;font-size:22px;display:flex;align-items:center;gap:8px;}
+  .title .dot{width:11px;height:11px;border-radius:3px;transform:rotate(45deg);
+    background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 14px var(--accent);}
+  .meta{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);}
+  .pill{background:#15202f;border:1px solid var(--line);border-radius:999px;padding:4px 9px;
+    display:flex;gap:5px;align-items:center;white-space:nowrap;}
+  .pill b{color:var(--ink);}
+  .howto{width:100%;text-align:center;font-size:12.5px;color:var(--muted);min-height:16px;
+    transition:color .3s;}
+  .howto b{color:var(--accent);}
+  .goalbar{width:100%;display:flex;gap:8px;align-items:stretch;}
+  .goal{flex:1;background:#10192880;border:1px solid var(--line);border-radius:12px;
+    padding:7px 10px;display:flex;flex-direction:column;gap:2px;}
+  .goal .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;}
+  .goal .v{font-size:16px;font-weight:700;}
+  .goal .v small{color:var(--muted);font-weight:500;font-size:12px;}
+  .stage{position:relative;width:100%;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;}
+  canvas{display:block;touch-action:none;}
+  .hand{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;
+    min-height:78px;}
+  .handpiece{position:relative;width:74px;height:74px;display:flex;align-items:center;justify-content:center;}
+  .handlabel{font-size:11px;color:var(--muted);text-align:center;}
+  .btnrow{width:100%;display:flex;gap:8px;}
+  button{font-family:inherit;border:none;border-radius:12px;padding:11px 12px;font-weight:700;
+    font-size:14px;color:var(--ink);cursor:pointer;flex:1;
+    background:#19243a;border:1px solid var(--line);transition:transform .08s, background .2s;}
+  button:active{transform:scale(.96);}
+  button.primary{background:linear-gradient(135deg,#1f5d52,#2a7d6c);border-color:#2f8f7c;}
+  button.ghost{background:#141d2c;}
+  .toast{position:fixed;left:50%;top:46%;transform:translate(-50%,-50%) scale(.8);
+    background:#0e1622ee;border:1px solid var(--accent);color:var(--ink);
+    padding:14px 22px;border-radius:14px;font-weight:800;font-size:20px;opacity:0;
+    pointer-events:none;transition:opacity .25s, transform .25s;z-index:30;text-align:center;
+    box-shadow:0 8px 40px #000a;}
+  .toast.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+  .overlay{position:fixed;inset:0;background:#070b12dd;backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:center;z-index:40;opacity:0;pointer-events:none;
+    transition:opacity .3s;}
+  .overlay.show{opacity:1;pointer-events:auto;}
+  .card{width:90%;max-width:380px;background:linear-gradient(180deg,#131d2c,#0d1420);
+    border:1px solid var(--line);border-radius:20px;padding:20px;text-align:center;
+    box-shadow:0 20px 60px #000a;}
+  .card h2{margin:0 0 4px;font-size:24px;}
+  .card .sub{color:var(--muted);font-size:13px;margin-bottom:12px;}
+  .resultgrid{font-size:20px;line-height:1.15;letter-spacing:2px;margin:10px 0;white-space:pre;
+    font-family:ui-monospace,Menlo,monospace;}
+  .island{font-size:15px;color:var(--gold);font-weight:700;margin:6px 0;}
+  .archi{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0;max-height:120px;overflow:auto;}
+  .archi .it{background:#15202f;border:1px solid var(--line);border-radius:9px;padding:5px 8px;
+    font-size:11px;display:flex;gap:5px;align-items:center;}
+  .star{color:var(--gold);}
+  .small{font-size:11px;color:var(--muted);margin-top:8px;}
+  .fab{position:absolute;right:6px;top:6px;width:34px;height:34px;border-radius:10px;border:1px solid var(--line);
+    background:#141d2c;color:var(--muted);font-size:16px;display:flex;align-items:center;justify-content:center;flex:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="title"><span class="dot"></span>TERRACE</div>
+    <div class="meta">
+      <div class="pill">Day <b id="dayN">1</b></div>
+      <div class="pill">🔥 <b id="streak">0</b></div>
+      <div class="pill">⛰ <b id="islandCount">0</b></div>
+    </div>
+  </header>
+
+  <div class="howto" id="howto">Drag the piece onto the plot. <b>Same height + touching = rises a level.</b></div>
+
+  <div class="goalbar">
+    <div class="goal"><span class="k">Goal</span><span class="v" id="goalTxt">—</span></div>
+    <div class="goal"><span class="k">Moves</span><span class="v" id="movesTxt">— <small>/ par —</small></span></div>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="cv"></canvas>
+    <button class="fab" id="resetBtn" title="restart">↺</button>
+  </div>
+
+  <div class="handlabel" id="handlabel">In hand · drag to place</div>
+  <div class="hand" id="hand"></div>
+
+  <div class="btnrow">
+    <button class="ghost" id="undoBtn">Undo</button>
+    <button class="primary" id="shareBtn">Share</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="overlay" id="overlay">
+  <div class="card">
+    <h2 id="endTitle">Plateau!</h2>
+    <div class="sub" id="endSub"></div>
+    <div class="island" id="islandName"></div>
+    <div class="resultgrid" id="resultGrid"></div>
+    <div class="archi" id="archiList"></div>
+    <div class="btnrow">
+      <button class="ghost" id="closeBtn">View Plot</button>
+      <button class="primary" id="shareBtn2">Share Result</button>
+    </div>
+    <div class="small">A new plot every day. Build your archipelago.</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ===================== Terrace ===================== */
+/* Isometric merge puzzle. A connected group of >=2 equal-height tiles fuses
+   and the whole plateau rises one level; this chains. Daily plots are
+   generated then VERIFIED by a real forward solver, so every day is solvable
+   and the solver's drop-count sets par. */
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+/* ---------- seeded RNG (mulberry32) ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function seedFromDate(d){ // YYYYMMDD -> int
+  return (d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate());
+}
+const TODAY = new Date();
+const EPOCH = new Date(2026,5,29); // Day 1 reference
+const DAY_NUM = Math.max(1, Math.round((Date.UTC(TODAY.getFullYear(),TODAY.getMonth(),TODAY.getDate())-Date.UTC(EPOCH.getFullYear(),EPOCH.getMonth(),EPOCH.getDate()))/86400000)+1);
+const SEED = seedFromDate(TODAY);
+
+/* ---------- board model ---------- */
+let GRID = 4;          // set per-day
+let board = [];        // board[r][c] = height (0 = empty/void), -1 = forbidden
+let hand = [];         // queue of piece heights to drop
+let moves = 0, par = 0, maxMoves = 0;
+let goal = null;       // {cells:[[r,c]..], height:h, label}
+let history = [];      // snapshots for undo
+let won = false;
+
+/* ---------- daily generation ----------
+   Start board contains only height-1 flats + empties (+forbidden).
+   Goal = fill a connected region to >= a target height.
+   A real forward solver verifies solvability and sets par. We retry seeds
+   until a layout is provably solvable, so every daily has a solution. */
+
+function buildRegion(rng,N,size,forbidden){
+  // grow a connected blob from center, avoiding forbidden cells
+  const blocked=(r,c)=>forbidden.some(p=>p[0]===r&&p[1]===c);
+  let region=[]; const cx=Math.floor(N/2),cy=Math.floor(N/2);
+  if(blocked(cy,cx)){ /* shift */ region.push([0,0]); } else region.push([cy,cx]);
+  let guard=0;
+  while(region.length<size && guard++<200){
+    const [r,c]=region[Math.floor(rng()*region.length)];
+    const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+    for(let k=dirs.length-1;k>0;k--){const j=Math.floor(rng()*(k+1));[dirs[k],dirs[j]]=[dirs[j],dirs[k]];}
+    let placed=false;
+    for(const [dr,dc] of dirs){
+      const nr=r+dr,nc=c+dc;
+      if(nr<0||nc<0||nr>=N||nc>=N)continue;
+      if(blocked(nr,nc))continue;
+      if(region.some(p=>p[0]===nr&&p[1]===nc))continue;
+      region.push([nr,nc]); placed=true; break;
+    }
+    if(!placed && region.length<2) break;
+  }
+  return region;
+}
+
+function genDaily(seed, dayNum){
+  // difficulty ramps Mon..Sat (dow 1..6), Sun easy
+  const dow = TODAY.getDay(); // 0 sun .. 6 sat
+  const ramp = (dow===0)?0:dow; // 0..6
+  GRID = (ramp>=4)?5:4;
+  const N = GRID;
+  const tgtH = (dayNum===1)?2 : (ramp>=2?(N===5?4:3):3);
+
+  // try seeds until solvable
+  for(let attempt=0;attempt<60;attempt++){
+    const rng=mulberry32((seed^0x9e3779b9) + attempt*2654435761 >>>0);
+    // forbidden tiles introduced on harder days
+    let forbidden=[];
+    if(ramp>=3 && dayNum!==1){
+      const fr=Math.floor(rng()*N), fc=Math.floor(rng()*N);
+      forbidden=[[fr,fc]];
+      if(ramp>=5){ let g=0; while(g++<10){const r=Math.floor(rng()*N),c=Math.floor(rng()*N);
+        if(!forbidden.some(p=>p[0]===r&&p[1]===c)){forbidden.push([r,c]);break;}}}
+    }
+    const regionSize = (N===5)?(5+Math.floor(rng()*3)) : (dayNum===1?3:(4+Math.floor(rng()*2)));
+    const region = buildRegion(rng,N,regionSize,forbidden);
+    if(region.length<3) continue;
+
+    // start board: scatter height-1 flats WITHOUT any two adjacent (so no merge
+    // happens until the PLAYER drops a flat to complete a pair).
+    let start=Array.from({length:N},()=>Array(N).fill(0));
+    for(const [r,c] of forbidden) start[r][c]=-1;
+    const adjEqual=(b,r,c,v)=>neighborsN(r,c,N).some(([a,d])=>b[a][d]===v);
+    if(dayNum===1){
+      // ONE flat in the region with an empty region-neighbour to drop onto.
+      let seeded=false;
+      for(const a of region){
+        const empties=neighborsN(a[0],a[1],N).filter(([r,c])=>region.some(p=>p[0]===r&&p[1]===c));
+        if(empties.length){ start[a[0]][a[1]]=1; seeded=true; break; }
+      }
+      if(!seeded) start[region[0][0]][region[0][1]]=1;
+    } else {
+      const seedCount = Math.max(2, Math.floor(region.length*0.5) - (ramp>=4?1:0));
+      let pool=region.slice();
+      for(let i=pool.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
+      let placed=0;
+      for(const [r,c] of pool){
+        if(placed>=seedCount)break;
+        if(start[r][c]===0 && !adjEqual(start,r,c,1)){ start[r][c]=1; placed++; }
+      }
+    }
+
+    const g={cells:region.map(p=>p.slice()), height:tgtH,
+             label:`Raise the marked ridge to height <b>${tgtH}</b>`};
+    // verify with the forward solver
+    const sol = solveForward(start, g, N);
+    if(sol.solved){
+      board = start.map(r=>r.slice());
+      goal = g;
+      par = sol.moves;
+      maxMoves = sol.moves + 3 + (ramp>=4?1:0);
+      hand = Array(maxMoves).fill(1); // generous supply of flats
+      moves=0; won=false; history=[]; animQueue=[];
+      return;
+    }
+  }
+  // ultra-fallback: one flat down, drop its neighbour to reach height 2.
+  GRID=4; board=Array.from({length:4},()=>Array(4).fill(0));
+  board[1][1]=1;
+  goal={cells:[[1,1],[1,2]],height:2,label:'Raise the marked ridge to height <b>2</b>'};
+  par=1; maxMoves=4; hand=[1,1,1,1]; moves=0; won=false; history=[]; animQueue=[];
+}
+
+/* ---------- forward solver (greedy, verifies solvability + par) ----------
+   Simulates dropping height-1 flats. Strategy: at each step, drop a flat on the
+   empty goal-region cell whose drop creates (or extends) the largest equal-height
+   plateau, then resolve merges. Bounded by a move cap. Returns {solved,moves}. */
+function cloneB(b){return b.map(r=>r.slice());}
+function neighborsN(r,c,N){return [[r+1,c],[r-1,c],[r,c+1],[r,c-1]].filter(([a,b])=>a>=0&&b>=0&&a<N&&b<N);}
+function resolveSim(b,N){
+  let passes=0;
+  while(passes<30){
+    const seen=Array.from({length:N},()=>Array(N).fill(false));
+    let any=false;
+    const lifts=[];
+    for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+      if(seen[r][c]||b[r][c]<1)continue;
+      const h=b[r][c],stack=[[r,c]],cells=[];seen[r][c]=true;
+      while(stack.length){const [cr,cc]=stack.pop();cells.push([cr,cc]);
+        for(const [a,d] of neighborsN(cr,cc,N))if(!seen[a][d]&&b[a][d]===h){seen[a][d]=true;stack.push([a,d]);}}
+      if(cells.length>=2)lifts.push({cells,h});
+    }
+    if(!lifts.length)break;
+    for(const L of lifts)for(const [r,c] of L.cells)b[r][c]=L.h+1;
+    any=true;passes++;
+    if(!any)break;
+  }
+  return b;
+}
+function goalMet(b,g){return g.cells.every(([r,c])=>b[r][c]>=g.height);}
+function solveForward(start,g,N){
+  let b=cloneB(start);
+  resolveSim(b,N);
+  if(goalMet(b,g))return {solved:true,moves:0};
+  const cap = N*N*g.height + 6;
+  for(let m=1;m<=cap;m++){
+    // candidate empty cells (prefer goal region, then anything)
+    let cands=[];
+    for(let r=0;r<N;r++)for(let c=0;c<N;c++) if(b[r][c]===0) cands.push([r,c]);
+    if(!cands.length) return {solved:false};
+    // score each: simulate the drop, prefer ones that meet goal, then that maximize
+    // total height-units inside the goal region, then that trigger merges.
+    let best=null,bestScore=-1e9, bestMet=false;
+    const inGoal=(r,c)=>g.cells.some(p=>p[0]===r&&p[1]===c);
+    for(const [r,c] of cands){
+      const t=cloneB(b); t[r][c]=1; resolveSim(t,N);
+      const met=goalMet(t,g);
+      let units=0,goalUnits=0;
+      for(let rr=0;rr<N;rr++)for(let cc=0;cc<N;cc++){
+        if(t[rr][cc]>0){units+=t[rr][cc]; if(inGoal(rr,cc))goalUnits+=Math.min(t[rr][cc],g.height);}
+      }
+      const score=(met?100000:0)+goalUnits*100+units*5+(inGoal(r,c)?20:0);
+      if(score>bestScore){bestScore=score;best=[r,c];bestMet=met;}
+    }
+    if(!best) return {solved:false};
+    b[best[0]][best[1]]=1; resolveSim(b,N);
+    if(goalMet(b,g)) return {solved:true,moves:m};
+  }
+  return {solved:false};
+}
+
+/* ---------- merge logic (forward, live game) ---------- */
+// Plateau lift: any maximal connected group of >=2 equal-height tiles all rise
+// by one level together (the whole plateau keeps its footprint, just gets
+// taller). Lifting repeats until stable, so a single drop can chain a cascade
+// up a ridge. Mirrors resolveSim() used by the verifier, so par is reachable.
+function neighbors(r,c){const N=GRID;return [[r+1,c],[r-1,c],[r,c+1],[r,c-1]].filter(([a,b])=>a>=0&&b>=0&&a<N&&b<N);}
+
+function findPlateaus(){
+  // returns list of {cells, height} for connected groups (size>=2) of equal height>=1
+  const N=GRID; const seen=Array.from({length:N},()=>Array(N).fill(false));
+  const groups=[];
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    if(seen[r][c]||board[r][c]<1)continue;
+    const h=board[r][c]; const stack=[[r,c]]; const cells=[]; seen[r][c]=true;
+    while(stack.length){
+      const [cr,cc]=stack.pop(); cells.push([cr,cc]);
+      for(const [a,b] of neighbors(cr,cc)){
+        if(!seen[a][b]&&board[a][b]===h){seen[a][b]=true;stack.push([a,b]);}
+      }
+    }
+    if(cells.length>=2) groups.push({cells,height:h});
+  }
+  return groups;
+}
+
+let animQueue=[]; // visual merge pulses {cells, toH, t}
+function resolveMerges(){
+  // Lift plateaus until stable; each pass lifts ALL eligible plateaus at once.
+  // Model updates synchronously; the render loop replays the pulses from animQueue.
+  let passes=0;
+  while(passes<=20){
+    const groups=findPlateaus();
+    if(!groups.length)break;
+    // stagger pulse start so chains visibly ripple upward
+    for(const g of groups){
+      for(const [r,c] of g.cells) board[r][c]=g.height+1;
+      animQueue.push({cells:g.cells.map(p=>p.slice()),toH:g.height+1,t:-passes*0.18,big:g.cells.length>=4,chain:passes});
+    }
+    passes++;
+  }
+  return passes; // number of chain passes
+}
+
+/* ---------- win check ---------- */
+function checkGoal(){
+  return goal.cells.every(([r,c])=>board[r][c]>=goal.height);
+}
+
+/* ---------- isometric rendering ---------- */
+let TILE=46, TH=22, LIFT=14; // tile half-width, half-height, per-level lift
+let originX=0, originY=0;
+let DPR = Math.min(window.devicePixelRatio||1, 2.5);
+
+function resize(){
+  const stage=document.getElementById('stage');
+  const w=stage.clientWidth, h=stage.clientHeight;
+  cv.style.width=w+'px'; cv.style.height=h+'px';
+  cv.width=Math.floor(w*DPR); cv.height=Math.floor(h*DPR);
+  // Full iso footprint: width = 2*(GRID-1)*TILE+2*TILE = 2*GRID*TILE (incl half-tile margins);
+  // base height = 2*(GRID-1)*TH + 2*TH. Reserve vertical room for stacked columns.
+  const span = Math.max(1, GRID-1);
+  const maxW = w*0.94;
+  const maxH = h*0.78; // leave headroom up top for tall terraces
+  const tByW = maxW/(2*(GRID));            // TILE so width fits
+  const tByH = maxH/(2*(GRID));            // TH=TILE*0.5 so this also bounds height-ish
+  TILE = Math.max(22, Math.min(60, Math.min(tByW, tByH*1.4)));
+  TH = TILE*0.5; LIFT = TILE*0.36;
+  originX = w/2;
+  // center the diamond's base row, biased downward to leave room for lifted columns
+  originY = h*0.42 - span*TH*0.5;
+  draw();
+}
+
+function iso(r,c){
+  // grid cell center -> screen (top of base, height 0)
+  const x=originX+(c-r)*TILE;
+  const y=originY+(c+r)*TH;
+  return [x,y];
+}
+function screenToCell(px,py){
+  // invert iso for height-0 plane (drop target). Good enough for picking.
+  const x=px-originX, y=py-originY;
+  const c=(x/TILE + y/TH)/2;
+  const r=(y/TH - x/TILE)/2;
+  return [Math.round(r),Math.round(c)];
+}
+
+function shade(hex,amt){
+  const n=parseInt(hex.slice(1),16);
+  let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  r=Math.max(0,Math.min(255,r+amt));g=Math.max(0,Math.min(255,g+amt));b=Math.max(0,Math.min(255,b+amt));
+  return `rgb(${r|0},${g|0},${b|0})`;
+}
+const LEVELCOL=['#2c3a52','#3c7d54','#6fae5a','#cdbf6a','#e0a85f','#d98b6a','#cf7d8f'];
+function levelColor(h){return LEVELCOL[Math.min(h,LEVELCOL.length-1)];}
+
+let dragGhost=null; // {r,c,valid}
+let pulse=0;
+let hintCell=null; // {r,c} pulsing first-move target (cleared after first drop)
+
+// Pick an obvious first drop: an empty goal cell adjacent to a seeded flat, so a
+// brand-new player sees exactly where "same height + touching" pays off.
+function computeHint(){
+  hintCell=null;
+  if(moves>0 || !goal) return;
+  for(const [r,c] of goal.cells){
+    if(board[r][c]!==0) continue;
+    if(neighbors(r,c).some(([a,b])=>board[a][b]===1)){ hintCell={r,c}; return; }
+  }
+  // fallback: any empty goal cell
+  for(const [r,c] of goal.cells){ if(board[r][c]===0){ hintCell={r,c}; return; } }
+}
+
+function drawTile(r,c,h,opts){
+  opts=opts||{};
+  const [bx,by]=iso(r,c);
+  const top = by - h*LIFT;
+  const w=TILE, hh=TH;
+  // pulse from recent merge (t ramps -..1; glow peaks at t=0 then fades)
+  let glow=0, bounce=0;
+  for(const a of animQueue){
+    if(a.cells.some(p=>p[0]===r&&p[1]===c)){
+      const tt=a.t; const gv = tt<0? 0.4+0.6*(1+tt) : (1-tt);
+      glow=Math.max(glow, Math.max(0,Math.min(1,gv)));
+      // springy overshoot just after the lift lands
+      if(tt>=0&&tt<0.6){ bounce=Math.max(bounce, Math.sin(tt/0.6*Math.PI)*LIFT*0.5); }
+    }
+  }
+  const col=levelColor(h);
+  const isGoal = goal && goal.cells.some(p=>p[0]===r&&p[1]===c);
+
+  if(h<=0){
+    // empty plot cell: outline diamond
+    ctx.beginPath();
+    ctx.moveTo(bx,by-hh);ctx.lineTo(bx+w,by);ctx.lineTo(bx,by+hh);ctx.lineTo(bx-w,by);ctx.closePath();
+    if(board[r][c]===-1){ // forbidden
+      ctx.fillStyle='#1a0f17'; ctx.fill();
+      ctx.strokeStyle='#5a2c3a'; ctx.lineWidth=2; ctx.stroke();
+      ctx.strokeStyle='#7a3c4a';
+      ctx.beginPath();ctx.moveTo(bx-w*0.4,by);ctx.lineTo(bx+w*0.4,by);ctx.stroke();
+    } else {
+      ctx.fillStyle= isGoal? '#16263a':'#101824';
+      ctx.fill();
+      ctx.strokeStyle= isGoal? 'rgba(111,227,200,.55)':'rgba(60,80,110,.4)';
+      ctx.lineWidth= isGoal?2:1; ctx.setLineDash(isGoal?[]:[4,4]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    // first-move hint: pulsing "drop here" diamond + tiny ghost flat
+    if(hintCell && hintCell.r===r && hintCell.c===c && !opts.ghost && !dragging){
+      const p=0.5+0.5*Math.sin(pulse*0.09);
+      ctx.save();
+      ctx.globalAlpha=0.45+0.45*p;
+      ctx.strokeStyle='#6fe3c8';
+      ctx.lineWidth=2.5;
+      ctx.beginPath();
+      ctx.moveTo(bx,by-hh);ctx.lineTo(bx+w,by);ctx.lineTo(bx,by+hh);ctx.lineTo(bx-w,by);ctx.closePath();
+      ctx.stroke();
+      ctx.globalAlpha=0.25+0.35*p;
+      drawColumn(bx,by,1,'#6fae5a',true);
+      ctx.restore();
+    }
+    // drag ghost
+    if(opts.ghost){
+      ctx.save();
+      ctx.globalAlpha=0.6;
+      drawColumn(bx,by,1,opts.ghostValid?'#6fae5a':'#ff7a8a',true);
+      ctx.restore();
+    }
+    return;
+  }
+  drawColumn(bx,by,h,col,false,glow,isGoal,bounce);
+}
+
+function drawColumn(bx,by,h,col,ghost,glow,isGoal,bounce){
+  const w=TILE,hh=TH;
+  const top=by-h*LIFT-(bounce||0);
+  // left face
+  ctx.beginPath();
+  ctx.moveTo(bx-w,top);ctx.lineTo(bx,top+hh);ctx.lineTo(bx,by+hh);ctx.lineTo(bx-w,by);ctx.closePath();
+  ctx.fillStyle=shade(col,-46);ctx.fill();
+  // right face
+  ctx.beginPath();
+  ctx.moveTo(bx+w,top);ctx.lineTo(bx,top+hh);ctx.lineTo(bx,by+hh);ctx.lineTo(bx+w,by);ctx.closePath();
+  ctx.fillStyle=shade(col,-22);ctx.fill();
+  // top face
+  ctx.beginPath();
+  ctx.moveTo(bx,top-hh);ctx.lineTo(bx+w,top);ctx.lineTo(bx,top+hh);ctx.lineTo(bx-w,top);ctx.closePath();
+  let topCol=col;
+  if(glow>0){ topCol=shade(col, 60*glow); }
+  ctx.fillStyle=topCol;ctx.fill();
+  ctx.strokeStyle=shade(col,40);ctx.lineWidth=1.2;ctx.stroke();
+  if(isGoal){
+    ctx.strokeStyle='rgba(111,227,200,.8)';ctx.lineWidth=2;ctx.stroke();
+  }
+  if(glow>0){
+    ctx.save();ctx.globalAlpha=glow*0.8;
+    ctx.fillStyle=shade(col,90);
+    ctx.beginPath();
+    ctx.moveTo(bx,top-hh);ctx.lineTo(bx+w,top);ctx.lineTo(bx,top+hh);ctx.lineTo(bx-w,top);ctx.closePath();
+    ctx.fill();ctx.restore();
+  }
+  // height pips on top
+  ctx.fillStyle=shade(col,h>3?-90:80);
+  ctx.font=`700 ${Math.max(10,TILE*0.34)}px -apple-system,sans-serif`;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(String(h),bx,top-1);
+}
+
+function draw(){
+  ctx.save();
+  ctx.scale(DPR,DPR);
+  const w=cv.width/DPR,h=cv.height/DPR;
+  ctx.clearRect(0,0,w,h);
+  // paint back-to-front
+  for(let s=0;s<GRID*2;s++){
+    for(let r=0;r<GRID;r++){
+      const c=s-r;
+      if(c<0||c>=GRID)continue;
+      const ghost = dragGhost && dragGhost.r===r && dragGhost.c===c && board[r][c]===0;
+      drawTile(r,c,board[r][c],{ghost,ghostValid:ghost&&dragGhost.valid});
+    }
+  }
+  ctx.restore();
+}
+
+/* ---------- animation loop ---------- */
+function tick(){
+  pulse++;
+  let active=false;
+  for(const a of animQueue){ a.t+=0.06; if(a.t<1)active=true; }
+  animQueue=animQueue.filter(a=>a.t<1.05);
+  draw();
+  // keep ticking while merges play OR a first-move hint is pulsing
+  if(active||animQueue.length||(hintCell&&!won)) requestAnimationFrame(tick);
+}
+
+/* ---------- interaction ---------- */
+let dragging=false;
+function pointerToLocal(e){
+  const rect=cv.getBoundingClientRect();
+  const cx=(e.touches?e.touches[0].clientX:e.clientX)-rect.left;
+  const cy=(e.touches?e.touches[0].clientY:e.clientY)-rect.top;
+  return [cx,cy];
+}
+
+function validDrop(r,c){
+  return r>=0&&c>=0&&r<GRID&&c<GRID&&board[r][c]===0;
+}
+// If the raw pick isn't an empty cell, snap to the closest empty cell on screen
+// (tall columns shift their visible top far from the base plane, so a forgiving
+// pick keeps drops feeling reliable on touch).
+function nearestEmpty(px,py){
+  let best=null,bd=Infinity;
+  for(let r=0;r<GRID;r++)for(let c=0;c<GRID;c++){
+    if(board[r][c]!==0)continue;
+    const [bx,by]=iso(r,c);
+    const dx=px-bx, dy=py-by; const d=dx*dx+dy*dy;
+    if(d<bd){bd=d;best=[r,c];}
+  }
+  return best;
+}
+
+function beginDrag(e){
+  if(won||!hand.length)return;
+  dragging=true;
+  updateGhost(e);
+  e.preventDefault();
+}
+function updateGhost(e){
+  if(!dragging)return;
+  const [px,py]=pointerToLocal(e);
+  // dragging visually lifts a bit; adjust for drop plane
+  let [r,c]=screenToCell(px,py+8);
+  // forgiving pick: if the raw cell isn't a free slot, snap to the nearest empty
+  if(!validDrop(r,c)){
+    const ne=nearestEmpty(px,py+8);
+    if(ne){
+      const [bx,by]=iso(ne[0],ne[1]);
+      // only snap if reasonably close, so distant taps still read as "no target"
+      if((px-bx)*(px-bx)+(py-by)*(py-by) < (TILE*1.5)*(TILE*1.5)){ r=ne[0]; c=ne[1]; }
+    }
+  }
+  dragGhost={r,c,valid:validDrop(r,c)};
+  draw();
+  e.preventDefault();
+}
+function endDrag(e){
+  if(!dragging)return;
+  dragging=false;
+  if(dragGhost&&dragGhost.valid){
+    doDrop(dragGhost.r,dragGhost.c);
+  }
+  dragGhost=null;
+  draw();
+}
+
+function snapshot(){
+  return {board:board.map(r=>r.slice()),hand:hand.slice(),moves};
+}
+function doDrop(r,c){
+  history.push(snapshot());
+  if(history.length>60)history.shift();
+  hintCell=null; // player has acted — retire the first-move hint
+  board[r][c]=hand.length?hand.shift():1;
+  moves++;
+  const chains=resolveMerges();
+  // feedback
+  if(chains>=2) flashToast(chains>=3?'CHAIN ×'+chains+'!':'Merge ×'+chains);
+  updateHUD();
+  if(!animQueue.length)draw(); else requestAnimationFrame(tick);
+  // teach progression on early moves
+  advanceTutorial();
+  setTimeout(()=>{
+    if(checkGoal()){ winGame(); }
+    else if(moves>=maxMoves && !checkGoal()){ lossCheck(); }
+  }, animQueue.length? 380:60);
+}
+
+function lossCheck(){
+  if(checkGoal()){winGame();return;}
+  flashToast('Out of moves · Undo or ↺');
+}
+
+function undo(){
+  if(!history.length||won)return;
+  const s=history.pop();
+  board=s.board.map(r=>r.slice());
+  hand=s.hand.slice(); moves=s.moves;
+  animQueue=[];
+  computeHint(); // restores the first-move hint if we undid back to the start
+  updateHUD(); draw();
+  if(hintCell) requestAnimationFrame(tick);
+}
+
+let tutStep=0;
+function advanceTutorial(){
+  const el=document.getElementById('howto');
+  if(DAY_NUM!==1)return;
+  tutStep++;
+  if(tutStep===1) el.innerHTML='Nice — that plateau <b>rose a level</b>. Stack matching heights to climb.';
+  else if(tutStep===2) el.innerHTML='Bank flats to set up a <b>bigger cascade</b> across the ridge.';
+  else if(tutStep>=3) el.innerHTML='Reach the glowing region at the target height. Beat par!';
+}
+
+/* ---------- HUD ---------- */
+function updateHUD(){
+  document.getElementById('dayN').textContent=DAY_NUM;
+  document.getElementById('goalTxt').innerHTML=goal.label;
+  const left=Math.max(0,maxMoves-moves);
+  document.getElementById('movesTxt').innerHTML=`<span ${moves>par?'style="color:var(--warn)"':''}>${moves}</span> <small>/ par ${par} · ${left} left</small>`;
+  renderHand();
+}
+function renderHand(){
+  const handEl=document.getElementById('hand');
+  handEl.innerHTML='';
+  const left=Math.max(0,maxMoves-moves);
+  // always a flat in hand (the verb); show up to 3 as a "next" preview
+  const show=Math.min(3,Math.max(0,left));
+  for(let i=0;i<show;i++){
+    const d=document.createElement('div');
+    d.className='handpiece';
+    const c=document.createElement('canvas');
+    c.width=148;c.height=148;c.style.width='74px';c.style.height='74px';
+    drawHandPiece(c,1,i===0);
+    d.appendChild(c);
+    handEl.appendChild(d);
+  }
+  document.getElementById('handlabel').textContent = won? 'Plot complete' :
+    (left>0? 'Drag a flat onto the plot · '+left+' move'+(left>1?'s':'')+' left' : 'No moves left · Undo or ↺');
+}
+function drawHandPiece(c,h,front){
+  const g=c.getContext('2d');g.clearRect(0,0,148,148);
+  const bx=74,by=front?86:90, w=front?32:24, hh=front?16:12;
+  const col=levelColor(h);
+  g.scale(1,1);
+  // simple iso cube
+  g.beginPath();g.moveTo(bx-w,by);g.lineTo(bx,by+hh);g.lineTo(bx,by+hh+22);g.lineTo(bx-w,by+22);g.closePath();
+  g.fillStyle=shade(col,-46);g.fill();
+  g.beginPath();g.moveTo(bx+w,by);g.lineTo(bx,by+hh);g.lineTo(bx,by+hh+22);g.lineTo(bx+w,by+22);g.closePath();
+  g.fillStyle=shade(col,-22);g.fill();
+  g.beginPath();g.moveTo(bx,by-hh);g.lineTo(bx+w,by);g.lineTo(bx,by+hh);g.lineTo(bx-w,by);g.closePath();
+  g.fillStyle=col;g.fill();
+  g.strokeStyle=shade(col,40);g.lineWidth=1.4;g.stroke();
+  g.fillStyle='#06202a';g.font='700 18px -apple-system,sans-serif';g.textAlign='center';g.textBaseline='middle';
+  g.fillText(String(h),bx,by-1);
+  if(front){g.strokeStyle='rgba(111,227,200,.85)';g.lineWidth=2.4;
+    g.beginPath();g.moveTo(bx,by-hh-3);g.lineTo(bx+w+3,by);g.lineTo(bx,by+hh+3);g.lineTo(bx-w-3,by);g.closePath();g.stroke();}
+}
+
+/* ---------- toast ---------- */
+let toastTO=null;
+function flashToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastTO);
+  toastTO=setTimeout(()=>t.classList.remove('show'),900);
+}
+
+/* ---------- win / share / collection ---------- */
+const ISLAND_NAMES=['Mesa','Atoll','Caldera','Tor','Fjord','Butte','Cay','Holm','Reef','Spire','Bluff','Mere','Crag','Knoll','Strand','Drift'];
+function islandFor(day){
+  return ISLAND_NAMES[(day-1)%ISLAND_NAMES.length];
+}
+
+function loadStore(){
+  try{return JSON.parse(localStorage.getItem('terrace_v1')||'{}');}catch(e){return {};}
+}
+function saveStore(s){try{localStorage.setItem('terrace_v1',JSON.stringify(s));}catch(e){}}
+
+function winGame(){
+  if(won)return;
+  won=true;
+  flashToast('PLATEAU!');
+  // confetti-ish extra glow
+  for(const [r,c] of goal.cells) animQueue.push({cells:[[r,c]],toH:board[r][c],t:0,big:true});
+  requestAnimationFrame(tick);
+
+  // collection + streak
+  const store=loadStore();
+  const key=String(SEED);
+  const stars = moves<=par?3 : moves<=par+1?2:1;
+  let streak=store.streak||0;
+  if(store.lastDay!==DAY_NUM){
+    if(store.lastDay===DAY_NUM-1) streak+=1; else streak=1;
+  }
+  store.streak=streak; store.lastDay=DAY_NUM;
+  store.islands=store.islands||{};
+  if(!store.islands[key]||store.islands[key].stars<stars){
+    store.islands[key]={name:islandFor(DAY_NUM),day:DAY_NUM,stars,moves,par};
+  }
+  saveStore(store);
+
+  setTimeout(()=>showEnd(stars,streak,store),650);
+}
+
+function buildShare(stars){
+  // spoiler-safe emoji grid: per row, blocks by height tier
+  const tiers=['⬛','🟫','🟩','🟨','🟧','🟥'];
+  let rows=[];
+  for(let r=0;r<GRID;r++){
+    let line='';
+    for(let c=0;c<GRID;c++){
+      const h=board[r][c];
+      if(board[r][c]===-1){line+='⬜';continue;}
+      line+=tiers[Math.min(Math.max(h,0),tiers.length-1)];
+    }
+    rows.push(line);
+  }
+  const starStr='⭐'.repeat(stars)+'☆'.repeat(3-stars);
+  return `Terrace Day ${DAY_NUM} — ${islandFor(DAY_NUM)}\n${moves}/${par} moves ${starStr}\n${rows.join('\n')}\nterrace.daily`;
+}
+
+function showEnd(stars,streak,store){
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('endTitle').textContent = stars===3?'Perfect Plateau!':stars===2?'Plot Cleared!':'Plot Cleared';
+  document.getElementById('endSub').textContent = `${moves}/${par} moves · ${'⭐'.repeat(stars)}${'☆'.repeat(3-stars)} · 🔥 ${streak} day streak`;
+  document.getElementById('islandName').textContent = `New island: ${islandFor(DAY_NUM)}`;
+  // visual grid
+  const tiers=['·','▂','▄','▆','█','█'];
+  let g='';
+  for(let r=0;r<GRID;r++){let l='';for(let c=0;c<GRID;c++){const h=board[r][c];l+=(board[r][c]===-1?'×':tiers[Math.min(h,5)])+' ';}g+=l.trim()+'\n';}
+  document.getElementById('resultGrid').textContent=g.trim();
+  // archipelago
+  const al=document.getElementById('archiList');
+  al.innerHTML='';
+  const islands=Object.values(store.islands||{}).sort((a,b)=>a.day-b.day);
+  for(const is of islands){
+    const it=document.createElement('div');it.className='it';
+    it.innerHTML=`⛰ ${is.name} <span class="star">${'★'.repeat(is.stars)}</span>`;
+    al.appendChild(it);
+  }
+  document.getElementById('islandCount').textContent=islands.length;
+  document.getElementById('streak').textContent=streak;
+}
+
+async function doShare(){
+  const store=loadStore();const key=String(SEED);
+  const stars = (store.islands&&store.islands[key])?store.islands[key].stars : (won?(moves<=par?3:moves<=par+1?2:1):0);
+  const text=buildShare(stars);
+  try{
+    if(navigator.share){ await navigator.share({text}); return; }
+  }catch(e){}
+  try{
+    await navigator.clipboard.writeText(text);
+    flashToast('Copied result!');
+  }catch(e){
+    flashToast('Share text ready');
+    // fallback: show in toast longer
+    const t=document.getElementById('toast');t.textContent='Result copied to share';t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),1200);
+  }
+}
+
+/* ---------- restart ---------- */
+function restart(){
+  genDaily(SEED,DAY_NUM);
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('howto').innerHTML='Drag the piece onto the plot. <b>Same height + touching = rises a level.</b>';
+  tutStep=0;
+  animQueue=[];
+  computeHint();
+  updateHUD();
+  resize();
+  if(hintCell) requestAnimationFrame(tick);
+}
+
+/* ---------- wire up ---------- */
+cv.addEventListener('mousedown',beginDrag);
+window.addEventListener('mousemove',updateGhost);
+window.addEventListener('mouseup',endDrag);
+cv.addEventListener('touchstart',beginDrag,{passive:false});
+window.addEventListener('touchmove',updateGhost,{passive:false});
+window.addEventListener('touchend',endDrag);
+
+document.getElementById('undoBtn').onclick=undo;
+document.getElementById('resetBtn').onclick=restart;
+document.getElementById('shareBtn').onclick=doShare;
+document.getElementById('shareBtn2').onclick=doShare;
+document.getElementById('closeBtn').onclick=()=>document.getElementById('overlay').classList.remove('show');
+
+window.addEventListener('resize',resize);
+window.addEventListener('orientationchange',()=>setTimeout(resize,200));
+
+/* ---------- boot ---------- */
+function boot(){
+  const store=loadStore();
+  document.getElementById('streak').textContent=store.streak||0;
+  document.getElementById('islandCount').textContent=Object.keys(store.islands||{}).length;
+  genDaily(SEED,DAY_NUM);
+  // if already solved today, reflect streak/collection but still let them replay
+  computeHint();
+  updateHUD();
+  resize();
+  draw();
+  if(hintCell) requestAnimationFrame(tick);
+}
+boot();
+</script>
+</body>
+</html>

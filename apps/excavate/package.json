@@ -1,0 +1,26 @@
+{
+  "name": "excavate",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Excavate — a vanilla-JS web game with the studio growth loop pre-wired.",
+  "dependencies": {
+    "@jfun/growth-loop": "*",
+    "@jfun/analytics": "*",
+    "@jfun/audio": "*",
+    "@jfun/web-game-core": "*",
+    "@capacitor-firebase/analytics": "^8.3.0",
+    "@capacitor-firebase/app": "^8.3.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.4.0"
+  },
+  "devDependencies": {
+    "@jfun/test-harness": "*"
+  },
+  "scripts": {
+    "test": "bash scripts/dev/test.sh",
+    "serve": "python3 -m http.server 8000 --directory web",
+    "ios": "bash scripts/dev/deploy_ios.sh"
+  }
+}
