@@ -82,7 +82,7 @@
 <div class="wrap">
   <header class="top">
     <p class="eyebrow">Playable review board</p>
-    <h1>Ten prototypes — play each in place</h1>
+    <h1>Eleven prototypes — play each in place</h1>
     <p class="sub">Every concept runs <b>live inside its card</b> — no navigating away. Alongside each is a blunt read on <b>how it's differentiated from what already exists</b> and its <b>growth potential</b>. Excavate (01) already shipped; the rest are candidates for what's next.</p>
     <div class="legend">
       <span class="chip"><span class="dot" style="background:var(--ship)"></span>shipped</span>
@@ -96,7 +96,7 @@
 
   <main class="grid" id="grid"></main>
 
-  <footer class="foot">10 prototypes · each plays inline (scroll to load) · “Open full ↗” for a full-screen tab</footer>
+  <footer class="foot">11 prototypes · each plays inline (scroll to load) · “Open full ↗” for a full-screen tab · 09 Fold &amp; 11 Dowse are the two Tilt evolutions — play both, keep one</footer>
 </div>
 
 <script>
@@ -150,22 +150,28 @@ const DATA = [
     comp:["Zip / 1LINE","Draw a Perfect Circle","Nerdle / Chartle","Daily Unfold"],
     growth:"Zero art cost forever: the curve is a seeded blend of sine/poly/gaussian primitives, provably solvable within tolerance — just a grid and lines. The share is a per-attempt heat sparkline (🟦🟨🟧🟥🟩 rows) that visibly shows a hand homing in on the SAME curve everyone drew today — real Wordle-grade comparability, not a low-drama glyph.",
     score:null, verdict:"A novel motor-deduction verb with free-forever content and a genuine comparability engine — the strongest concept in the batch." },
-  { n:9, file:'09-tilt.html', title:'Tilt', badge:null,
-    pitch:"Tilt the whole tray to roll every marble at once, snapping them into a pegboard to reveal today's pixel creature.",
-    diff:"Really a 2048/Threes board-slide fused with roll-balls-into-holes — both commodity genres with thousands of clones — and the reveal-a-pixel-creature space is owned by nonogram giants (Nonogram.com, Pixelogic). A ~500-line weekend clone.",
-    comp:["2048 / Threes","Roll the Ball","Nonogram.com","Pixel Cross"],
-    growth:"Weak share (an arrow trail leaks no intrigue; a generic emoji creature isn't a 'did you get it?' hook). Solves in under a minute with an undo net; the 8-creature collection exhausts fast. Cheap sprite pipeline, but every day feels identical.",
-    score:2, verdict:"A competent mashup of two of the most-cloned genres with a thin reveal veneer — no hook that isn't already owned by 2048, Picross and Wordle." },
+  { n:9, file:'09-fold.html', title:'Fold', badge:'new',
+    pitch:"You are the wind, not the shepherd — every swipe slides the whole flock AND the wolf; pen every sheep before dawn, and the ones you lose stay lost.",
+    diff:"Evolves Tilt's loved verb (everything slides at once) but adds an adversary moved by YOUR input, with chomp-and-continue — searched clean: RogueSlide is avatar combat, Herd is individual rook-slides, sheep/wolf mobile games are fence-placement. No avatar, no merging, no holes: a protective, par-scored objective no tilt game ships.",
+    comp:["RogueSlide","Move (Nitako)","Herd","Chip's Challenge (ancestor)"],
+    growth:"Procedural + solver-verified daily (the wolf provably shapes every solution); no undo, so no undo-spam — a real 3–6-minute think. The share is a survival timeline that carries story (which tilts penned sheep, near-miss wolf glyphs) + Flawless badge + a 'watch the perfect line' reveal. Partial failure (4/6 saved) is still postable — retention, not churn.",
+    score:null, verdict:"Keeps exactly what was fun about Tilt and swaps everything commodity around it — the judge's pick for best combined lift on both axes." },
   { n:10, file:'10-sway.html', title:'Sway', badge:'new',
     pitch:"Don't guess the answer — guess where the whole crowd's needle will settle on today's 5 spectrum prompts, knowing everyone's guessing you too.",
     diff:"A Keynesian beauty-contest (predict the crowd's own moving average) has never shipped as a cozy daily — only as econ-classroom tools. Mind the Hive / Guess Their Answer score you against a FIXED majority; Wavelength/Spectrum are live party games. Sway's target forms TODAY and is self-referential — 'what will they think we think?'.",
     comp:["Mind the Hive","Guess Their Answer","Wavelength","Jackbox Guesspionage"],
     growth:"Procedural prompts (≈150 axes × 400 subjects) = fresh forever at zero art cost, and it uniquely dodges the consensus-game cold-start with a seeded prior so day-one players still get a target. Share = a spoiler-safe spectrum ribbon with an 'in-tune %' + drift arrows — same prompts for everyone, no opinions revealed, instantly comparable.",
     score:null, verdict:"An untapped social mechanic (guess-the-crowd) with free procedural content and a clever cold-start fix — a strong, differentiated second bet." },
+  { n:11, file:'11-dowse.html', title:'Dowse', badge:'new',
+    pitch:"The pegs under the felt are invisible — every swipe rolls every marble at once, and every clack is a clue you paid a move for. Park the marbles into the target shape before the tilts run out.",
+    diff:"The other strong Tilt evolution (runner-up to Fold): Black Box-style deduction fused with global-tilt physics, where the probe IS the move and both spend one currency. Invisible Maze apps are single-avatar dexterity; Black Box probes never change the board; BallSwipe is the visible-walls commodity family. The one-currency explore/exploit economy under a daily par appears unshipped.",
+    comp:["Black Box","Invisible Maze","Mazele","BallSwipe"],
+    growth:"Procedural + BFS-certified fair (edge-slam spam provably can't win); no undo makes probing a real cost. Share is tilt-golf plus a pegs-found line ('solved it having mapped only 3/7') — a clean second brag axis. Hard-fail on a bad day is the main retention risk vs Fold.",
+    score:null, verdict:"Genuinely novel probe-equals-move deduction — kept on the board as the alternate Tilt evolution; play both and pick." },
 ];
 
 // per-prototype [differentiation, growth] scores (1-5), from the market-analysis pass
-const SCORES = {1:[3,2], 2:[2,3], 3:[1,3], 4:[2,2], 5:[2,2], 6:[2,2], 7:[3,2], 8:[5,4], 9:[1,2], 10:[4,4]};
+const SCORES = {1:[3,2], 2:[2,3], 3:[1,3], 4:[2,2], 5:[2,2], 6:[2,2], 7:[3,2], 8:[5,4], 9:[4,4.5], 10:[4,4], 11:[4.5,3.5]};
 
 const esc = s => String(s==null?'':s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const pad = n => String(n).padStart(2,'0');

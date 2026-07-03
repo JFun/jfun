@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Dowse — daily felt-tray tilt deduction</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:#0b0d12;color:#e8ecf5;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  display:flex;flex-direction:column;align-items:center;
+  min-height:100%;overscroll-behavior:none;
+  user-select:none;-webkit-user-select:none;touch-action:manipulation;
+}
+#app{width:100%;max-width:430px;padding:10px 12px 24px;display:flex;flex-direction:column;gap:8px}
+header{display:flex;justify-content:space-between;align-items:baseline;padding:0 2px}
+h1{font-size:22px;font-weight:800;letter-spacing:.5px;
+  background:linear-gradient(90deg,#6ea8ff,#9d7bff);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+h1 small{font-size:13px;font-weight:600;opacity:.85}
+#streak{font-size:13px;color:#ffb547;font-weight:700;letter-spacing:.3px}
+#hud{display:flex;align-items:stretch;gap:8px}
+.hudBox{background:#12172233;border:1px solid #232c44;border-radius:10px;
+  padding:5px 7px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:56px}
+.hudBox label{font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:#7c88a8}
+#pegCount{font-size:16px;font-weight:800;color:#9d7bff;line-height:34px}
+.hudMid{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;
+  background:#12172233;border:1px solid #232c44;border-radius:10px;padding:6px}
+#ticks{display:flex;gap:5px;flex-wrap:wrap;justify-content:center}
+.tick{width:11px;height:11px;border-radius:50%;border:1.5px solid #3c4a70;transition:all .25s}
+.tick.over{border-radius:3px;transform:rotate(45deg);border-color:#584a7a}
+.tick.used{background:#ffb547;border-color:#ffb547;box-shadow:0 0 6px #ffb54788}
+.tick.used.over{background:#ff7a6b;border-color:#ff7a6b;box-shadow:0 0 6px #ff7a6b88}
+#parLbl{font-size:10px;color:#7c88a8;letter-spacing:.6px}
+#wrap{position:relative;width:100%;touch-action:none}
+#board{display:block;width:100%;border-radius:14px;touch-action:none;cursor:grab}
+#msg{min-height:32px;font-size:12.5px;line-height:1.35;color:#aab6d4;text-align:center;padding:1px 6px;
+  transition:color .3s}
+#msg.warn{color:#ffb547}
+#msg.bad{color:#ff7a6b}
+#controls{display:flex;justify-content:center;align-items:center;gap:14px}
+#dpad{display:grid;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,40px);gap:4px}
+.dbtn{grid-row:var(--r);grid-column:var(--c);
+  background:#151b2a;border:1px solid #2b3552;border-radius:10px;color:#8fa4d8;
+  font-size:17px;cursor:pointer;transition:all .12s;display:flex;align-items:center;justify-content:center}
+.dbtn:hover{background:#1d2740;color:#cfe0ff;border-color:#3c4a70}
+.dbtn:active{transform:scale(.92);background:#26335b}
+.dctr{grid-row:2;grid-column:2;display:flex;align-items:center;justify-content:center}
+.dctr span{width:8px;height:8px;border-radius:50%;background:#2b3552}
+#panel{background:linear-gradient(160deg,#161c2c,#121624);border:1px solid #2b3552;border-radius:16px;
+  padding:14px 16px;display:flex;flex-direction:column;gap:10px;align-items:center;
+  animation:rise .45s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+#panel h2{font-size:19px;letter-spacing:.4px}
+#panel h2.win{color:#ffb547;text-shadow:0 0 14px #ffb54755}
+#panel h2.lose{color:#8fa4d8}
+#panel .stats{font-size:13px;color:#aab6d4;text-align:center}
+#panel .strip{font-size:17px;letter-spacing:2px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.chip{font-size:10.5px;font-weight:700;letter-spacing:.6px;padding:3px 9px;border-radius:20px;
+  border:1px solid #ffb54766;color:#ffb547;background:#ffb54712}
+.chip.viol{border-color:#9d7bff66;color:#c1a8ff;background:#9d7bff12}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.btn{font-size:13px;font-weight:700;padding:9px 16px;border-radius:11px;cursor:pointer;
+  border:1px solid #3c4a70;background:#1a2238;color:#cfe0ff;transition:all .15s;letter-spacing:.3px}
+.btn:hover{background:#243056}
+.btn:active{transform:scale(.95)}
+.btn.primary{background:linear-gradient(135deg,#6ea8ff,#9d7bff);border:none;color:#0b0d12}
+.btn.primary:hover{filter:brightness(1.12)}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:#e8ecf5;color:#0b0d12;font-size:13px;font-weight:700;padding:8px 18px;border-radius:22px;
+  opacity:0;pointer-events:none;transition:all .3s;z-index:50}
+#toast.show{opacity:1;transform:translateX(-50%)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Dowse <small id="dayNo"></small></h1>
+    <div id="streak"></div>
+  </header>
+  <div id="hud">
+    <div class="hudBox"><canvas id="tgt" width="68" height="68" style="width:34px;height:34px"></canvas><label>target</label></div>
+    <div class="hudMid"><div id="ticks"></div><div id="parLbl"></div></div>
+    <div class="hudBox"><div id="pegCount">0/0</div><label>pegs</label></div>
+  </div>
+  <div id="wrap"><canvas id="board"></canvas></div>
+  <div id="msg">Park the 3 marbles into the target shape — anywhere on the felt. Swipe to tilt: every clack maps a hidden peg.</div>
+  <div id="controls">
+    <div id="dpad">
+      <button class="dbtn" style="--r:1;--c:2" data-dir="up" aria-label="tilt up">&#9650;</button>
+      <button class="dbtn" style="--r:2;--c:1" data-dir="left" aria-label="tilt left">&#9664;</button>
+      <div class="dctr"><span></span></div>
+      <button class="dbtn" style="--r:2;--c:3" data-dir="right" aria-label="tilt right">&#9654;</button>
+      <button class="dbtn" style="--r:3;--c:2" data-dir="down" aria-label="tilt down">&#9660;</button>
+    </div>
+  </div>
+  <div id="panel" hidden></div>
+</div>
+<div id="toast">Copied!</div>
+<script>
+'use strict';
+/* ================= utils ================= */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const easeInQuad=t=>t*t;
+const easeOutBack=t=>{const c=1.70158;return 1+(c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2);};
+const easeOutCubic=t=>1-Math.pow(1-t,3);
+const N=7;
+const DIRS={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]};
+const DIR4=['left','right','up','down'];
+/* ================= audio ================= */
+let AC=null;
+function initAudio(){ if(AC) return; try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} }
+function tone(freq,freq2,dur,vol,type,when){
+  if(!AC)return;
+  const t=AC.currentTime+(when||0);
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.type=type||'triangle';
+  o.frequency.setValueAtTime(freq,t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(30,freq2),t+dur);
+  g.gain.setValueAtTime(vol,t);
+  g.gain.exponentialRampToValueAtTime(0.0008,t+dur);
+  o.connect(g);g.connect(AC.destination);
+  o.start(t);o.stop(t+dur+0.02);
+}
+function noiseBurst(dur,vol,hp,when){
+  if(!AC)return;
+  const t=AC.currentTime+(when||0);
+  const n=Math.floor(AC.sampleRate*dur);
+  const buf=AC.createBuffer(1,n,AC.sampleRate);
+  const d=buf.getChannelData(0);
+  for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);
+  const s=AC.createBufferSource();s.buffer=buf;
+  const f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=hp;
+  const g=AC.createGain();g.gain.setValueAtTime(vol,t);
+  g.gain.exponentialRampToValueAtTime(0.0008,t+dur);
+  s.connect(f);f.connect(g);g.connect(AC.destination);
+  s.start(t);
+}
+function sndClack(pitch){ tone(210*pitch,140*pitch,0.07,0.28,'triangle'); noiseBurst(0.035,0.16,1800); }
+function sndMarble(pitch){ tone(330*pitch,250*pitch,0.05,0.2,'triangle'); noiseBurst(0.025,0.1,2600); }
+function sndThunk(){ tone(105,58,0.16,0.5,'sine'); noiseBurst(0.06,0.22,500); }
+function sndPop(){ tone(420,640,0.09,0.2,'sine',0.05); }
+function sndWin(){ [523,659,784,1047].forEach((f,i)=>tone(f,f*1.01,0.28,0.22,'triangle',i*0.09)); }
+function sndLose(){ tone(220,110,0.5,0.25,'sine'); tone(165,82,0.6,0.2,'sine',0.12); }
+/* ================= board model ================= */
+// 3-cell target shapes, normalized (min x/y at 0), matched under translation only
+const SHAPES=[
+  {name:'row',cells:[[0,0],[1,0],[2,0]]},
+  {name:'column',cells:[[0,0],[0,1],[0,2]]},
+  {name:'diagonal',cells:[[0,0],[1,1],[2,2]]},
+  {name:'diagonal',cells:[[2,0],[1,1],[0,2]]},
+  {name:'L',cells:[[0,0],[0,1],[1,1]]},
+  {name:'L',cells:[[1,0],[1,1],[0,1]]},
+  {name:'hook',cells:[[0,0],[1,0],[1,1]]},
+  {name:'hook',cells:[[0,0],[1,0],[0,1]]}
+];
+function normKey(cells){
+  let mx=99,my=99;
+  for(const c of cells){ if(c[0]<mx)mx=c[0]; if(c[1]<my)my=c[1]; }
+  return cells.map(c=>(c[0]-mx)+','+(c[1]-my)).sort().join('|');
+}
+function stateKey(ms){ return ms.map(m=>m.x+','+m.y).sort().join('|'); }
+function isGoal(ms,tk){ return normKey(ms.map(m=>[m.x,m.y]))===tk; }
+// Tilt resolver: all marbles roll until wall / peg / settled marble. Leading marbles settle first.
+function resolveTilt(marbles,dir,pegSet){
+  const dx=DIRS[dir][0],dy=DIRS[dir][1];
+  const order=marbles.map((_,i)=>i).sort((a,b)=>dx?(marbles[b].x-marbles[a].x)*dx:(marbles[b].y-marbles[a].y)*dy);
+  const settled=new Set();
+  const moves=new Array(marbles.length);
+  for(const i of order){
+    let x=marbles[i].x,y=marbles[i].y,cause='wall',pegKey=null;
+    for(;;){
+      const nx=x+dx,ny=y+dy;
+      if(nx<0||nx>=N||ny<0||ny>=N){cause='wall';break;}
+      const k=nx+','+ny;
+      if(pegSet.has(k)){cause='peg';pegKey=k;break;}
+      if(settled.has(k)){cause='marble';break;}
+      x=nx;y=ny;
+    }
+    settled.add(x+','+y);
+    moves[i]={fx:marbles[i].x,fy:marbles[i].y,tx:x,ty:y,cause,pegKey,
+      dist:Math.abs(x-marbles[i].x)+Math.abs(y-marbles[i].y)};
+  }
+  return moves;
+}
+function applyMoves(moves){ return moves.map(m=>({x:m.tx,y:m.ty})); }
+/* ================= BFS solver ================= */
+function solve(marbles,pegSet,tk,cap){
+  if(isGoal(marbles,tk))return{par:0,line:[]};
+  const seen=new Set([stateKey(marbles)]);
+  let q=[{ms:marbles,line:[]}],head=0;
+  while(head<q.length){
+    const cur=q[head++];
+    if(cur.line.length>=cap)continue;
+    for(const dir of DIR4){
+      const ms=applyMoves(resolveTilt(cur.ms,dir,pegSet));
+      const k=stateKey(ms);
+      if(seen.has(k))continue;
+      seen.add(k);
+      const line=cur.line.concat(dir);
+      if(isGoal(ms,tk))return{par:line.length,line};
+      if(line.length<cap)q.push({ms,line});
+    }
+  }
+  return null;
+}
+/* ================= generator + verifier ================= */
+function genBoard(seed){
+  const rng=mulberry32(seed);
+  const want=6+Math.floor(rng()*3); // 6-8 pegs
+  const pegs=[];let guard=0;
+  while(pegs.length<want&&guard++<500){
+    const x=1+Math.floor(rng()*5),y=1+Math.floor(rng()*5);
+    let ok=true;
+    for(const p of pegs)if(Math.max(Math.abs(p.x-x),Math.abs(p.y-y))<2){ok=false;break;}
+    if(ok)pegs.push({x,y});
+  }
+  if(pegs.length<6)return null;
+  const occ=new Set(pegs.map(p=>p.x+','+p.y));
+  const marbles=[];guard=0;
+  while(marbles.length<3&&guard++<300){
+    const x=Math.floor(rng()*N),y=Math.floor(rng()*N),k=x+','+y;
+    if(!occ.has(k)){occ.add(k);marbles.push({x,y});}
+  }
+  if(marbles.length<3)return null;
+  const shape=SHAPES[Math.floor(rng()*SHAPES.length)];
+  return {pegs,marbles,shape,tk:normKey(shape.cells)};
+}
+// Acceptance: solvable at par in range; NOT solvable within budget without pegs
+// (interior stops are load-bearing — edge-slam spam can't win); >=2 distinct optimal openers.
+function evaluate(b,minPar,maxPar,strict){
+  const pegSet=new Set(b.pegs.map(p=>p.x+','+p.y));
+  if(isGoal(b.marbles,b.tk))return null;
+  const sol=solve(b.marbles,pegSet,b.tk,maxPar);
+  if(!sol||sol.par<minPar)return null;
+  const budget=sol.par+4;
+  if(strict){
+    if(solve(b.marbles,new Set(),b.tk,budget))return null; // pegless must fail
+    let firsts=0;
+    const k0=stateKey(b.marbles);
+    for(const dir of DIR4){
+      const ms=applyMoves(resolveTilt(b.marbles,dir,pegSet));
+      if(stateKey(ms)===k0)continue;
+      if(isGoal(ms,b.tk)){if(sol.par===1)firsts++;continue;}
+      const s2=solve(ms,pegSet,b.tk,sol.par-1);
+      if(s2&&s2.par===sol.par-1)firsts++;
+    }
+    if(firsts<2)return null;
+  }
+  return {par:sol.par,budget,line:sol.line,pegSet};
+}
+function makeBoard(baseSeed){
+  // tier 1: strict, par 5-9
+  for(let i=0;i<160;i++){
+    const b=genBoard((baseSeed+i*131)>>>0);
+    if(!b)continue;
+    const ev=evaluate(b,5,9,true);
+    if(ev)return Object.assign(b,ev,{tier:1});
+  }
+  // tier 2: strict, par 3-12
+  for(let i=0;i<220;i++){
+    const b=genBoard((baseSeed+7777+i*131)>>>0);
+    if(!b)continue;
+    const ev=evaluate(b,3,12,true);
+    if(ev)return Object.assign(b,ev,{tier:2});
+  }
+  // tier 3: FALLBACK — fixed seed line (date-independent), any solvable board, still solver-verified
+  for(let i=0;i<3000;i++){
+    const b=genBoard((987654321+i*97)>>>0);
+    if(!b)continue;
+    const ev=evaluate(b,2,13,false);
+    if(ev)return Object.assign(b,ev,{tier:3});
+  }
+  return null; // practically unreachable; handled at init
+}
+/* ================= resolver fixtures (run at load) ================= */
+(function fixtures(){
+  const f=[];
+  // 1: lone marble rolls right to the wall
+  let m=resolveTilt([{x:0,y:3}],'right',new Set());
+  f.push(m[0].tx===6&&m[0].ty===3&&m[0].cause==='wall');
+  // 2: peg at (4,3) stops it at (3,3)
+  m=resolveTilt([{x:0,y:3}],'right',new Set(['4,3']));
+  f.push(m[0].tx===3&&m[0].cause==='peg'&&m[0].pegKey==='4,3');
+  // 3: two marbles stack against the wall, trailing one stopped by leader
+  m=resolveTilt([{x:0,y:3},{x:2,y:3}],'right',new Set());
+  f.push(m[0].tx===5&&m[0].cause==='marble'&&m[1].tx===6&&m[1].cause==='wall');
+  if(f.some(x=>!x))console.error('Dowse resolver fixtures FAILED',f);
+})();
+/* ================= daily setup ================= */
+const now0=new Date();
+const dayNum=Math.floor((Date.UTC(now0.getFullYear(),now0.getMonth(),now0.getDate())-Date.UTC(2026,0,1))/86400000)+1;
+const dateSeed=(now0.getFullYear()*10000+(now0.getMonth()+1)*100+now0.getDate())>>>0;
+const LS=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+const LSset=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+let board=null, game=null;
+function newGame(practice){
+  game={
+    marbles:board.marbles.map(m=>({x:m.x,y:m.y})),
+    revealed:new Set(),
+    tiltsUsed:0, strip:[], over:false, won:false,
+    practice:!!practice
+  };
+  anim=null; replay=null; previewGhost=null; previewDir=null;
+  winAt=0; loseAt=0; particles.length=0;
+  panel.hidden=true;
+  dpadEl.style.opacity='1'; dpadEl.style.pointerEvents='auto';
+  setMsg(practice?'Practice run — same board, stats untouched. Swipe to tilt.'
+    :'Park the 3 marbles into the target shape — anywhere on the felt. Swipe to tilt: every clack maps a hidden peg.');
+  renderTicks(); renderPegCount();
+}
+/* ================= DOM refs ================= */
+const cv=document.getElementById('board'),cx=cv.getContext('2d');
+const wrap=document.getElementById('wrap');
+const tgtCv=document.getElementById('tgt'),tgtCx=tgtCv.getContext('2d');
+const msgEl=document.getElementById('msg');
+const ticksEl=document.getElementById('ticks'),parLbl=document.getElementById('parLbl');
+const pegCountEl=document.getElementById('pegCount');
+const panel=document.getElementById('panel');
+const dpadEl=document.getElementById('dpad');
+const toastEl=document.getElementById('toast');
+function setMsg(t,cls){ msgEl.textContent=t; msgEl.className=cls||''; }
+/* ================= layout / felt ================= */
+let W=0,cell=0,pad=0,dpr=1,felt=null;
+function resize(){
+  const w=Math.min(wrap.clientWidth,430);
+  dpr=Math.min(window.devicePixelRatio||1,2.5);
+  W=w; cv.style.height=w+'px';
+  cv.width=Math.round(w*dpr); cv.height=Math.round(w*dpr);
+  pad=w*0.055; cell=(w-pad*2)/N;
+  felt=document.createElement('canvas');
+  felt.width=cv.width; felt.height=cv.height;
+  const f=felt.getContext('2d'); f.scale(dpr,dpr);
+  const g=f.createLinearGradient(0,0,w,w);
+  g.addColorStop(0,'#182033');g.addColorStop(.55,'#141a2b');g.addColorStop(1,'#111624');
+  f.fillStyle=g; roundRect(f,1,1,w-2,w-2,14); f.fill();
+  // felt speckle
+  const rng=mulberry32(42);
+  for(let i=0;i<2200;i++){
+    const x=2+rng()*(w-4),y=2+rng()*(w-4);
+    f.fillStyle=rng()<.5?'rgba(255,255,255,'+(rng()*0.035)+')':'rgba(0,0,0,'+(rng()*0.05)+')';
+    f.fillRect(x,y,1.2,1.2);
+  }
+  // faint grid dimples
+  for(let gx=0;gx<N;gx++)for(let gy=0;gy<N;gy++){
+    const c=cc(gx,gy);
+    f.fillStyle='rgba(0,0,0,0.16)';
+    f.beginPath();f.arc(c.x,c.y,1.8,0,7);f.fill();
+    f.strokeStyle='rgba(140,160,220,0.05)';f.lineWidth=1;
+    f.strokeRect(pad+gx*cell+.5,pad+gy*cell+.5,cell-1,cell-1);
+  }
+  // stitched border
+  f.strokeStyle='#31406a'; f.lineWidth=2.5; roundRect(f,4,4,w-8,w-8,11); f.stroke();
+  f.strokeStyle='rgba(157,123,255,0.35)'; f.lineWidth=1; f.setLineDash([5,5]);
+  roundRect(f,9,9,w-18,w-18,8); f.stroke(); f.setLineDash([]);
+  // vignette
+  const v=f.createRadialGradient(w/2,w/2,w*.32,w/2,w/2,w*.75);
+  v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,0.32)');
+  f.fillStyle=v; roundRect(f,1,1,w-2,w-2,14); f.fill();
+}
+function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+function cc(gx,gy){ return {x:pad+(gx+.5)*cell,y:pad+(gy+.5)*cell}; }
+/* ================= render state ================= */
+let anim=null, replay=null, previewDir=null, previewGhost=null;
+let winAt=0, loseAt=0;
+const particles=[];
+const pegReveal={}; // pegKey -> reveal timestamp
+function spawnBurst(x,y,color,n,spd){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*6.283,s=(0.4+Math.random()*0.6)*spd;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,decay:0.02+Math.random()*0.025,r:1.5+Math.random()*2.5,color});
+  }
+}
+function drawPeg(pk,t){
+  const [gx,gy]=pk.split(',').map(Number);
+  const c=cc(gx,gy);
+  const born=pegReveal[pk]||0;
+  let s=1;
+  if(born){ const p=clamp((t-born)/380,0,1); s=easeOutBack(p); }
+  const r=cell*0.31*s;
+  if(r<=0.5)return;
+  // fabric bump: soft radial rise
+  const g=cx.createRadialGradient(c.x-r*.35,c.y-r*.4,r*.15,c.x,c.y,r*1.35);
+  g.addColorStop(0,'rgba(120,140,210,0.55)');
+  g.addColorStop(.55,'rgba(80,95,160,0.35)');
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  cx.fillStyle=g; cx.beginPath(); cx.arc(c.x,c.y,r*1.35,0,7); cx.fill();
+  cx.fillStyle='rgba(23,30,50,0.9)'; cx.beginPath(); cx.arc(c.x,c.y,r*.92,0,7); cx.fill();
+  cx.strokeStyle='rgba(157,123,255,0.6)'; cx.lineWidth=1.5;
+  cx.beginPath(); cx.arc(c.x,c.y,r*.92,0,7); cx.stroke();
+  cx.fillStyle='rgba(157,123,255,0.5)'; cx.beginPath(); cx.arc(c.x,c.y,r*.22,0,7); cx.fill();
+  // reveal ring
+  if(born&&t-born<600){
+    const p=(t-born)/600;
+    cx.strokeStyle='rgba(157,123,255,'+(0.7*(1-p))+')'; cx.lineWidth=2.5*(1-p);
+    cx.beginPath(); cx.arc(c.x,c.y,r+p*cell*0.9,0,7); cx.stroke();
+  }
+}
+function drawMarble(x,y,r,glow,alpha){
+  cx.globalAlpha=alpha==null?1:alpha;
+  // shadow
+  cx.fillStyle='rgba(0,0,0,0.38)';
+  cx.beginPath(); cx.ellipse(x+r*.15,y+r*.45,r*.95,r*.6,0,0,7); cx.fill();
+  if(glow>0){ cx.shadowColor='rgba(255,181,71,'+(0.9*glow)+')'; cx.shadowBlur=18*glow; }
+  const g=cx.createRadialGradient(x-r*.35,y-r*.4,r*.1,x,y,r*1.05);
+  g.addColorStop(0,'#ffd9a0');g.addColorStop(.45,'#ffb547');g.addColorStop(.85,'#c97a14');g.addColorStop(1,'#8f5209');
+  cx.fillStyle=g; cx.beginPath(); cx.arc(x,y,r,0,7); cx.fill();
+  cx.shadowBlur=0;
+  cx.fillStyle='rgba(255,255,255,0.55)';
+  cx.beginPath(); cx.ellipse(x-r*.35,y-r*.42,r*.26,r*.16,-0.6,0,7); cx.fill();
+  cx.globalAlpha=1;
+}
+function currentMarblePositions(t){
+  // returns [{px,py,sq}] pixel positions (+squash factor) honoring active tilt animation
+  const out=[];
+  for(let i=0;i<3;i++){
+    let gx,gy,sq=0;
+    if(anim){
+      const mv=anim.moves[i];
+      const p=anim.durs[i]>0?clamp((t-anim.t0)/anim.durs[i],0,1):1;
+      const e=easeInQuad(p);
+      gx=mv.fx+(mv.tx-mv.fx)*e; gy=mv.fy+(mv.ty-mv.fy)*e;
+      if(!anim.fired[i]&&p>=1){ anim.fired[i]=true; onMarbleSettle(i,mv,t); }
+      if(anim.fired[i]&&anim.settleT[i]){ const q=clamp((t-anim.settleT[i])/140,0,1); sq=(1-q)*Math.min(0.22,mv.dist*0.06); }
+    } else { gx=game.marbles[i].x; gy=game.marbles[i].y; }
+    const c=cc(gx,gy);
+    out.push({px:c.x,py:c.y,sq});
+  }
+  return out;
+}
+function draw(t){
+  cx.setTransform(dpr,0,0,dpr,0,0);
+  cx.clearRect(0,0,W,W);
+  cx.drawImage(felt,0,0,W,W);
+  // lose: felt lifts — brighten wash
+  if(loseAt){ const p=clamp((t-loseAt)/900,0,1);
+    cx.fillStyle='rgba(140,160,220,'+(0.06*Math.sin(p*Math.PI))+')'; cx.fillRect(0,0,W,W); }
+  // pegs (revealed only; all after loss via pegReveal stagger)
+  for(const p of board.pegs){ const pk=p.x+','+p.y;
+    if(game.revealed.has(pk)&&(!pegReveal[pk]||t>=pegReveal[pk])) drawPeg(pk,t); }
+  // ghost preview: predicted stops from revealed-pegs-only knowledge
+  if(previewGhost&&!anim&&!game.over){
+    for(const mv of previewGhost){
+      const a=cc(mv.fx,mv.fy),b=cc(mv.tx,mv.ty);
+      if(mv.dist>0){
+        cx.strokeStyle='rgba(255,181,71,0.15)'; cx.lineWidth=cell*0.5; cx.lineCap='round';
+        cx.beginPath(); cx.moveTo(a.x,a.y); cx.lineTo(b.x,b.y); cx.stroke();
+      }
+      cx.setLineDash([4,4]); cx.strokeStyle='rgba(255,181,71,0.6)'; cx.lineWidth=1.6;
+      cx.beginPath(); cx.arc(b.x,b.y,cell*0.34,0,7); cx.stroke(); cx.setLineDash([]);
+    }
+  }
+  // win: constellation glow behind marbles
+  const ms=currentMarblePositions(t);
+  if(winAt){
+    const pulse=0.5+0.5*Math.sin((t-winAt)/300);
+    cx.strokeStyle='rgba(255,181,71,'+(0.25+0.3*pulse)+')'; cx.lineWidth=cell*0.7; cx.lineCap='round'; cx.lineJoin='round';
+    cx.beginPath(); cx.moveTo(ms[0].px,ms[0].py); cx.lineTo(ms[1].px,ms[1].py); cx.lineTo(ms[2].px,ms[2].py); cx.stroke();
+  }
+  // marbles
+  const r=cell*0.36;
+  for(const m of ms){
+    cx.save(); cx.translate(m.px,m.py);
+    if(m.sq>0){ const ax=anim?Math.abs(DIRS[anim.dir][0]):0;
+      cx.scale(1-(ax?m.sq:-m.sq*0.6),1-(ax?-m.sq*0.6:m.sq)); }
+    drawMarble(0,0,r,winAt?0.6+0.4*Math.sin((t-winAt)/300):0);
+    cx.restore();
+  }
+  // solver ghost replay (after loss): the perfect line, looping
+  if(replay)drawReplay(t);
+  // particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx;p.y+=p.vy;p.vx*=.96;p.vy*=.96;p.life-=p.decay;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    cx.globalAlpha=p.life; cx.fillStyle=p.color;
+    cx.beginPath();cx.arc(p.x,p.y,p.r*p.life,0,7);cx.fill();
+  }
+  cx.globalAlpha=1;
+  // first-tilt hint chevrons
+  if(!game.over&&game.tiltsUsed===0&&!anim&&!game.practice){
+    const ph=(t/900)%1;
+    for(let i=0;i<3;i++){
+      const a=clamp(Math.sin(Math.PI*clamp(ph*1.4-i*0.15,0,1)),0,1)*0.5;
+      if(a<=0)continue;
+      const x=W/2-24+i*16+ph*26,y=W-pad*0.62;
+      cx.strokeStyle='rgba(110,168,255,'+a+')'; cx.lineWidth=2.5; cx.lineCap='round';
+      cx.beginPath();cx.moveTo(x-5,y-6);cx.lineTo(x+2,y);cx.lineTo(x-5,y+6);cx.stroke();
+    }
+  }
+}
+function drawReplay(t){
+  if(t>=replay.nextAt)advanceReplay(t);
+  const r=cell*0.27;
+  for(let i=0;i<3;i++){
+    let gx,gy;
+    if(replay.moving){
+      const p=clamp((t-replay.mt0)/replay.mdur,0,1),e=easeOutCubic(p);
+      gx=replay.from[i].x+(replay.to[i].x-replay.from[i].x)*e;
+      gy=replay.from[i].y+(replay.to[i].y-replay.from[i].y)*e;
+      if(p>=1&&i===2)replay.moving=false;
+    } else { gx=replay.ms[i].x; gy=replay.ms[i].y; }
+    const c=cc(gx,gy);
+    cx.setLineDash([3,3]); cx.strokeStyle='rgba(157,123,255,0.85)'; cx.lineWidth=2;
+    cx.beginPath(); cx.arc(c.x,c.y,r,0,7); cx.stroke(); cx.setLineDash([]);
+    cx.fillStyle='rgba(157,123,255,0.18)';
+    cx.beginPath(); cx.arc(c.x,c.y,r,0,7); cx.fill();
+  }
+  cx.fillStyle='rgba(157,123,255,0.75)'; cx.font='600 11px -apple-system,sans-serif'; cx.textAlign='center';
+  cx.fillText('the solver’s perfect line · '+replay.step+'/'+board.line.length,W/2,pad*0.62);
+}
+function advanceReplay(t){
+  if(replay.step>=board.line.length){ // loop
+    replay.step=0; replay.ms=board.marbles.map(m=>({x:m.x,y:m.y}));
+    replay.moving=false; replay.nextAt=t+1300; return;
+  }
+  const dir=board.line[replay.step];
+  const mv=resolveTilt(replay.ms,dir,board.pegSet);
+  replay.from=replay.ms.map(m=>({x:m.x,y:m.y}));
+  replay.to=mv.map(m=>({x:m.tx,y:m.ty}));
+  replay.ms=applyMoves(mv);
+  replay.moving=true; replay.mt0=t; replay.mdur=340;
+  replay.step++; replay.nextAt=t+900;
+}
+/* ================= HUD ================= */
+function renderTarget(){
+  const s=68; tgtCx.clearRect(0,0,s,s);
+  tgtCx.fillStyle='#0e1320'; tgtCx.fillRect(0,0,s,s);
+  const cs=board.shape.cells;
+  let mx=0,my=0; for(const c of cs){mx=Math.max(mx,c[0]);my=Math.max(my,c[1]);}
+  const u=s/3.6, ox=(s-(mx+1)*u)/2, oy=(s-(my+1)*u)/2;
+  for(const c of cs){
+    const x=ox+(c[0]+.5)*u,y=oy+(c[1]+.5)*u;
+    const g=tgtCx.createRadialGradient(x-2,y-2,1,x,y,u*.42);
+    g.addColorStop(0,'#ffd9a0');g.addColorStop(1,'#c97a14');
+    tgtCx.fillStyle=g; tgtCx.beginPath(); tgtCx.arc(x,y,u*.4,0,7); tgtCx.fill();
+  }
+}
+function renderTicks(){
+  ticksEl.innerHTML='';
+  for(let i=0;i<board.budget;i++){
+    const s=document.createElement('span');
+    s.className='tick'+(i>=board.par?' over':'')+(i<game.tiltsUsed?' used':'');
+    ticksEl.appendChild(s);
+  }
+  parLbl.textContent='tilts '+game.tiltsUsed+'/'+board.budget+' · par '+board.par;
+}
+function renderPegCount(){ pegCountEl.textContent=game.revealed.size+'/'+board.pegs.length; }
+/* ================= tilt flow ================= */
+function vibrate(ms){ try{navigator.vibrate&&navigator.vibrate(ms);}catch(e){} }
+function computePreview(dir){
+  previewDir=dir;
+  previewGhost=dir?resolveTilt(game.marbles,dir,game.revealed):null;
+}
+function doTilt(dir){
+  if(!board||!game||anim||replay||game.over)return;
+  initAudio();
+  const moves=resolveTilt(game.marbles,dir,board.pegSet);
+  computePreview(null);
+  if(!moves.some(m=>m.dist>0)){
+    setMsg('Nothing rolls that way — tilt not spent.','warn');
+    tone(160,120,0.08,0.12,'sine');
+    return;
+  }
+  game.tiltsUsed++;
+  const t0=performance.now();
+  const durs=moves.map(m=>m.dist===0?0:110+m.dist*62+Math.random()*30);
+  anim={dir,moves,t0,durs,fired:[false,false,false],settleT:[0,0,0],newPegs:0,
+    maxEnd:t0+Math.max(...durs)+180};
+  renderTicks();
+}
+function onMarbleSettle(i,mv,t){
+  anim.settleT[i]=t;
+  if(mv.dist===0)return;
+  const c=cc(mv.tx,mv.ty);
+  spawnBurst(c.x,c.y,'rgba(255,200,120,0.9)',3,1.4);
+  if(mv.cause==='peg'){
+    if(!game.revealed.has(mv.pegKey)){
+      game.revealed.add(mv.pegKey);
+      pegReveal[mv.pegKey]=t;
+      anim.newPegs++;
+      sndThunk(); sndPop(); vibrate(25);
+      const [px,py]=mv.pegKey.split(',').map(Number),pc=cc(px,py);
+      spawnBurst(pc.x,pc.y,'rgba(157,123,255,0.9)',10,2.2);
+      renderPegCount();
+    } else sndClack(0.9+Math.random()*0.25);
+  } else if(mv.cause==='marble') sndMarble(0.95+Math.random()*0.2);
+  else sndClack(0.8+Math.random()*0.2);
+}
+function finalizeTilt(t){
+  game.marbles=applyMoves(anim.moves);
+  const newPegs=anim.newPegs;
+  anim=null;
+  if(isGoal(game.marbles,board.tk)){ game.strip.push('w'); win(t); return; }
+  game.strip.push(newPegs>0?'o':'q');
+  if(game.tiltsUsed>=board.budget){ lose(t); return; }
+  const left=board.budget-game.tiltsUsed;
+  if(newPegs>0)setMsg('Clack — '+(newPegs>1?newPegs+' pegs':'a peg')+' mapped. That knowledge cost a tilt; spend the rest well.');
+  else if(left<=2)setMsg(left+' tilt'+(left>1?'s':'')+' left. Ghost shows only what you’ve mapped — surprises still lurk.','warn');
+  else setMsg('Quiet tilt — no new pegs. '+left+' tilts left.');
+}
+function win(t){
+  game.over=true; game.won=true; winAt=t;
+  sndWin(); vibrate(60);
+  for(const m of game.marbles){ const c=cc(m.x,m.y); spawnBurst(c.x,c.y,'rgba(255,181,71,0.95)',14,2.6); }
+  setMsg('Constellation formed. The felt keeps the rest of its secrets.','');
+  dpadEl.style.opacity='.35'; dpadEl.style.pointerEvents='none';
+  saveResult(true);
+  setTimeout(()=>showPanel(resultData()),850);
+}
+function lose(t){
+  game.over=true; game.won=false; loseAt=t;
+  game.finalFound=game.revealed.size;
+  sndLose(); vibrate([30,60,30]);
+  setMsg('Out of tilts. The felt lifts…','bad');
+  dpadEl.style.opacity='.35'; dpadEl.style.pointerEvents='none';
+  let i=0;
+  for(const p of board.pegs){ const pk=p.x+','+p.y;
+    if(!game.revealed.has(pk)){ game.revealed.add(pk); pegReveal[pk]=t+300+i*140; i++; } }
+  pegCountEl.textContent=game.finalFound+'/'+board.pegs.length;
+  saveResult(false);
+  setTimeout(()=>{ replay={ms:board.marbles.map(m=>({x:m.x,y:m.y})),step:0,moving:false,nextAt:performance.now()+400}; },900+i*140);
+  setTimeout(()=>showPanel(resultData()),1400);
+}
+function resultData(){
+  return {won:game.won,tilts:game.tiltsUsed,
+    found:game.won?game.revealed.size:(game.finalFound!=null?game.finalFound:game.revealed.size),
+    strip:game.strip.slice(),practice:game.practice};
+}
+/* ================= share / panel ================= */
+const EMO={o:'\u{1F7E0}',q:'⬜',w:'✨'};
+function stripEmoji(d){ return d.strip.map(s=>EMO[s]).join('')+(d.won?'':'❌'); }
+function shareText(d){
+  const diff=d.tilts-board.par;
+  const head=d.won
+    ?'Dowse #'+dayNum+' — '+d.tilts+'/'+board.budget+' tilts · par '+board.par+' ('+(diff===0?'par':(diff>0?'+':'')+diff)+') · pegs '+d.found+'/'+board.pegs.length
+    :'Dowse #'+dayNum+' — X/'+board.budget+' tilts · par '+board.par+' · pegs '+d.found+'/'+board.pegs.length;
+  return head+'\n'+stripEmoji(d);
+}
+function toast(t){ toastEl.textContent=t; toastEl.classList.add('show'); setTimeout(()=>toastEl.classList.remove('show'),1400); }
+function doCopy(txt){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(()=>toast('Copied!'),()=>fallbackCopy(txt));
+  } else fallbackCopy(txt);
+}
+function fallbackCopy(txt){
+  const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{document.execCommand('copy');toast('Copied!');}catch(e){toast('Copy failed');}
+  document.body.removeChild(ta);
+}
+function doShare(txt){
+  if(navigator.share){ navigator.share({text:txt}).catch(()=>{}); }
+  else doCopy(txt);
+}
+function showPanel(d,alreadyNote){
+  const diff=d.tilts-board.par;
+  const chips=[];
+  if(d.won&&d.tilts===board.par)chips.push('<span class="chip">✦ CLEAN · par-exact</span>');
+  if(d.won&&d.found*2<board.pegs.length)chips.push('<span class="chip viol">◐ HALF-BLIND · solved on '+d.found+'/'+board.pegs.length+' pegs</span>');
+  panel.innerHTML=
+    '<h2 class="'+(d.won?'win':'lose')+'">'+(d.won?'Solved in '+d.tilts+' tilt'+(d.tilts>1?'s':'')+'!':'The felt keeps it — for today')+'</h2>'+
+    '<div class="stats">'+(d.won
+      ?'par '+board.par+' · '+(diff===0?'right on par':(diff>0?'+':'')+diff)+' · pegs found '+d.found+'/'+board.pegs.length
+      :'par was '+board.par+' · you mapped '+d.found+'/'+board.pegs.length+' pegs · watch the perfect line replay above')+'</div>'+
+    (chips.length?'<div class="chips">'+chips.join('')+'</div>':'')+
+    '<div class="strip">'+stripEmoji(d)+'</div>'+
+    (d.practice?'<div class="stats" style="color:#7c88a8">practice run — not counted</div>':'')+
+    (alreadyNote?'<div class="stats" style="color:#7c88a8">already dowsed today — new felt at midnight</div>':'')+
+    '<div class="btnrow">'+
+      (d.practice?'':'<button class="btn primary" id="bShare">Share</button><button class="btn" id="bCopy">Copy</button>')+
+      '<button class="btn" id="bPrac">'+(d.practice?'Practice again':'Practice this board')+'</button>'+
+    '</div>';
+  panel.hidden=false;
+  const txt=shareText(d);
+  const bs=document.getElementById('bShare'),bc=document.getElementById('bCopy'),bp=document.getElementById('bPrac');
+  if(bs)bs.onclick=()=>doShare(txt);
+  if(bc)bc.onclick=()=>doCopy(txt);
+  bp.onclick=()=>newGame(true);
+}
+/* ================= persistence / streak ================= */
+function saveResult(won){
+  if(game.practice)return;
+  const prev=loadSaved();
+  if(prev)return;
+  // strip already includes 'w' on win (pushed in finalizeTilt before win())
+  LSset('dowseDay',JSON.stringify({day:dayNum,won,tilts:game.tiltsUsed,
+    found:won?game.revealed.size:game.finalFound,strip:game.strip.slice()}));
+  let streak=parseInt(LS('dowseStreak')||'0',10);
+  const lastWin=parseInt(LS('dowseLastWin')||'-99',10);
+  if(won){ streak=(lastWin===dayNum-1)?streak+1:1; LSset('dowseLastWin',''+dayNum); }
+  else streak=0;
+  LSset('dowseStreak',''+streak);
+  renderStreak();
+}
+function loadSaved(){
+  try{ const s=JSON.parse(LS('dowseDay')||'null'); return (s&&s.day===dayNum)?s:null; }catch(e){return null;}
+}
+function renderStreak(){
+  const s=parseInt(LS('dowseStreak')||'0',10);
+  document.getElementById('streak').textContent=s>0?'\u{1F525} '+s+'-day streak':'';
+}
+/* ================= input ================= */
+document.addEventListener('keydown',e=>{
+  const map={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'};
+  if(map[e.key]){ e.preventDefault(); doTilt(map[e.key]); }
+});
+for(const b of document.querySelectorAll('.dbtn')){
+  b.addEventListener('click',()=>doTilt(b.dataset.dir));
+  b.addEventListener('pointerenter',e=>{ if(e.pointerType==='mouse'&&game&&!game.over&&!anim)computePreview(b.dataset.dir); });
+  b.addEventListener('pointerleave',()=>{ if(previewDir)computePreview(null); });
+}
+let swipe=null;
+wrap.addEventListener('pointerdown',e=>{
+  if(!game||game.over||anim)return;
+  swipe={x:e.clientX,y:e.clientY,id:e.pointerId,dir:null};
+  wrap.setPointerCapture&&wrap.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+wrap.addEventListener('pointermove',e=>{
+  if(!swipe||e.pointerId!==swipe.id)return;
+  const dx=e.clientX-swipe.x,dy=e.clientY-swipe.y;
+  if(Math.abs(dx)<16&&Math.abs(dy)<16){ if(swipe.dir){swipe.dir=null;computePreview(null);} return; }
+  const dir=Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up');
+  if(dir!==swipe.dir){ swipe.dir=dir; computePreview(dir); }
+});
+function endSwipe(e){
+  if(!swipe||(e.pointerId!==undefined&&e.pointerId!==swipe.id))return;
+  const d=swipe.dir; swipe=null;
+  computePreview(null);
+  if(d)doTilt(d);
+}
+wrap.addEventListener('pointerup',endSwipe);
+wrap.addEventListener('pointercancel',e=>{swipe=null;computePreview(null);});
+/* ================= main loop / init ================= */
+function frame(t){
+  if(board&&game){
+    draw(t);
+    if(anim&&t>anim.maxEnd&&anim.fired.every(f=>f))finalizeTilt(t);
+  }
+  requestAnimationFrame(frame);
+}
+function runSelfTest(){
+  const t0=performance.now();
+  let tried=0,accepted=0,fails=[];
+  for(let s=1;s<=400;s++){
+    const b=genBoard((s*2654435761)>>>0); tried++;
+    if(!b)continue;
+    const ev=evaluate(b,5,9,true);
+    if(!ev)continue;
+    accepted++;
+    // re-verify invariants independently
+    const chk=solve(b.marbles,ev.pegSet,b.tk,ev.budget);
+    if(!chk||chk.par!==ev.par)fails.push('par mismatch seed '+s);
+    if(solve(b.marbles,new Set(),b.tk,ev.budget))fails.push('pegless solvable seed '+s);
+  }
+  const ms=(performance.now()-t0)|0;
+  const rep='SELF-TEST: '+accepted+'/'+tried+' seeds accepted (strict par 5-9), '+fails.length+' invariant failures, '+ms+'ms';
+  console.log(rep,fails);
+  setMsg(rep,fails.length?'bad':'warn');
+}
+function init(){
+  resize();
+  window.addEventListener('resize',resize);
+  board=makeBoard(dateSeed);
+  if(!board){ setMsg('Could not verify a board — refresh to retry.','bad'); return; }
+  document.getElementById('dayNo').textContent='#'+dayNum+' · '+board.shape.name;
+  renderTarget(); renderStreak();
+  newGame(false);
+  const saved=loadSaved();
+  if(saved){
+    game.over=true; game.won=saved.won;
+    dpadEl.style.opacity='.35'; dpadEl.style.pointerEvents='none';
+    setMsg(saved.won?'Already solved today’s felt.':'Today’s felt already played.');
+    showPanel({won:saved.won,tilts:saved.tilts,found:saved.found,strip:saved.strip||[],practice:false},true);
+  }
+  if(/[?&]test/.test(location.search))setTimeout(runSelfTest,50);
+  requestAnimationFrame(frame);
+}
+init();
+
+</script>
+</body>
+</html>
