@@ -1,0 +1,9 @@
+{
+  "appId": "com.jfun.tilt",
+  "appName": "Tilt",
+  "webDir": "web",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0a0b12"
+  }
+}

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Tilt</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <div class="title">Tilt</div>
+    <div class="sub">Swipe to tilt the tray — every marble rolls at once. Roll each into its matching hole.</div>
+  </header>
+
+  <div class="meta">
+    <span class="pill"><span class="lab">Level</span><b id="lvlN">1</b></span>
+    <span class="pill" id="swipeScore"><span class="lab">Moves</span><b id="moves">0</b><span class="lab">/ par</span><b id="par">0</b></span>
+    <span class="pill" id="tiltScore" hidden><span class="lab">Time</span><b id="timeV">0.0s</b><span class="lab" id="bestLab"></span></span>
+  </div>
+
+  <div id="stage">
+    <canvas id="tray"></canvas>
+    <div class="hint" id="hint">Swipe right to start.</div>
+  </div>
+
+  <footer>
+    <div class="arrows">
+      <div class="ctr">tilt</div>
+      <button class="up" data-d="U">▲</button>
+      <button class="lf" data-d="L">◀</button>
+      <button class="dn" data-d="D">▼</button>
+      <button class="rt" data-d="R">▶</button>
+    </div>
+    <div class="row">
+      <button id="modeBtn">📱 Tilt</button>
+      <button id="undo">↶ Undo</button>
+      <button id="reset">⟳ Restart</button>
+      <button id="next" class="primary">Result ▸</button>
+    </div>
+  </footer>
+</div>
+
+<div id="ov"><div class="card" id="card"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="js/vendor/web-game-core.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/physics.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
