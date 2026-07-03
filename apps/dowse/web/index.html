@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Dowse</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Dowse <small id="shapeNo"></small></h1>
+    <div id="lvl"></div>
+  </header>
+  <div id="hud">
+    <div class="hudBox"><canvas id="tgt" width="68" height="68" style="width:34px;height:34px"></canvas><label>target</label></div>
+    <div class="hudMid"><div id="ticks"></div><div id="parLbl"></div></div>
+    <div class="hudBox"><div id="pegCount">0/0</div><label>pegs</label></div>
+  </div>
+  <div id="wrap"><canvas id="board"></canvas></div>
+  <div id="msg">Park the 3 marbles into the target shape — anywhere on the felt. Swipe to tilt: every clack maps a hidden peg.</div>
+  <div id="controls">
+    <div id="dpad">
+      <button class="dbtn" style="--r:1;--c:2" data-dir="up" aria-label="tilt up">&#9650;</button>
+      <button class="dbtn" style="--r:2;--c:1" data-dir="left" aria-label="tilt left">&#9664;</button>
+      <div class="dctr"><span></span></div>
+      <button class="dbtn" style="--r:2;--c:3" data-dir="right" aria-label="tilt right">&#9654;</button>
+      <button class="dbtn" style="--r:3;--c:2" data-dir="down" aria-label="tilt down">&#9660;</button>
+    </div>
+  </div>
+  <div id="panel" hidden></div>
+</div>
+<div id="toast">Copied!</div>
+<script src="js/vendor/web-game-core.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

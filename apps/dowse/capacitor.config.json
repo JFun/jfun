@@ -1,0 +1,9 @@
+{
+  "appId": "com.jfun.dowse",
+  "appName": "Dowse",
+  "webDir": "web",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0b0d12"
+  }
+}
