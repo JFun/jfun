@@ -30,6 +30,18 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8780", "--directory", "/Users/qili/git/jfun/apps/excavate/web"],
       "port": 8780
+    },
+    {
+      "name": "dowse-web",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8781", "--directory", "/Users/qili/git/jfun/apps/dowse/web"],
+      "port": 8781
+    },
+    {
+      "name": "tilt-web",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8782", "--directory", "/Users/qili/git/jfun/apps/tilt/web"],
+      "port": 8782
     }
   ]
 }
