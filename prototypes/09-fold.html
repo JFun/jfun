@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Fold — pen the flock before dawn</title>
+<style>
+:root{
+  --bg:#0b0d12; --panel:#141a2c; --ink:#e9e7dd; --dim:#8f96ad;
+  --blue:#6ea8ff; --purple:#9d7bff; --danger:#ff5d73; --lantern:#ffd98a;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  display:flex; justify-content:center; overflow-x:hidden;
+  user-select:none; -webkit-user-select:none;
+}
+#wrap{width:100%;max-width:420px;padding:10px 8px 14px;display:flex;flex-direction:column;align-items:center;gap:8px}
+header{width:100%;display:flex;flex-direction:column;gap:4px}
+#titleRow{display:flex;align-items:baseline;gap:8px;justify-content:center}
+.logo{font-weight:800;font-size:22px;letter-spacing:5px;background:linear-gradient(90deg,var(--blue),var(--purple));-webkit-background-clip:text;background-clip:text;color:transparent}
+#dayNo{color:var(--dim);font-size:14px}
+#moon{font-size:18px;filter:drop-shadow(0 0 6px rgba(110,168,255,.5));transition:filter .6s,opacity .6s}
+#moon.gone{opacity:.45;filter:grayscale(1)}
+#statRow{display:flex;justify-content:center;gap:14px;font-size:12.5px;color:var(--dim)}
+#statRow b{color:var(--ink);font-weight:600}
+#hint{font-size:12px;color:var(--dim);text-align:center;line-height:1.45;max-width:340px;transition:opacity .8s;min-height:16px}
+#hint b{color:var(--blue)}
+#hint.off{opacity:0}
+#cv{display:block;border-radius:14px;touch-action:none;box-shadow:0 6px 30px rgba(0,0,0,.55), inset 0 0 0 1px rgba(110,168,255,.10)}
+#msg{min-height:20px;font-size:13px;color:var(--dim);text-align:center;transition:color .3s}
+#msg.warn{color:var(--danger)}
+#msg.good{color:var(--lantern)}
+#dpad{display:grid;grid-template-areas:". u ." "l d r";gap:6px;margin-top:-2px}
+#dpad button{
+  grid-area:auto;width:56px;height:40px;border-radius:10px;border:1px solid rgba(110,168,255,.25);
+  background:linear-gradient(180deg,#1a2138,#12172a); color:var(--blue); font-size:16px;
+  cursor:pointer; transition:transform .06s, box-shadow .2s;
+  touch-action:manipulation;
+}
+#dpad button:active{transform:scale(.92);box-shadow:0 0 12px rgba(110,168,255,.35)}
+#panel{position:fixed;inset:0;background:rgba(6,8,14,.78);backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;z-index:20;padding:16px;
+  opacity:1;transition:opacity .35s}
+#panel.hidden{opacity:0;pointer-events:none}
+#panelCard{background:linear-gradient(180deg,#161c30,#10141f);border:1px solid rgba(157,123,255,.25);
+  border-radius:18px;padding:20px 18px;width:100%;max-width:330px;text-align:center;
+  box-shadow:0 12px 50px rgba(0,0,0,.6);display:flex;flex-direction:column;gap:10px;
+  transform:translateY(0);animation:rise .45s cubic-bezier(.2,1.4,.4,1)}
+@keyframes rise{from{transform:translateY(26px);opacity:0}to{transform:translateY(0);opacity:1}}
+#pTitle{font-size:20px;font-weight:800}
+#pBadges{font-size:13px;color:var(--lantern);min-height:16px}
+#pGlyphs{font-size:17px;letter-spacing:2px;word-break:break-all}
+#pStats{font-size:13px;color:var(--dim);line-height:1.5}
+#pBtns{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+#pBtns button{
+  padding:11px 12px;border-radius:11px;border:1px solid rgba(110,168,255,.3);
+  background:linear-gradient(180deg,#1c2440,#141a30);color:var(--ink);font-size:14px;font-weight:600;cursor:pointer;
+  transition:transform .07s, box-shadow .2s}
+#pBtns button:active{transform:scale(.96)}
+#pBtns button.primary{background:linear-gradient(90deg,#3b5ba8,#5b43a8);border-color:rgba(157,123,255,.5);box-shadow:0 0 16px rgba(110,168,255,.25)}
+#pBtns button.hiddenBtn{display:none}
+#pNote{font-size:11.5px;color:var(--dim);min-height:14px}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);
+  background:#1d2440;border:1px solid rgba(110,168,255,.4);color:var(--ink);
+  padding:9px 16px;border-radius:20px;font-size:13px;transition:transform .3s;z-index:40;pointer-events:none}
+#toast.show{transform:translateX(-50%) translateY(0)}
+@media (max-width:330px){ #dpad button{width:48px;height:36px} .logo{font-size:18px;letter-spacing:4px} }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <div id="titleRow"><span class="logo">FOLD</span><span id="dayNo">#—</span><span id="moon">🌕</span></div>
+    <div id="statRow"><span>tilt <b id="tiltN">0</b>/<b id="capN">–</b></span><span>par <b id="parN">–</b></span><span>🐑 <b id="flockN">0/0</b></span><span>🔥<b id="streakN">0</b></span></div>
+  </header>
+  <div id="hint">You are the wind — swipe and <b>everything</b> slides. Pen every sheep in the glowing fold; the wolf slides too, and it eats.</div>
+  <canvas id="cv"></canvas>
+  <div id="msg">&nbsp;</div>
+  <div id="dpad">
+    <button data-d="U" style="grid-area:u" aria-label="tilt up">▲</button>
+    <button data-d="L" style="grid-area:l" aria-label="tilt left">◀</button>
+    <button data-d="D" style="grid-area:d" aria-label="tilt down">▼</button>
+    <button data-d="R" style="grid-area:r" aria-label="tilt right">▶</button>
+  </div>
+</div>
+<div id="panel" class="hidden">
+  <div id="panelCard">
+    <div id="pTitle"></div>
+    <div id="pBadges"></div>
+    <div id="pGlyphs"></div>
+    <div id="pStats"></div>
+    <div id="pBtns">
+      <button id="bShare" class="primary">Share</button>
+      <button id="bCard">Save night card</button>
+      <button id="bReveal">Reveal the perfect line</button>
+      <button id="bPractice">Practice pasture</button>
+    </div>
+    <div id="pNote"></div>
+  </div>
+</div>
+<div id="toast"></div>
+<script>
+'use strict';
+/* ============================== CORE =================================
+   Fold — global-tilt shepherding. One pure step() drives gameplay,
+   the generator's solver, the moon check, the reveal and the card.
+====================================================================== */
+const W = 7, H = 9;
+const DIRS = { U:[0,-1], D:[0,1], L:[-1,0], R:[1,0] };
+const DIRNAMES = ['U','D','L','R'];
+
+/* ---------- deterministic RNG ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function hashStr(s){let h=1779033703^s.length;for(let i=0;i<s.length;i++){h=Math.imul(h^s.charCodeAt(i),3432918353);h=h<<13|h>>>19}return h>>>0}
+
+/* ---------- board (module-level for current puzzle) ---------- */
+let rocks = new Uint8Array(W*H);   // 1 = rock
+let gate = -1;                     // absorbing cell for sheep; wall for wolves
+
+/* state: {sheep:[idx...] sorted, wolves:[idx...], saved:int} */
+function cloneState(s){ return { sheep:s.sheep.slice(), wolves:s.wolves.slice(), saved:s.saved }; }
+function skey(s){ return s.sheep.join(',')+'|'+s.wolves.join(','); }
+
+/* ---------- THE step function ----------
+   Every entity slides until blocked. Processed from the leading edge,
+   so everything ahead of a mover has already settled.
+   - wolf into settled sheep: eats it and KEEPS sliding
+   - sheep into settled wolf: sheep dies (stops on last free cell, poofs)
+   - sheep into gate: saved, leaves the board
+   - wolf blocked by gate cell
+   Returns {sheep,wolves,saved,eaten,moved,nearMiss,paths}
+   paths (when wantPaths): [{t:0|1, from, to, saved, died, diedAt, ate:[{pos,prey}]}]
+------------------------------------------------------------------ */
+function step(st, dname, wantPaths){
+  const d = DIRS[dname], dx = d[0], dy = d[1];
+  const ents = [];
+  for(let i=0;i<st.wolves.length;i++) ents.push({t:1, p:st.wolves[i]});
+  for(let i=0;i<st.sheep.length;i++)  ents.push({t:0, p:st.sheep[i]});
+  ents.sort((a,b)=>{
+    const pa=(a.p%W)*dx+((a.p/W)|0)*dy, pb=(b.p%W)*dx+((b.p/W)|0)*dy;
+    return pb-pa; // leading edge first
+  });
+  const settled = new Map(); // pos -> ent
+  let saved = st.saved, eaten = 0, moved = false;
+  const paths = wantPaths ? [] : null;
+
+  for(const e of ents){
+    let x = e.p%W, y = (e.p/W)|0;
+    const rec = wantPaths ? {t:e.t, from:e.p, to:e.p, saved:false, died:false, diedAt:-1, ate:[]} : null;
+    if(rec){ e.rec = rec; paths.push(rec); }
+    e.alive = true; e.savedF = false;
+    for(;;){
+      const nx = x+dx, ny = y+dy;
+      if(nx<0||nx>=W||ny<0||ny>=H) break;
+      const ni = ny*W+nx;
+      if(rocks[ni]) break;
+      if(ni===gate){
+        if(e.t===0){ // sheep slips through the gate — safe
+          saved++; e.alive=false; e.savedF=true; moved=true;
+          if(rec){ rec.to=ni; rec.saved=true; }
+        }
+        break; // wolf: gate is a wall
+      }
+      const occ = settled.get(ni);
+      if(occ){
+        if(e.t===1 && occ.t===0){       // wolf chomps a settled sheep, keeps sliding
+          settled.delete(ni);
+          occ.alive = false;
+          eaten++; moved = true;
+          if(rec) rec.ate.push({pos:ni, prey:occ.rec||null});
+          x = nx; y = ny;
+          continue;
+        }
+        if(e.t===0 && occ.t===1){       // sheep slides into the wolf's jaws
+          e.alive = false; eaten++; moved = true;
+          if(rec){ rec.to=y*W+x; rec.died=true; rec.diedAt=ni; }
+        }
+        break;                           // same-type: blocked
+      }
+      x = nx; y = ny;
+    }
+    if(e.alive){
+      const np = y*W+x;
+      e.np = np;
+      if(np !== e.p) moved = true;
+      settled.set(np, e);
+      if(rec) rec.to = np;
+    }
+  }
+
+  const ns = [], nw = [];
+  for(const e of ents){
+    if(e.t===0){ if(e.alive) ns.push(e.np); }
+    else nw.push(e.np);
+  }
+  ns.sort((a,b)=>a-b); nw.sort((a,b)=>a-b);
+
+  // near-miss: any wolf settles orthogonally beside a living sheep
+  let nearMiss = false;
+  if(ns.length){
+    const sset = new Set(ns);
+    outer:
+    for(const wp of nw){
+      const wx=wp%W, wy=(wp/W)|0;
+      for(const dd of [[0,-1],[0,1],[-1,0],[1,0]]){
+        const ax=wx+dd[0], ay=wy+dd[1];
+        if(ax<0||ax>=W||ay<0||ay>=H) continue;
+        if(sset.has(ay*W+ax)){ nearMiss=true; break outer; }
+      }
+    }
+  }
+  return { sheep:ns, wolves:nw, saved, eaten, moved, nearMiss, paths };
+}
+
+/* ---------- perfect-line solver (BFS, deaths pruned) ----------
+   Finds the shortest tilt sequence that pens EVERY living sheep.
+   Prunes any branch where a sheep dies — so the search space stays small.
+------------------------------------------------------------------ */
+function solvePerfect(st0, maxDepth, nodeCap){
+  nodeCap = nodeCap || 140000;
+  if(st0.sheep.length===0) return { par:0, path:'' };
+  let frontier=[st0], pathOf=[''];
+  const seen = new Set([skey(st0)]);
+  for(let depth=1; depth<=maxDepth; depth++){
+    const nf=[], np=[];
+    for(let i=0;i<frontier.length;i++){
+      const st=frontier[i], base=pathOf[i];
+      for(let di=0; di<4; di++){
+        const dn = DIRNAMES[di];
+        const r = step(st, dn, false);
+        if(!r.moved || r.eaten>0) continue;
+        if(r.sheep.length===0) return { par:depth, path:base+dn };
+        const k = r.sheep.join(',')+'|'+r.wolves.join(',');
+        if(seen.has(k)) continue;
+        seen.add(k);
+        if(seen.size > nodeCap) return null; // bail on pathological boards
+        nf.push({sheep:r.sheep, wolves:r.wolves, saved:r.saved});
+        np.push(base+dn);
+      }
+    }
+    if(!nf.length) return null;
+    frontier=nf; pathOf=np;
+  }
+  return null;
+}
+
+/* replay a move string on a state; report deaths & near-misses */
+function replay(st0, path){
+  let st = cloneState(st0);
+  let eaten = 0, nearMisses = 0;
+  for(const c of path){
+    const r = step(st, c, false);
+    eaten += r.eaten;
+    if(r.nearMiss) nearMisses++;
+    st = { sheep:r.sheep, wolves:r.wolves, saved:r.saved };
+  }
+  return { st, eaten, nearMisses };
+}
+/* ============================ GENERATOR ============================ */
+function genBoard(rand, nSheep, nWolves){
+  const rk = new Uint8Array(W*H);
+  const nRocks = 7 + ((rand()*5)|0); // 7–11 rocks (~15%)
+  let placed = 0, guard = 0;
+  while(placed < nRocks && guard++ < 400){
+    const p = (rand()*W*H)|0;
+    if(!rk[p]){ rk[p]=1; placed++; }
+  }
+  const empties = [];
+  for(let i=0;i<W*H;i++) if(!rk[i]) empties.push(i);
+  if(empties.length < nSheep+nWolves+1) return null;
+  // shuffle empties deterministically
+  for(let i=empties.length-1;i>0;i--){ const j=(rand()*(i+1))|0; const t=empties[i]; empties[i]=empties[j]; empties[j]=t; }
+  const g = empties.pop();
+  const wolves = [];
+  for(let i=0;i<nWolves;i++) wolves.push(empties.pop());
+  const sheep = [];
+  for(const c of empties){
+    if(sheep.length>=nSheep) break;
+    const cx=c%W, cy=(c/W)|0;
+    let nearWolf=false;
+    for(const wp of wolves){
+      const wx=wp%W, wy=(wp/W)|0;
+      if(Math.abs(cx-wx)+Math.abs(cy-wy)<=1){ nearWolf=true; break; }
+    }
+    if(!nearWolf) sheep.push(c);
+  }
+  if(sheep.length<nSheep) return null;
+  sheep.sort((a,b)=>a-b); wolves.sort((a,b)=>a-b);
+  return { rocks:rk, gate:g, start:{sheep, wolves, saved:0} };
+}
+
+/* Hand-verified fallback: wolf sealed in the corner by two rocks; the
+   whole flock stands in the gate's column — one down-tilt pens them all.
+   We still run the solver on it, but it is safe by construction. */
+function fallbackBoard(nSheep){
+  const rk = new Uint8Array(W*H);
+  rk[0*W+1]=1; rk[1*W+0]=1;          // seal (0,0)
+  rk[3*W+5]=1; rk[6*W+1]=1;          // decoration
+  const g = 8*W+3;
+  const sheep=[];
+  for(let i=0;i<Math.min(nSheep,6);i++) sheep.push((1+i)*W+3);
+  return { rocks:rk, gate:g, start:{sheep:sheep.sort((a,b)=>a-b), wolves:[0], saved:0} };
+}
+
+/* tiered acceptance: earliest tiers demand the full fairness gems,
+   later tiers relax so we ALWAYS ship a solver-verified board. */
+function generatePuzzle(seedBase, nSheep, nWolves){
+  const MAXA = 80;
+  for(let attempt=0; attempt<MAXA; attempt++){
+    const rand = mulberry32((seedBase + attempt*7919)>>>0);
+    const b = genBoard(rand, nSheep, nWolves);
+    if(!b) continue;
+    rocks = b.rocks; gate = b.gate;                 // step() reads these
+    const sol = solvePerfect(b.start, 10);
+    if(!sol) continue;
+    const tier = attempt<24?0 : attempt<40?1 : attempt<60?2 : 3;
+    const parLo = tier===0?5 : tier===1?4 : tier===2?3 : 2;
+    const parHi = tier<=1?10 : 11;
+    if(sol.par<parLo || sol.par>parHi) continue;
+    if(tier<=1){
+      // wolf-relevance: the wolf-free optimum, replayed for real, must bleed
+      const relaxed = { sheep:b.start.sheep.slice(), wolves:[], saved:0 };
+      const rSol = solvePerfect(relaxed, 10);
+      let relevant = !rSol; // wolf-as-blocker essential
+      if(rSol){
+        const rp = replay(b.start, rSol.path);
+        relevant = rp.eaten>0 || rSol.par < sol.par;
+      }
+      if(!relevant) continue;
+    }
+    if(tier===0){
+      // tension: the optimal line itself must brush the wolf at least once
+      const t = replay(b.start, sol.path);
+      if(t.nearMisses<1) continue;
+    }
+    return { board:b, par:sol.par, solPath:sol.path, attempt };
+  }
+  const fb = fallbackBoard(nSheep);
+  rocks = fb.rocks; gate = fb.gate;
+  const s = solvePerfect(fb.start, 6);
+  return { board:fb, par:s?s.par:1, solPath:s?s.path:'D', attempt:-1 };
+}
+
+/* ============================ DAILY / STORE ========================= */
+const EPOCH = new Date(2026,0,1);
+function todayInfo(){
+  const now = new Date();
+  const dstr = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+  const dayNum = Math.max(1, Math.floor((new Date(now.getFullYear(),now.getMonth(),now.getDate()) - EPOCH)/86400000)+1);
+  const dow = now.getDay(); // 0=Sun
+  // Mon→Sun ramp: sheep 5,5,6,6,6,7,7 — second wolf on Sat/Sun
+  const sheepByDow = [7,5,5,6,6,6,7];
+  const wolvesByDow = [2,1,1,1,1,1,2];
+  return { dstr, dayNum, sheepN:sheepByDow[dow], wolfN:wolvesByDow[dow] };
+}
+const LSKEY='fold_v1';
+function loadStore(){ try{ return JSON.parse(localStorage.getItem(LSKEY))||{}; }catch(e){ return {}; } }
+function saveStore(s){ try{ localStorage.setItem(LSKEY, JSON.stringify(s)); }catch(e){} }
+
+/* ============================ GAME STATE ============================ */
+let G = null; // active game
+function newGame(practice){
+  const ti = todayInfo();
+  let seedBase, sheepN, wolfN, label;
+  if(practice){
+    seedBase = (Math.random()*0xffffffff)>>>0;
+    sheepN = 5 + ((Math.random()*3)|0); wolfN = Math.random()<0.3?2:1;
+    label = 'practice';
+  } else {
+    seedBase = hashStr(ti.dstr); sheepN = ti.sheepN; wolfN = ti.wolfN; label='daily';
+  }
+  const gen = generatePuzzle(seedBase, sheepN, wolfN);
+  rocks = gen.board.rocks; gate = gen.board.gate;
+  G = {
+    practice, dayNum:ti.dayNum, dstr:ti.dstr,
+    board0:gen.board, par:gen.par, solPath:gen.solPath,
+    cap:gen.par+3,
+    st:cloneState(gen.board.start),
+    total:gen.board.start.sheep.length,
+    tilts:0, glyphs:[], history:[],   // history: per tilt {dir, segs:[{t,from,to,saved,died}]}
+    everNearMiss:false, over:false, won:false,
+    perfectGone:false, ghost:null, anim:null,
+    trailSeed:seedBase
+  };
+  updateHUD();
+  setMsg(practice ? 'Practice pasture — no stakes, same wind.' : 'Pen every sheep before dawn. No undo.');
+  draw();
+}
+
+/* ============================ HUD / DOM ============================ */
+let hintDone = false; // cached; avoids reading localStorage every frame
+const $ = id=>document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+function setMsg(t, cls){ const m=$('msg'); m.textContent=t||' '; m.className=cls||''; }
+function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),1800); }
+function streakNow(){
+  const s = loadStore(); const ti = todayInfo();
+  if(!s.streak) return 0;
+  if(s.lastPerfectDay===ti.dayNum || s.lastPerfectDay===ti.dayNum-1) return s.streak;
+  return 0;
+}
+function updateHUD(){
+  $('dayNo').textContent = G.practice ? 'practice' : ('#'+G.dayNum);
+  $('tiltN').textContent = G.tilts; $('capN').textContent = G.cap;
+  $('parN').textContent = G.par;
+  $('flockN').textContent = G.st.saved+'/'+G.total;
+  $('streakN').textContent = streakNow();
+  const moon = $('moon');
+  moon.textContent = G.perfectGone ? '🌘' : '🌕';
+  moon.classList.toggle('gone', G.perfectGone);
+  moon.title = G.perfectGone ? 'A perfect night has slipped away' : 'A perfect night is still possible';
+}
+
+/* ============================ LAYOUT ============================ */
+let CELL=44, PAD=12, DPR=1;
+function fit(){
+  DPR = Math.min(window.devicePixelRatio||1, 3);
+  const availW = Math.min(document.getElementById('wrap').clientWidth-4, 404);
+  const availH = Math.max(300, window.innerHeight - 218);
+  CELL = Math.floor(Math.min((availW-PAD*2)/W, (availH-PAD*2)/H));
+  CELL = Math.max(24, Math.min(CELL, 52));
+  const cw = W*CELL+PAD*2, ch = H*CELL+PAD*2;
+  cv.style.width = cw+'px'; cv.style.height = ch+'px';
+  cv.width = Math.round(cw*DPR); cv.height = Math.round(ch*DPR);
+  draw();
+}
+window.addEventListener('resize', fit);
+function cx(p){ return PAD + (p%W)*CELL + CELL/2; }
+function cy(p){ return PAD + ((p/W)|0)*CELL + CELL/2; }
+/* ============================ AUDIO ============================ */
+let AC=null;
+function audio(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC&&AC.state==='suspended') AC.resume(); return AC; }
+function sfxClack(vol){
+  const ac=audio(); if(!ac) return;
+  const t=ac.currentTime, n=ac.createBufferSource(), len=ac.sampleRate*0.05;
+  const buf=ac.createBuffer(1,len,ac.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.2);
+  n.buffer=buf;
+  const bp=ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=900+Math.random()*500; bp.Q.value=1.2;
+  const g=ac.createGain(); g.gain.value=Math.min(0.35,(vol||0.2));
+  n.connect(bp).connect(g).connect(ac.destination); n.start(t);
+}
+function sfxBell(){
+  const ac=audio(); if(!ac) return; const t=ac.currentTime;
+  [880,1318.5].forEach((f,i)=>{
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.type='sine'; o.frequency.value=f;
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.18/(i+1),t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.7);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t+0.75);
+  });
+}
+function sfxThud(){
+  const ac=audio(); if(!ac) return; const t=ac.currentTime;
+  const o=ac.createOscillator(), g=ac.createGain();
+  o.type='sine'; o.frequency.setValueAtTime(120,t); o.frequency.exponentialRampToValueAtTime(45,t+0.22);
+  g.gain.setValueAtTime(0.4,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.28);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t+0.3);
+  sfxClack(0.3);
+}
+
+/* ============================ DRAWING ============================ */
+const stars=[]; { const r=mulberry32(777); for(let i=0;i<46;i++) stars.push({x:r(),y:r(),s:r()*1.4+0.4,ph:r()*6.28}); }
+const rockJit={}; function rockShape(p){
+  if(!rockJit[p]){ const r=mulberry32(p*131+7); const pts=[];
+    for(let i=0;i<7;i++){ const a=i/7*6.283, rad=0.30+r()*0.14; pts.push([Math.cos(a)*rad, Math.sin(a)*rad*0.85]); }
+    rockJit[p]=pts; }
+  return rockJit[p];
+}
+let particles=[], killFlash=0, missPulse=null, shakeT=0;
+function puff(x,y,color,n,spd){
+  for(let i=0;i<n;i++){ const a=Math.random()*6.283, v=(0.4+Math.random())*(spd||1.4);
+    particles.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-0.5,life:1,sz:2+Math.random()*3,color}); }
+}
+function drawSheep(x,y,alpha,ghost){
+  ctx.save(); ctx.globalAlpha=alpha; ctx.translate(x,y);
+  const s=CELL*0.40;
+  const body = ghost?'rgba(140,180,255,0.9)':'#efece2';
+  ctx.fillStyle=body;
+  ctx.beginPath();
+  ctx.arc(-s*0.42,0,s*0.52,0,6.283); ctx.arc(s*0.15,-s*0.28,s*0.55,0,6.283);
+  ctx.arc(s*0.28,s*0.22,s*0.5,0,6.283);
+  ctx.fill();
+  // head
+  ctx.fillStyle=ghost?'rgba(60,80,140,0.9)':'#3b3547';
+  ctx.beginPath(); ctx.ellipse(-s*0.85,-s*0.15,s*0.34,s*0.28,-0.3,0,6.283); ctx.fill();
+  // ear
+  ctx.beginPath(); ctx.ellipse(-s*0.95,-s*0.42,s*0.16,s*0.09,-0.6,0,6.283); ctx.fill();
+  // eye
+  ctx.fillStyle=ghost?'#cfe0ff':'#efece2'; ctx.beginPath(); ctx.arc(-s*0.92,-s*0.2,s*0.06,0,6.283); ctx.fill();
+  ctx.restore();
+}
+function drawWolf(x,y,alpha,ghost){
+  ctx.save(); ctx.globalAlpha=alpha; ctx.translate(x,y);
+  const s=CELL*0.44;
+  ctx.fillStyle=ghost?'rgba(140,160,220,0.85)':'#454b63';
+  // haunch + chest
+  ctx.beginPath(); ctx.arc(s*0.3,s*0.15,s*0.5,0,6.283); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(s*0.55,s*0.5); ctx.lineTo(-s*0.75,s*0.05); ctx.lineTo(s*0.1,-s*0.45); ctx.closePath(); ctx.fill();
+  // head
+  ctx.beginPath(); ctx.moveTo(-s*0.95,-s*0.5); ctx.lineTo(-s*0.2,-s*0.35); ctx.lineTo(-s*0.5,s*0.15); ctx.closePath(); ctx.fill();
+  // ears
+  ctx.beginPath(); ctx.moveTo(-s*0.55,-s*0.5); ctx.lineTo(-s*0.4,-s*0.85); ctx.lineTo(-s*0.25,-s*0.45); ctx.closePath(); ctx.fill();
+  // tail
+  ctx.strokeStyle=ctx.fillStyle; ctx.lineWidth=s*0.22; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(s*0.65,s*0.1); ctx.quadraticCurveTo(s*1.05,-s*0.15,s*0.95,-s*0.5); ctx.stroke();
+  // eye
+  ctx.fillStyle=ghost?'#9ecbff':'#ffb14d';
+  ctx.shadowColor=ghost?'#9ecbff':'#ffb14d'; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.arc(-s*0.62,-s*0.38,s*0.07,0,6.283); ctx.fill();
+  ctx.restore();
+}
+function drawGate(t){
+  const gx=cx(gate), gy=cy(gate);
+  const flick = 0.85+0.15*Math.sin(t/300)+0.05*Math.sin(t/77);
+  const rad = CELL*1.5;
+  const grd = ctx.createRadialGradient(gx,gy,2,gx,gy,rad);
+  grd.addColorStop(0,'rgba(255,217,138,'+(0.34*flick)+')');
+  grd.addColorStop(0.5,'rgba(255,190,110,'+(0.12*flick)+')');
+  grd.addColorStop(1,'rgba(255,190,110,0)');
+  ctx.fillStyle=grd; ctx.fillRect(gx-rad,gy-rad,rad*2,rad*2);
+  // pen posts (little archway)
+  ctx.strokeStyle='#8a6a4a'; ctx.lineWidth=Math.max(2,CELL*0.09); ctx.lineCap='round';
+  const w=CELL*0.34, h=CELL*0.36;
+  ctx.beginPath();
+  ctx.moveTo(gx-w,gy+h); ctx.lineTo(gx-w,gy-h);
+  ctx.moveTo(gx+w,gy+h); ctx.lineTo(gx+w,gy-h);
+  ctx.moveTo(gx-w*1.25,gy-h*0.85); ctx.lineTo(gx+w*1.25,gy-h*0.85);
+  ctx.stroke();
+  // lantern
+  ctx.fillStyle='rgba(255,217,138,'+(0.9*flick)+')';
+  ctx.shadowColor='#ffd98a'; ctx.shadowBlur=10;
+  ctx.beginPath(); ctx.arc(gx,gy-h*0.5,CELL*0.09,0,6.283); ctx.fill();
+  ctx.shadowBlur=0;
+}
+function draw(t){
+  t = t||performance.now();
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const cw=W*CELL+PAD*2, ch=H*CELL+PAD*2;
+  let sx=0, sy=0;
+  if(shakeT>0){ sx=(Math.random()-0.5)*shakeT*6; sy=(Math.random()-0.5)*shakeT*6; }
+  ctx.clearRect(0,0,cw,ch);
+  // night pasture
+  const bg=ctx.createLinearGradient(0,0,0,ch);
+  bg.addColorStop(0,'#121734'); bg.addColorStop(0.6,'#101428'); bg.addColorStop(1,'#0d1020');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,cw,ch);
+  // stars
+  for(const s of stars){
+    const a=0.25+0.5*Math.abs(Math.sin(t/1400+s.ph));
+    ctx.fillStyle='rgba(210,225,255,'+a.toFixed(2)+')';
+    ctx.fillRect(s.x*cw, s.y*ch*0.9, s.s, s.s);
+  }
+  ctx.save(); ctx.translate(sx,sy);
+  // grid
+  ctx.strokeStyle='rgba(110,168,255,0.07)'; ctx.lineWidth=1;
+  for(let x=0;x<=W;x++){ ctx.beginPath(); ctx.moveTo(PAD+x*CELL,PAD); ctx.lineTo(PAD+x*CELL,PAD+H*CELL); ctx.stroke(); }
+  for(let y=0;y<=H;y++){ ctx.beginPath(); ctx.moveTo(PAD,PAD+y*CELL); ctx.lineTo(PAD+W*CELL,PAD+y*CELL); ctx.stroke(); }
+  // fence border
+  ctx.strokeStyle='rgba(157,123,255,0.35)'; ctx.lineWidth=2;
+  ctx.strokeRect(PAD-3,PAD-3,W*CELL+6,H*CELL+6);
+  ctx.fillStyle='#5d5470';
+  const postGap=CELL;
+  for(let x=0;x<=W;x++){ ctx.fillRect(PAD+x*postGap-1.5,PAD-7,3,7); ctx.fillRect(PAD+x*postGap-1.5,PAD+H*CELL,3,7); }
+  for(let y=0;y<=H;y++){ ctx.fillRect(PAD-7,PAD+y*postGap-1.5,7,3); ctx.fillRect(PAD+W*CELL,PAD+y*postGap-1.5,7,3); }
+  // gate glow under everything else
+  if(gate>=0) drawGate(t);
+  // rocks
+  for(let p=0;p<W*H;p++){
+    if(!rocks[p]) continue;
+    const rx=cx(p), ry=cy(p), pts=rockShape(p);
+    ctx.fillStyle='#262b3e';
+    ctx.beginPath();
+    pts.forEach((q,i)=>{ const px=rx+q[0]*CELL, py=ry+q[1]*CELL; i?ctx.lineTo(px,py):ctx.moveTo(px,py); });
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle='rgba(90,100,140,0.35)';
+    ctx.beginPath(); ctx.ellipse(rx-CELL*0.08,ry-CELL*0.14,CELL*0.16,CELL*0.09,0.4,0,6.283); ctx.fill();
+  }
+  // entities
+  const gh = G && G.ghost;
+  if(G && G.anim){
+    const A=G.anim, now=t;
+    for(const pr of A.recs){
+      if(pr.gone) continue;
+      const p1=pr.from, p2=pr.to;
+      const x1=cx(p1), y1=cy(p1), x2=cx(p2), y2=cy(p2);
+      let k=(now-A.start-pr.delay)/pr.dur; k=Math.max(0,Math.min(1,k));
+      const e=k*k*(3-2*k); // smoothstep: glide + settle
+      const x=x1+(x2-x1)*e, y=y1+(y2-y1)*e;
+      // wolf chomp check
+      if(pr.t===1 && pr.ate.length){
+        for(const a of pr.ate){
+          if(a.done||!a.prey) continue;
+          const ax=cx(a.pos), ay=cy(a.pos);
+          const passed = Math.abs(x-x1)+Math.abs(y-y1) >= Math.abs(ax-x1)+Math.abs(ay-y1)-1;
+          if(passed){ a.done=true; a.prey.gone=true; puff(ax,ay,'#efece2',14,1.8); puff(ax,ay,'#ff5d73',6,1.2); sfxThud(); killFlash=1; }
+        }
+      }
+      if(pr.t===0) drawSheep(x,y,1,A.ghost); else drawWolf(x,y,1,A.ghost);
+      if(k>=1 && !pr.settledFx){
+        pr.settledFx=true;
+        if(pr.from!==pr.to) sfxClack(0.12+0.03*Math.abs((pr.to%W)-(pr.from%W)+((pr.to/W)|0)-((pr.from/W)|0)));
+        if(pr.saved){ pr.gone=true; puff(cx(pr.to),cy(pr.to),'#ffd98a',16,1.6); sfxBell(); }
+        if(pr.died){ pr.gone=true; const dp=pr.diedAt>=0?pr.diedAt:pr.to; puff(cx(dp),cy(dp),'#efece2',14,1.8); puff(cx(dp),cy(dp),'#ff5d73',6,1.2); sfxThud(); killFlash=1; }
+      }
+    }
+  } else if(G){
+    for(const p of G.st.sheep) drawSheep(cx(p),cy(p),1,gh);
+    for(const p of G.st.wolves) drawWolf(cx(p),cy(p),1,gh);
+  }
+  // particles
+  for(let i=particles.length-1;i>=0;i--){
+    const q=particles[i];
+    q.x+=q.vx; q.y+=q.vy; q.vy+=0.04; q.life-=0.03;
+    if(q.life<=0){ particles.splice(i,1); continue; }
+    ctx.globalAlpha=q.life; ctx.fillStyle=q.color;
+    ctx.beginPath(); ctx.arc(q.x,q.y,q.sz*q.life,0,6.283); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  // near-miss pulse
+  if(missPulse){
+    missPulse.a-=0.02;
+    if(missPulse.a<=0) missPulse=null;
+    else{
+      ctx.strokeStyle='rgba(255,93,115,'+missPulse.a.toFixed(2)+')';
+      ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.arc(missPulse.x,missPulse.y,CELL*(1.4-missPulse.a*0.8),0,6.283); ctx.stroke();
+    }
+  }
+  // first-tilt hint chevrons
+  if(G && !G.over && G.tilts===0 && !G.practice && !hintDone){
+    const pu=0.4+0.35*Math.sin(t/350);
+    ctx.fillStyle='rgba(110,168,255,'+pu.toFixed(2)+')';
+    ctx.font='bold '+Math.round(CELL*0.5)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('‹', PAD+CELL*0.35, ch/2); ctx.fillText('›', cw-PAD-CELL*0.35, ch/2);
+    ctx.fillText('˄', cw/2, PAD+CELL*0.4); ctx.fillText('˅', cw/2, ch-PAD-CELL*0.4);
+  }
+  ctx.restore();
+  // kill dim
+  if(killFlash>0){
+    ctx.fillStyle='rgba(20,4,10,'+(killFlash*0.4).toFixed(2)+')';
+    ctx.fillRect(0,0,cw,ch);
+    killFlash-=0.05;
+  }
+  if(shakeT>0) shakeT-=0.08;
+}
+(function loop(t){ draw(t); requestAnimationFrame(loop); })(performance.now());
+
+/* ============================ TILT ============================ */
+function tilt(dname, isGhost){
+  if(!G || G.anim) return;
+  if(!isGhost && (G.over || G.ghost)) return;
+  const r = step(G.st, dname, true);
+  if(!r.moved){ shakeT=1; sfxClack(0.08); if(!isGhost) setMsg('The wind finds nothing to move.',''); return; }
+  audio();
+  if(!isGhost){
+    G.tilts++;
+    if(!hintDone){ hintDone=true; const s=loadStore(); s.hinted=true; saveStore(s); $('hint').classList.add('off'); }
+  }
+  // build animation records
+  const recs = r.paths.map((pr,i)=>{
+    const dxc = Math.abs((pr.to%W)-(pr.from%W)) + Math.abs(((pr.to/W)|0)-((pr.from/W)|0));
+    return Object.assign(pr, { delay:i*26, dur:Math.max(90, Math.min(430, dxc*55+70)) });
+  });
+  const maxEnd = Math.max(...recs.map(p=>p.delay+p.dur)) + 60;
+  G.anim = { start:performance.now(), recs, ghost:!!isGhost };
+  const savedThis = r.saved - G.st.saved;
+  const nextSt = { sheep:r.sheep, wolves:r.wolves, saved:r.saved };
+  setTimeout(()=>{
+    G.anim = null;
+    G.st = nextSt;
+    if(isGhost){ updateHUD(); return; }
+    // glyph priority: blood > bell > brush > calm
+    const glyph = r.eaten>0 ? '❌' : savedThis>0 ? '🐑' : r.nearMiss ? '🐺' : '▫️';
+    G.glyphs.push(glyph);
+    G.history.push({ dir:dname, segs:recs.map(p=>({t:p.t,from:p.from,to:p.to,saved:p.saved,died:p.died})) });
+    if(r.nearMiss){
+      G.everNearMiss = true;
+      const wp = r.wolves.find(w=>{ const wx=w%W,wy=(w/W)|0; return r.sheep.some(s=>{const sx2=s%W,sy2=(s/W)|0;return Math.abs(wx-sx2)+Math.abs(wy-sy2)===1;}); });
+      if(wp!=null) missPulse={x:cx(wp),y:cy(wp),a:0.7};
+    }
+    if(r.eaten>0){ setMsg(r.eaten===1?'A sheep is lost to the night.':r.eaten+' sheep lost to the night.','warn'); }
+    else if(savedThis>0){ setMsg(savedThis===1?'One home safe. The bell rings.':savedThis+' home safe. The bells ring.','good'); }
+    else if(r.nearMiss){ setMsg('The wolf settles a breath away…','warn'); }
+    else setMsg('The flock clatters to rest.','');
+    updateHUD();
+    afterTilt();
+  }, maxEnd);
+}
+function afterTilt(){
+  const alive = G.st.sheep.length;
+  if(alive===0 && G.st.saved===G.total){ endGame(true); return; }
+  if(alive===0){ endGame(false); return; }
+  if(G.tilts>=G.cap){ endGame(false); return; }
+  // moon check (graft: Wedge) — is a perfect night still reachable?
+  if(!G.perfectGone && G.st.saved + alive === G.total){
+    setTimeout(()=>{
+      const s = solvePerfect(G.st, Math.min(G.cap-G.tilts, 10));
+      if(!s){ G.perfectGone=true; updateHUD(); }
+    }, 30);
+  } else if(!G.perfectGone){ G.perfectGone=true; updateHUD(); }
+}
+
+/* ============================ INPUT ============================ */
+document.querySelectorAll('#dpad button').forEach(b=>{
+  b.addEventListener('pointerdown', e=>{ e.preventDefault(); tilt(b.dataset.d); });
+});
+window.addEventListener('keydown', e=>{
+  const map={ArrowUp:'U',ArrowDown:'D',ArrowLeft:'L',ArrowRight:'R'};
+  if(map[e.key]){ e.preventDefault(); tilt(map[e.key]); }
+});
+let swipe=null;
+cv.addEventListener('pointerdown', e=>{ swipe={x:e.clientX,y:e.clientY}; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointerup', e=>{
+  if(!swipe) return;
+  const dx=e.clientX-swipe.x, dy=e.clientY-swipe.y; swipe=null;
+  if(Math.abs(dx)<22 && Math.abs(dy)<22) return;
+  tilt(Math.abs(dx)>Math.abs(dy) ? (dx>0?'R':'L') : (dy>0?'D':'U'));
+});
+cv.addEventListener('pointercancel', ()=>{ swipe=null; });
+/* ============================ END / SHARE ============================ */
+function endGame(won){
+  G.over = true; G.won = won;
+  const flawless = won && !G.everNearMiss;
+  const clean = won && G.tilts===G.par;
+  const dirs = G.history.map(h=>h.dir).join('');
+  G.result = { dayNum:G.dayNum, won, saved:G.st.saved, total:G.total, tilts:G.tilts,
+               par:G.par, glyphs:G.glyphs.slice(), flawless, clean, dirs, practice:G.practice };
+  if(!G.practice){
+    const s = loadStore();
+    if(won){
+      if(s.lastPerfectDay===G.dayNum-1) s.streak=(s.streak||0)+1;
+      else if(s.lastPerfectDay!==G.dayNum) s.streak=1;
+      s.lastPerfectDay=G.dayNum;
+    }
+    s.results = s.results||{};
+    s.results[G.dayNum] = G.result;
+    saveStore(s);
+  }
+  G.perfectGone = !won;
+  updateHUD();
+  setTimeout(showPanel, won?650:900);
+}
+function showPanel(){
+  const r = G.result; if(!r) return;
+  const pre = r.practice ? 'Practice — ' : '';
+  $('pTitle').textContent = r.won
+    ? pre+(r.clean ? 'The fold is full — a clean night.' : 'The fold is full.')
+    : pre+(r.saved>0 ? 'Dawn breaks — '+r.saved+'/'+r.total+' penned.' : 'A silent pasture. 0/'+r.total+'.');
+  const badges=[];
+  if(r.flawless) badges.push('✨ Flawless — the wolf never breathed on the flock');
+  if(r.clean) badges.push('🎯 Clean — par exact');
+  $('pBadges').textContent = badges.join('  ·  ');
+  $('pGlyphs').textContent = r.glyphs.join('') || '—';
+  $('pStats').innerHTML = '🐑 '+r.saved+'/'+r.total+' · '+r.tilts+' tilts · par '+r.par
+    + (r.practice ? '' : '<br>🔥 streak '+streakNow()+' · new pasture at midnight');
+  $('bShare').classList.toggle('hiddenBtn', r.practice);
+  $('bReveal').classList.toggle('hiddenBtn', !!r.clean);
+  $('bReveal').textContent = r.won ? 'Watch the perfect line' : 'Reveal the perfect line';
+  $('bPractice').textContent = r.practice ? 'Another practice pasture' : 'Practice pasture';
+  $('pNote').textContent = r.practice ? 'Practice never touches your streak.' : 'Deaths are permanent. So are bragging rights.';
+  $('panel').classList.remove('hidden');
+}
+function hidePanel(){ $('panel').classList.add('hidden'); }
+$('panel').addEventListener('click', e=>{
+  if(e.target===$('panel')){ hidePanel(); setMsg('Tap any arrow to reopen results.',''); }
+});
+// tilting a finished board just reopens the results
+const _tilt = tilt;
+tilt = function(d, isGhost){
+  if(G && G.over && !isGhost && !G.ghost && $('panel').classList.contains('hidden')){ showPanel(); return; }
+  _tilt(d, isGhost);
+};
+
+function shareText(r){
+  const moon = r.won ? '🌕' : '🌒';
+  const badges = (r.flawless?' ✨':'') + (r.clean?' 🎯':'');
+  const stk = streakNow();
+  return 'Fold #'+r.dayNum+' '+moon+badges+'\n'
+    + ('🐑'.repeat(r.saved)||'…')+' '+r.saved+'/'+r.total+'\n'
+    + r.glyphs.join('')+' — '+r.tilts+' tilts · par '+r.par+(stk?' · 🔥'+stk:'');
+}
+$('bShare').addEventListener('click', ()=>{
+  const txt = shareText(G.result);
+  const copy = ()=>{
+    if(navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(txt).then(()=>toast('Copied — go haunt your friends'),()=>toast('Copy failed'));
+    else{
+      const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta);
+      ta.select(); try{ document.execCommand('copy'); toast('Copied — go haunt your friends'); }catch(e){ toast('Copy failed'); }
+      ta.remove();
+    }
+  };
+  if(navigator.share) navigator.share({text:txt}).catch(()=>copy());
+  else copy();
+});
+
+/* ---------- ghost replay of the solver's perfect line (graft: Dowse) ---------- */
+$('bReveal').addEventListener('click', ()=>{
+  hidePanel();
+  G.ghost = true;
+  G.st = cloneState(G.board0.start);
+  updateHUD(); setMsg('The shepherd wind shows its line…','good');
+  let i=0;
+  const next = ()=>{
+    if(i>=G.solPath.length){
+      setTimeout(()=>{ setMsg('Par '+G.par+'. That was the way.','good'); G.ghost=false; showPanel(); }, 750);
+      return;
+    }
+    tilt(G.solPath[i++], true);
+    const wait = ()=>{ if(G.anim) setTimeout(wait,60); else setTimeout(next,240); };
+    setTimeout(wait,90);
+  };
+  setTimeout(next, 350);
+});
+
+/* ---------- night card export (graft: Skein) ---------- */
+function rebuildHistory(dirs){
+  const segsAll=[]; let st=cloneState(G.board0.start);
+  for(const d of dirs){
+    const r=step(st,d,true);
+    segsAll.push({dir:d, segs:r.paths.map(p=>({t:p.t,from:p.from,to:p.to,saved:p.saved,died:p.died}))});
+    st={sheep:r.sheep,wolves:r.wolves,saved:r.saved};
+  }
+  return {hist:segsAll, st};
+}
+$('bCard').addEventListener('click', ()=>{
+  const r=G.result; if(!r) return;
+  let hist=G.history;
+  if(!hist.length && r.dirs) hist=rebuildHistory(r.dirs).hist;
+  const c=document.createElement('canvas'); c.width=900; c.height=1200;
+  const g=c.getContext('2d');
+  const bgg=g.createLinearGradient(0,0,0,1200);
+  bgg.addColorStop(0,'#121838'); bgg.addColorStop(0.65,'#0d1126'); bgg.addColorStop(1,'#0b0d12');
+  g.fillStyle=bgg; g.fillRect(0,0,900,1200);
+  const rr=mulberry32(G.trailSeed||99);
+  for(let i=0;i<130;i++){ g.fillStyle='rgba(215,228,255,'+(0.15+rr()*0.5).toFixed(2)+')'; g.fillRect(rr()*900, rr()*1100, rr()*2.2+0.6, rr()*2.2+0.6); }
+  g.textAlign='center';
+  g.fillStyle='#e9e7dd'; g.font='800 64px system-ui';
+  g.fillText('F O L D', 450, 110);
+  g.fillStyle='#8f96ad'; g.font='500 34px system-ui';
+  g.fillText(r.practice?'practice pasture':'night #'+r.dayNum, 450, 160);
+  // moon
+  g.fillStyle=r.won?'#e9e7dd':'#3c445e'; g.shadowColor='#9db8ff'; g.shadowBlur=r.won?35:8;
+  g.beginPath(); g.arc(790,110,34,0,6.283); g.fill(); g.shadowBlur=0;
+  // trails
+  const bx=140, by=230, cw2=620, cell2=cw2/W, ch2=cell2*H;
+  g.save(); g.translate(bx,by);
+  g.strokeStyle='rgba(110,168,255,0.12)'; g.lineWidth=2; g.strokeRect(-14,-14,cw2+28,ch2+28);
+  const px2=p=>(p%W)*cell2+cell2/2, py2=p=>((p/W)|0)*cell2+cell2/2;
+  // gate lantern
+  const gg=g.createRadialGradient(px2(gate),py2(gate),4,px2(gate),py2(gate),cell2*1.8);
+  gg.addColorStop(0,'rgba(255,217,138,0.8)'); gg.addColorStop(1,'rgba(255,217,138,0)');
+  g.fillStyle=gg; g.fillRect(px2(gate)-cell2*2,py2(gate)-cell2*2,cell2*4,cell2*4);
+  g.lineCap='round';
+  hist.forEach((h,ti)=>{
+    const k=hist.length>1?ti/(hist.length-1):0;
+    for(const sg of h.segs){
+      if(sg.from===sg.to && !sg.saved && !sg.died) continue;
+      if(sg.t===0){
+        const col1='rgba('+Math.round(110+ (157-110)*k)+','+Math.round(168+(123-168)*k)+',255,';
+        g.strokeStyle=col1+'0.55)'; g.shadowColor=col1+'0.9)'; g.shadowBlur=16; g.lineWidth=9;
+      } else {
+        g.strokeStyle='rgba(255,93,115,0.5)'; g.shadowColor='rgba(255,93,115,0.9)'; g.shadowBlur=14; g.lineWidth=11;
+      }
+      g.beginPath(); g.moveTo(px2(sg.from),py2(sg.from)); g.lineTo(px2(sg.to),py2(sg.to)); g.stroke();
+      if(sg.saved){ g.fillStyle='rgba(255,217,138,0.95)'; g.shadowColor='#ffd98a'; g.shadowBlur=20;
+        g.beginPath(); g.arc(px2(sg.to),py2(sg.to),8,0,6.283); g.fill(); }
+      if(sg.died){ g.fillStyle='rgba(255,93,115,0.9)'; g.shadowBlur=18;
+        g.beginPath(); g.arc(px2(sg.to),py2(sg.to),7,0,6.283); g.fill(); }
+    }
+  });
+  g.restore(); g.shadowBlur=0;
+  g.fillStyle='#e9e7dd'; g.font='600 44px system-ui';
+  g.fillText(r.glyphs.join(''), 450, by+ch2+95);
+  g.fillStyle='#8f96ad'; g.font='500 32px system-ui';
+  g.fillText('🐑 '+r.saved+'/'+r.total+' · '+r.tilts+' tilts · par '+r.par, 450, by+ch2+148);
+  g.fillStyle='#5d6580'; g.font='500 26px system-ui';
+  g.fillText('you are the wind, not the shepherd', 450, 1150);
+  c.toBlob(blob=>{
+    if(!blob){ toast('Card failed'); return; }
+    const fname='fold-'+(r.practice?'practice':r.dayNum)+'.png';
+    const file = new File([blob], fname, {type:'image/png'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      navigator.share({files:[file], text:'Fold #'+r.dayNum}).catch(()=>{ dl(blob,fname); });
+    } else dl(blob,fname);
+  });
+  function dl(blob,fname){
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('Night card saved');
+  }
+});
+
+$('bPractice').addEventListener('click', ()=>{
+  hidePanel(); killFlash=0; missPulse=null; particles=[];
+  setMsg('Weaving a practice pasture…','');
+  setTimeout(()=>newGame(true), 30);
+});
+
+/* ============================ SELF-TEST ============================ */
+/* run with ?selftest=N — verifies N consecutive daily seeds generate a
+   solver-proven perfect board within the attempt cap. */
+function foldSelfTest(nDays){
+  const out=[]; let ok=true;
+  const liveRocks=rocks, liveGate=gate; // restore the live board afterwards
+  const base=new Date();
+  for(let i=0;i<nDays;i++){
+    const d=new Date(base.getFullYear(),base.getMonth(),base.getDate()+i);
+    const dstr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const dow=d.getDay();
+    const sheepN=[7,5,5,6,6,6,7][dow], wolfN=[2,1,1,1,1,1,2][dow];
+    const t0=performance.now();
+    const gen=generatePuzzle(hashStr(dstr), sheepN, wolfN);
+    rocks=gen.board.rocks; gate=gen.board.gate;
+    const chk=solvePerfect(gen.board.start, 12);
+    const pass=!!chk && chk.par===gen.par;
+    if(!pass) ok=false;
+    out.push(dstr+' attempt='+gen.attempt+' par='+gen.par+' verified='+pass+' ('+Math.round(performance.now()-t0)+'ms)');
+  }
+  rocks=liveRocks; gate=liveGate;
+  console.log(out.join('\n'));
+  console.log(ok?'FOLD SELF-TEST: ALL PASS':'FOLD SELF-TEST: FAILURES ABOVE');
+  return ok;
+}
+window.foldSelfTest = foldSelfTest;
+
+/* ============================ BOOT ============================ */
+function boot(){
+  fit();
+  hintDone = !!loadStore().hinted;
+  if(hintDone) $('hint').classList.add('off');
+  setMsg('Laying out the pasture…','');
+  setTimeout(()=>{
+    newGame(false);
+    const s=loadStore();
+    const res=s.results && s.results[G.dayNum];
+    if(res){
+      // daily already played: rebuild the ended board and show results
+      G.result=res; G.over=true; G.won=res.won; G.tilts=res.tilts;
+      G.glyphs=res.glyphs.slice(); G.perfectGone=!res.won;
+      if(res.dirs){ const rb=rebuildHistory(res.dirs); G.history=rb.hist; G.st=rb.st; }
+      updateHUD();
+      setMsg(res.won?'Tonight’s flock is home. New pasture at midnight.':'Dawn already broke tonight. Practice awaits.','');
+      showPanel();
+    }
+    const q=new URLSearchParams(location.search);
+    if(q.has('selftest')) setTimeout(()=>foldSelfTest(parseInt(q.get('selftest'))||7), 400);
+  }, 40);
+}
+boot();
+</script>
+</body>
+</html>
