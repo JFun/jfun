@@ -311,12 +311,15 @@ function buildDay(seedNum, cfg){
       best={grid:sol2, spout, basinCells, cols, rows};
     }
   }
-  if(!best){ // guaranteed fallback: spout straight into one basin
+  if(!best){ // fallback: an honest, always-solvable right-going staircase that HONORS cfg.basins
     const {cols,rows}=cfg;
+    const n=Math.max(1, Math.min(cfg.basins, cols-2, rows-2));
+    const spout=1;
     const sol=Array.from({length:rows},()=>Array(cols).fill(EMPTY));
-    const spout=Math.floor(cols/2);
-    sol[2][spout]=BASIN;
-    best={grid:sol, spout, basinCells:[[2,spout]], cols, rows};
+    sol[1][1]=RSLOPE;                 // one steering slope (stripped into the hand): spout stream → first basin
+    const cells=[];
+    for(let i=0;i<n;i++){ const r=2+i, c=2+i; sol[r][c]=BASIN; cells.push([r,c]); }
+    best={grid:sol, spout, basinCells:cells, cols, rows};
   }
   // build the player's starting base: basins + walls only (slopes stripped → become the hand)
   best.base=best.grid.map(row=>row.map(t=> (t===BASIN||t===WALL)? t : EMPTY ));

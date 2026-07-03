@@ -2,20 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Prototypes — early concepts</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototypes — playable review board</title>
 <style>
   :root{
-    --bg:#0b0d12;
-    --card:#161a24;
-    --card2:#1b2030;
-    --edge:#252b3a;
-    --edge2:#323a52;
-    --ink:#eef1f8;
-    --mut:#9aa3b8;
-    --acc:#6ea8ff;
-    --acc2:#9d7bff;
-    --kept:#ffce6b;
+    --bg:#0b0d12; --card:#161a24; --card2:#1b2030; --edge:#252b3a; --edge2:#323a52;
+    --ink:#eef1f8; --mut:#9aa3b8; --dim:#6b7388; --acc:#6ea8ff; --acc2:#9d7bff;
+    --kept:#ffce6b; --ship:#4bd48a; --good:#4bd48a; --warn:#ff9e5c;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;}
@@ -26,218 +19,209 @@
       var(--bg);
     color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    min-height:100vh;
-    -webkit-font-smoothing:antialiased;
-    line-height:1.5;
+    min-height:100vh; -webkit-font-smoothing:antialiased; line-height:1.5;
   }
-  .wrap{
-    max-width:1120px;
-    margin:0 auto;
-    padding:28px 18px 64px;
-  }
-  header.top{
-    padding:18px 4px 26px;
-  }
-  .eyebrow{
-    font-size:12px;
-    letter-spacing:.18em;
-    text-transform:uppercase;
-    color:var(--acc);
-    font-weight:700;
-    margin:0 0 10px;
-  }
-  h1{
-    margin:0 0 12px;
-    font-size:clamp(28px,7vw,44px);
-    line-height:1.08;
-    letter-spacing:-0.02em;
-    background:linear-gradient(120deg,#fff 0%,#cdd6ee 55%,#9d7bff 120%);
-    -webkit-background-clip:text;
-    background-clip:text;
-    color:transparent;
-  }
-  .sub{
-    margin:0;
-    max-width:640px;
-    color:var(--mut);
-    font-size:clamp(14px,3.6vw,16px);
-  }
-  .sub b{color:#d7deef;font-weight:600;}
-  .grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
-    gap:16px;
-    margin-top:26px;
-  }
-  .card{
-    position:relative;
-    display:flex;
-    flex-direction:column;
-    background:linear-gradient(160deg,var(--card2) 0%,var(--card) 70%);
-    border:1px solid var(--edge);
-    border-radius:18px;
-    padding:18px 18px 16px;
-    text-decoration:none;
-    color:inherit;
-    overflow:hidden;
-    transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
-    min-height:188px;
-  }
-  .card::before{
-    content:"";
-    position:absolute;
-    inset:0;
-    background:radial-gradient(420px 200px at 100% 0%, rgba(110,168,255,.10), transparent 60%);
-    opacity:0;
-    transition:opacity .2s ease;
-    pointer-events:none;
-  }
-  .card:hover, .card:active{
-    transform:translateY(-3px);
-    border-color:var(--edge2);
-    box-shadow:0 14px 34px rgba(0,0,0,.42);
-  }
-  .card:hover::before{opacity:1;}
-  .cardhead{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    margin-bottom:8px;
-  }
-  .num{
-    font-variant-numeric:tabular-nums;
-    font-size:12px;
-    font-weight:700;
-    color:var(--acc2);
-    letter-spacing:.06em;
-    background:rgba(157,123,255,.12);
-    border:1px solid rgba(157,123,255,.26);
-    border-radius:8px;
-    padding:3px 8px;
-  }
-  .title{
-    font-size:21px;
-    font-weight:700;
-    letter-spacing:-0.01em;
-    margin:0;
-  }
-  .kept{
-    margin-left:auto;
-    font-size:11px;
-    font-weight:700;
-    color:var(--kept);
-    background:rgba(255,206,107,.10);
-    border:1px solid rgba(255,206,107,.34);
-    border-radius:999px;
-    padding:3px 9px;
-    white-space:nowrap;
-  }
-  .pitch{
-    color:var(--mut);
-    font-size:14px;
-    margin:0 0 14px;
-    flex:1;
-  }
-  .play{
-    align-self:flex-start;
-    display:inline-flex;
-    align-items:center;
-    gap:7px;
-    font-weight:700;
-    font-size:15px;
-    color:#0b0d12;
-    background:linear-gradient(120deg,var(--acc) 0%,var(--acc2) 100%);
-    border-radius:11px;
-    padding:9px 16px;
-    margin-top:auto;
-    box-shadow:0 6px 16px rgba(110,168,255,.26);
-  }
-  .play .arw{font-size:13px;transition:transform .18s ease;}
-  .card:hover .play .arw{transform:translateX(3px);}
-  footer.foot{
-    margin-top:40px;
-    color:#6b7388;
-    font-size:12.5px;
-    text-align:center;
-  }
-  @media (max-width:480px){
-    .grid{grid-template-columns:1fr;}
-  }
+  .wrap{max-width:1280px; margin:0 auto; padding:28px 18px 72px;}
+  header.top{padding:16px 4px 22px;}
+  .eyebrow{font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--acc); font-weight:700; margin:0 0 10px;}
+  h1{margin:0 0 12px; font-size:clamp(28px,6vw,42px); line-height:1.08; letter-spacing:-0.02em;
+     background:linear-gradient(120deg,#fff 0%,#cdd6ee 55%,#9d7bff 120%); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .sub{margin:0; max-width:720px; color:var(--mut); font-size:clamp(14px,3.6vw,16px);}
+  .sub b{color:#d7deef; font-weight:600;}
+  .legend{display:flex; flex-wrap:wrap; gap:10px 18px; margin:16px 0 0; color:var(--dim); font-size:12.5px;}
+  .legend .chip{display:inline-flex; align-items:center; gap:6px;}
+  .dot{width:9px; height:9px; border-radius:50%;}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(560px,1fr)); gap:18px; margin-top:24px;}
+  @media (max-width:620px){ .grid{grid-template-columns:1fr;} }
+
+  .card{position:relative; background:linear-gradient(160deg,var(--card2) 0%,var(--card) 72%);
+    border:1px solid var(--edge); border-radius:18px; padding:16px 16px 16px; overflow:hidden;}
+  .cardhead{display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+  .num{font-variant-numeric:tabular-nums; font-size:12px; font-weight:700; color:var(--acc2); letter-spacing:.06em;
+    background:rgba(157,123,255,.12); border:1px solid rgba(157,123,255,.26); border-radius:8px; padding:3px 8px;}
+  .title{font-size:20px; font-weight:700; letter-spacing:-0.01em; margin:0;}
+  .badge{font-size:10.5px; font-weight:800; letter-spacing:.04em; border-radius:999px; padding:3px 9px; white-space:nowrap; text-transform:uppercase;}
+  .badge.kept{color:var(--kept); background:rgba(255,206,107,.10); border:1px solid rgba(255,206,107,.34);}
+  .badge.shipped{color:var(--ship); background:rgba(75,212,138,.10); border:1px solid rgba(75,212,138,.34);}
+  .badge.new{color:var(--acc2); background:rgba(157,123,255,.14); border:1px solid rgba(157,123,255,.34);}
+  .score{margin-left:auto; display:inline-flex; align-items:baseline; gap:3px; font-weight:800; font-size:15px;}
+  .score b{font-size:19px;} .score small{color:var(--dim); font-weight:700; font-size:12px;}
+
+  .body{display:grid; grid-template-columns:300px 1fr; gap:16px;}
+  @media (max-width:520px){ .body{grid-template-columns:1fr;} }
+
+  .stage{display:flex; flex-direction:column; gap:8px;}
+  .phone{position:relative; width:300px; max-width:100%; aspect-ratio:300/560; border-radius:22px; overflow:hidden;
+    border:1px solid var(--edge2); background:#05070c; box-shadow:0 10px 30px -10px rgba(0,0,0,.7), inset 0 0 0 3px rgba(255,255,255,.02);}
+  .phone iframe{width:100%; height:100%; border:0; display:block; background:#05070c;}
+  .poster{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; color:var(--mut); font-size:13px;}
+  .loadbtn{display:inline-flex; align-items:center; gap:8px; font-weight:800; font-size:15px; color:#0b0d12; cursor:pointer;
+    background:linear-gradient(120deg,var(--acc) 0%,var(--acc2) 100%); border:0; border-radius:12px; padding:11px 20px; box-shadow:0 6px 16px rgba(110,168,255,.26);}
+  .openfull{align-self:flex-start; color:var(--acc); font-size:12.5px; font-weight:600; text-decoration:none; opacity:.85;}
+  .openfull:hover{opacity:1; text-decoration:underline;}
+
+  .notes{min-width:0;}
+  .pitch{color:#c9d1e6; font-size:13.5px; margin:0 0 12px;}
+  .note{margin:0 0 11px;}
+  .note h4{display:flex; align-items:center; gap:8px; margin:0 0 4px; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); font-weight:800;}
+  .sc{margin-left:auto; font-weight:800; font-size:12px; letter-spacing:0; text-transform:none; border:1px solid currentColor; border-radius:999px; padding:1px 8px;}
+  .sc i{font-style:normal; color:var(--dim); font-weight:700;}
+  .note.diff h4{color:var(--acc);} .note.growth h4{color:var(--acc2);}
+  .note p{margin:0; font-size:13px; color:var(--ink);}
+  .tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:7px;}
+  .tag{font-size:11px; color:var(--mut); background:rgba(255,255,255,.045); border:1px solid var(--edge); border-radius:999px; padding:2px 9px;}
+  .verdict{margin-top:12px; padding-top:11px; border-top:1px solid var(--edge); font-size:12.5px; color:var(--mut); font-style:italic;}
+  .verdict b{color:#dfe5f5; font-style:normal;}
+
+  footer.foot{margin-top:44px; color:var(--dim); font-size:12.5px; text-align:center;}
+  .placeholder{color:var(--dim); font-style:italic;}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <p class="eyebrow">Early-stage concepts</p>
-    <h1>Ten prototypes to pick from</h1>
-    <p class="sub">A round of playable web sketches to choose a direction. This batch is tuned for <b>a little deeper, still easy to start</b> — pick the one that earns a second tap.</p>
+    <p class="eyebrow">Playable review board</p>
+    <h1>Ten prototypes — play each in place</h1>
+    <p class="sub">Every concept runs <b>live inside its card</b> — no navigating away. Alongside each is a blunt read on <b>how it's differentiated from what already exists</b> and its <b>growth potential</b>. Excavate (01) already shipped; the rest are candidates for what's next.</p>
+    <div class="legend">
+      <span class="chip"><span class="dot" style="background:var(--ship)"></span>shipped</span>
+      <span class="chip"><span class="dot" style="background:var(--kept)"></span>kept from an earlier round</span>
+      <span class="chip"><span class="dot" style="background:var(--acc2)"></span>new — built this round to beat the batch on both axes</span>
+      <span class="chip"><b>Differentiation /5</b> = how open &amp; defensible the niche is (5 = open lane, 1 = a near-identical game already ships)</span>
+      <span class="chip"><b>Growth /5</b> = share hook + retention + content-pipeline economics (5 = viral &amp; free-to-keep-fresh)</span>
+      <span class="chip">scored by AI market analysis — verify before betting</span>
+    </div>
   </header>
 
-  <main class="grid">
+  <main class="grid" id="grid"></main>
 
-    <a class="card" href="01-excavate.html">
-      <div class="cardhead"><span class="num">01</span><h2 class="title">Excavate</h2></div>
-      <p class="pitch">Spend a scarce budget of digs to uncover a buried photo, reading hot-and-cold hints to triangulate the subject and name it in as few moves as possible.</p>
-      <span class="play">Play <span class="arw">&#9656;</span></span>
-    </a>
-
-    <a class="card" href="02-mosaic.html">
-      <div class="cardhead"><span class="num">02</span><h2 class="title">Mosaic</h2></div>
-      <p class="pitch">Pack the day's stained-glass shards edge-to-edge with no gaps and watch a hidden picture light up.</p>
-      <span class="play">Play <span class="arw">&#9656;</span></span>
-    </a>
-
-    <a class="card" href="03-prism.html">
-      <div class="cardhead"><span class="num">03</span><h2 class="title">Prism</h2></div>
-      <p class="pitch">Rotate mirrors and prisms to bend a beam of light onto every target — split white into color and route each hue home in a new daily puzzle.</p>
-      <span class="play">Play <span class="arw">&#9656;</span></span>
-    </a>
-
-    <a class="card" href="04-unblur.html">
-      <div class="cardhead"><span class="num">04</span><h2 class="title">Unblur</h2><span class="kept">&#9733; kept</span></div>
-      <p class="pitch">Tap where the photo looks clearest, sharpen it region-by-region, and guess what it is in the fewest focuses.</p>
-      <span class="play">Play <span class="arw">&#9656;</span></span>
-    </a>
-
-    <a class="card" href="05-restore.html">
-      <div class="cardhead"><span class="num">05</span><h2 class="title">Restore</h2><span class="kept">&#9733; kept</span></div>
-      <p class="pitch">Drag torn fragments back into a cracked masterpiece — seams heal, colour floods back, the piece joins your museum.</p>
-      <span class="play">Play <span class="arw">&#9656;</span></span>
-    </a>
-
-    <a class="card" href="06-pan.html">
-      <div class="cardhead"><span class="num">06</span><h2 class="title">Pan</h2><span class="kept">&#9733; kept</span></div>
-      <p class="pitch">Pan and zoom around a tight daily crop and name the picture it was lifted from.</p>
-      <span class="play">Play <span class="arw">&#9656;</span></span>
-    </a>
-
-    <a class="card" href="07-cascade.html">
-      <div class="cardhead"><span class="num">07</span><h2 class="title">Cascade</h2></div>
-      <p class="pitch">Place slope tiles to thread a pouring stream through every glowing basin before it runs off the edge — a daily one-puzzle flow with streaks and a fountain collection.</p>
-      <span class="play">Play <span class="arw">&#9656;</span></span>
-    </a>
-
-    <a class="card" href="08-terrace.html">
-      <div class="cardhead"><span class="num">08</span><h2 class="title">Terrace</h2></div>
-      <p class="pitch">Drop land onto an isometric plot and watch equal-height tiles fuse and rise — shape the contour to chain sweeping plateau cascades in a new solvable puzzle every day.</p>
-      <span class="play">Play <span class="arw">&#9656;</span></span>
-    </a>
-
-    <a class="card" href="09-tilt.html">
-      <div class="cardhead"><span class="num">09</span><h2 class="title">Tilt</h2></div>
-      <p class="pitch">Tilt the whole tray to roll every marble at once, snapping them into a pegboard to reveal today's pixel creature.</p>
-      <span class="play">Play <span class="arw">&#9656;</span></span>
-    </a>
-
-    <a class="card" href="10-acreage.html">
-      <div class="cardhead"><span class="num">10</span><h2 class="title">Acreage</h2></div>
-      <p class="pitch">Match terrain edges from today's tile bag — rivers to rivers, fields to fields — and grow the prettiest, highest-scoring little world.</p>
-      <span class="play">Play <span class="arw">&#9656;</span></span>
-    </a>
-
-  </main>
-
-  <footer class="foot">10 prototypes &middot; &#9733; kept = carried over from the last round &middot; open any card to play</footer>
+  <footer class="foot">10 prototypes · each plays inline (scroll to load) · “Open full ↗” for a full-screen tab</footer>
 </div>
+
+<script>
+// ---- per-prototype data. Analysis fields (diff/comp/growth/score/verdict) are filled from the market-analysis pass. ----
+const DATA = [
+  { n:1, file:'01-excavate.html', title:'Excavate', badge:'shipped',
+    pitch:"Spend a scarce budget of digs to uncover a buried picture, reading hot-and-cold hints to triangulate the subject and name it in as few moves as possible.",
+    diff:"Painting a directional hot/cold gradient onto the reveal tiles turns PICSEY's luck-of-the-tile into readable deduction — a genuine twist. But it's a weekend-copyable twist, not a moat, in a red ocean of reveal-to-name dailies.",
+    comp:["PICSEY","Framed","Gamedle","Heat Cue"],
+    growth:"Wordle-style spoiler-safe share + streak/gallery are built (good virality + retention). Killer weakness: hand-drawn procedural subjects are a perpetual art-eng cost and read as clip-art vs the free, infinite real photos PICSEY/Framed run on. Big-audience, thin-monetization category.",
+    score:3, verdict:"Clever twist on a crowded genre; worth pushing only if the reveal art gets dramatically better or swaps to real imagery." },
+  { n:2, file:'02-mosaic.html', title:'Mosaic', badge:null,
+    pitch:"Pack the day's stained-glass shards edge-to-edge with no gaps and watch a hidden picture light up.",
+    diff:"Drag-and-rotate polyomino packing is the single most-cloned mechanic in mobile (Block Blast: 368M downloads in 2025); the stained-glass skin is already Absolutist's. Only wedge is packing-as-a-daily-web-puzzle — positioning, not a moat — and the promised 'hidden picture' isn't actually delivered.",
+    comp:["Block Blast","Glass Mosaic (Absolutist)","LinkedIn Queens","Woodoku"],
+    growth:"Free-forever procedural content + Wordle-style share/streak. But procedural = interchangeable, low-craft puzzles with no designed 'aha', which caps retention and word-of-mouth. Large daily-web market, but no distribution and unclear monetization.",
+    score:2, verdict:"Polished reskin of the most-cloned mechanic in mobile; smart lane, interchangeable puzzles — a nice-to-have, not the one to build next." },
+  { n:3, file:'03-prism.html', title:'Prism', badge:null,
+    pitch:"Rotate mirrors and prisms to bend a beam of light onto every target — split white into color and route each hue home.",
+    diff:"Rotate-optics-to-route-light is decades old (Lazors, Pipes, Infinity Loop) and a same-named 'Prism: Daily Puzzle' already ships the exact daily + streak + share feature list. The only fresh sliver is the stained-glass collection — a cosmetic meta-layer.",
+    comp:["Prism: Daily Puzzle","Lazors","Infinity Loop","Simon Tatham's Net"],
+    growth:"Content is the one strength: procedural + machine-verified solvable = ~zero cost forever. But daily puzzling is winner-take-all (people play the ONE game their friends play) and a namesake already owns 'Prism daily' — no discovery edge.",
+    score:2, verdict:"A me-too daily light-bender crashing into a same-named incumbent plus a wall of laser/rotate-tile classics — no wedge." },
+  { n:4, file:'04-unblur.html', title:'Unblur', badge:'kept',
+    pitch:"Tap where the photo looks clearest, sharpen it region-by-region, and guess what it is in the fewest focuses.",
+    diff:"Aiming a limited focus budget at where detail hides is a genuine but thin feel-twist — nearly every rival sharpens the whole frame (unblur.app, Blur, What's Blurry). Free-text guessing is a UX liability (punishing on synonyms), not a moat.",
+    comp:["unblur.app","Blur: Guess the Image","Tap-a-Tile","Guess the Blur"],
+    growth:"Strong Wordle-grid share + streak + album. Killer: needs a fresh, recognizable, hand-tuned image plus a curated hotspot every day — exactly the expensive part the prototype (4 crude SVGs) hasn't solved. Niche saturated with free clones → unforgiving CPI.",
+    score:2, verdict:"Charming spatial twist on a red ocean whose only durable asset — a daily image pipeline — is precisely what's left unsolved." },
+  { n:5, file:'05-restore.html', title:'Restore', badge:'kept',
+    pitch:"Drag torn fragments back into a cracked masterpiece — seams heal, colour floods back, the piece joins your museum.",
+    diff:"Art Keeper already ships this almost verbatim (daily art-reveal drag puzzle + personal museum + share). The 4-hole puzzle is far thinner than Art Puzzle (100M+) or Art Heist; the heal-seam shimmer is copyable polish, not a wedge.",
+    comp:["Art Keeper","Easybrain Art Puzzle","Art Heist Puzzle","Artle (NGA)"],
+    growth:"Proven 🟩🟨 share + streak, and a large 45+ jigsaw/mindfulness audience. But a real 'museum' needs beautiful, rights-cleared art with hand-authored fragment layouts forever — costly editorial; the prototype fakes it with one SVG gradient.",
+    score:2, verdict:"A reveal animation on a 4-piece drag-match; the whole concept already ships as Art Keeper — skip it." },
+  { n:6, file:'06-pan.html', title:'Pan', badge:'kept',
+    pitch:"Pan and zoom around a tight daily crop and name the picture it was lifted from.",
+    diff:"Spydle is literally this (daily extreme-zoom, name it before it zooms out); ZoomOut / Framed own the peel-back-clues template. Free-text naming and a zoom-restraint grade are thin, copyable tweaks; 6 throwaway SVGs = no content advantage.",
+    comp:["Spydle","ZoomOut","Close Up Pics (30M+)","Framed"],
+    growth:"Good grade-grid share + streak. Killer: lives on a large, fresh, cleverly-cropped, rights-clear image library forever plus robust synonym matching — expensive hand-curation, and the corner is already occupied and cheap to clone.",
+    score:2, verdict:"Crisp take on a mechanic with a near-identical incumbent (Spydle) and an expensive forever-content pipeline — pass unless you own a killer image library." },
+  { n:7, file:'07-cascade.html', title:'Cascade', badge:null,
+    pitch:"Place slope tiles to thread a pouring stream through every glowing basin before it runs off the edge.",
+    diff:"Gravity routing is Gravity Maze / Where's My Water (100M+) plus a swarm of pipe-flow clones. The open seam is 'gravity routing as a daily' — format, not mechanic — but it's build-and-verify, not deduce-from-feedback, so the share glyph leaks little social pull.",
+    comp:["Where's My Water?","Gravity Maze","Flow Free","Duckt"],
+    growth:"Weak share (low-drama glyph, none of Wordle's 'we solved the SAME grid' hook). Only 6 hand-authored days; procedural spatial puzzles trend samey/gameable without a human difficulty curve → real ongoing design cost. Saturated daily segment.",
+    score:2, verdict:"A clean gravity-router in a crowded pond; the daily-shell novelty is undercut by a weak share glyph — a fine demo, soft bet." },
+  { n:8, file:'08-contour.html', title:'Contour', badge:'new',
+    pitch:"Sketch one freehand curve to uncover the day's hidden function — your line glows warm where you're close, cool where you're off, and you feel your hand toward the invisible shape over 4 tries.",
+    diff:"The verb — draw a curve AS your guess against an INVISIBLE target, refining by hot/cold — is unclaimed. One-stroke games (Zip, 1LINE) trace a visible path; precision toys (Draw a Perfect Circle) match a visible contour; math dailies (Nerdle, Chartle) are typed. No daily uses a freehand gesture as the guess.",
+    comp:["Zip / 1LINE","Draw a Perfect Circle","Nerdle / Chartle","Daily Unfold"],
+    growth:"Zero art cost forever: the curve is a seeded blend of sine/poly/gaussian primitives, provably solvable within tolerance — just a grid and lines. The share is a per-attempt heat sparkline (🟦🟨🟧🟥🟩 rows) that visibly shows a hand homing in on the SAME curve everyone drew today — real Wordle-grade comparability, not a low-drama glyph.",
+    score:null, verdict:"A novel motor-deduction verb with free-forever content and a genuine comparability engine — the strongest concept in the batch." },
+  { n:9, file:'09-tilt.html', title:'Tilt', badge:null,
+    pitch:"Tilt the whole tray to roll every marble at once, snapping them into a pegboard to reveal today's pixel creature.",
+    diff:"Really a 2048/Threes board-slide fused with roll-balls-into-holes — both commodity genres with thousands of clones — and the reveal-a-pixel-creature space is owned by nonogram giants (Nonogram.com, Pixelogic). A ~500-line weekend clone.",
+    comp:["2048 / Threes","Roll the Ball","Nonogram.com","Pixel Cross"],
+    growth:"Weak share (an arrow trail leaks no intrigue; a generic emoji creature isn't a 'did you get it?' hook). Solves in under a minute with an undo net; the 8-creature collection exhausts fast. Cheap sprite pipeline, but every day feels identical.",
+    score:2, verdict:"A competent mashup of two of the most-cloned genres with a thin reveal veneer — no hook that isn't already owned by 2048, Picross and Wordle." },
+  { n:10, file:'10-sway.html', title:'Sway', badge:'new',
+    pitch:"Don't guess the answer — guess where the whole crowd's needle will settle on today's 5 spectrum prompts, knowing everyone's guessing you too.",
+    diff:"A Keynesian beauty-contest (predict the crowd's own moving average) has never shipped as a cozy daily — only as econ-classroom tools. Mind the Hive / Guess Their Answer score you against a FIXED majority; Wavelength/Spectrum are live party games. Sway's target forms TODAY and is self-referential — 'what will they think we think?'.",
+    comp:["Mind the Hive","Guess Their Answer","Wavelength","Jackbox Guesspionage"],
+    growth:"Procedural prompts (≈150 axes × 400 subjects) = fresh forever at zero art cost, and it uniquely dodges the consensus-game cold-start with a seeded prior so day-one players still get a target. Share = a spoiler-safe spectrum ribbon with an 'in-tune %' + drift arrows — same prompts for everyone, no opinions revealed, instantly comparable.",
+    score:null, verdict:"An untapped social mechanic (guess-the-crowd) with free procedural content and a clever cold-start fix — a strong, differentiated second bet." },
+];
+
+// per-prototype [differentiation, growth] scores (1-5), from the market-analysis pass
+const SCORES = {1:[3,2], 2:[2,3], 3:[1,3], 4:[2,2], 5:[2,2], 6:[2,2], 7:[3,2], 8:[5,4], 9:[1,2], 10:[4,4]};
+
+const esc = s => String(s==null?'':s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const pad = n => String(n).padStart(2,'0');
+const scoreColor = s => s>=4 ? 'var(--good)' : s>=3 ? 'var(--kept)' : 'var(--warn)';
+
+function card(d){
+  const el = document.createElement('article');
+  el.className = 'card';
+  const badge = d.badge ? `<span class="badge ${d.badge}">${d.badge}</span>` : '';
+  const tags = (d.comp&&d.comp.length) ? `<div class="tags">${d.comp.map(c=>`<span class="tag">${esc(c)}</span>`).join('')}</div>` : '';
+  const diff = d.diff ? `<p>${esc(d.diff)}</p>${tags}` : `<p class="placeholder">analysis pending…</p>`;
+  const growth = d.growth ? `<p>${esc(d.growth)}</p>` : `<p class="placeholder">analysis pending…</p>`;
+  const verdict = d.verdict ? `<div class="verdict"><b>Verdict:</b> ${esc(d.verdict)}</div>` : '';
+  const sc = SCORES[d.n] || [];
+  const chip = s => s==null ? '' : `<span class="sc" style="color:${scoreColor(s)}">${s}<i>/5</i></span>`;
+  el.innerHTML = `
+    <div class="cardhead"><span class="num">${pad(d.n)}</span><h2 class="title">${esc(d.title)}</h2>${badge}</div>
+    <div class="body">
+      <div class="stage">
+        <div class="phone" data-src="${d.file}" data-title="${esc(d.title)}">
+          <div class="poster"><button class="loadbtn">&#9656; Play</button><span>loads on scroll</span></div>
+        </div>
+        <a class="openfull" href="${d.file}" target="_blank" rel="noopener">Open full &#8599;</a>
+      </div>
+      <div class="notes">
+        <p class="pitch">${esc(d.pitch)}</p>
+        <div class="note diff"><h4>Differentiation ${chip(sc[0])}</h4>${diff}</div>
+        <div class="note growth"><h4>Growth potential ${chip(sc[1])}</h4>${growth}</div>
+        ${verdict}
+      </div>
+    </div>`;
+  // manual load button (also used as fallback)
+  const ph = el.querySelector('.phone');
+  el.querySelector('.loadbtn').addEventListener('click', e=>{ e.stopPropagation(); mount(ph); });
+  return el;
+}
+
+function mount(ph){
+  if(ph.dataset.loaded) return;
+  ph.dataset.loaded = '1';
+  const f = document.createElement('iframe');
+  f.src = ph.dataset.src; f.loading = 'lazy'; f.title = ph.dataset.title;
+  // canvas games size on resize — kick one after load (and once more shortly after) so they paint reliably in the frame
+  f.addEventListener('load', () => { const kick = () => { try { f.contentWindow.dispatchEvent(new Event('resize')); } catch(e){} }; kick(); setTimeout(kick, 120); });
+  const poster = ph.querySelector('.poster'); if(poster) poster.remove();
+  ph.appendChild(f);
+}
+
+const grid = document.getElementById('grid');
+DATA.forEach(d => grid.appendChild(card(d)));
+
+// progressively start each game as its card scrolls near the viewport
+const io = new IntersectionObserver((entries)=>{
+  for(const e of entries){ if(e.isIntersecting){ mount(e.target); io.unobserve(e.target); } }
+}, { rootMargin:'400px 0px' });
+document.querySelectorAll('.phone').forEach(ph=>io.observe(ph));
+</script>
 </body>
 </html>
