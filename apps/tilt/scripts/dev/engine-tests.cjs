@@ -152,4 +152,15 @@ t.ok("L19 keeps its original gateway layout (green@(0,7) behind purple@(0,6))",
   E.build(19).holesArr.some(h => h.c === "g" && h.x === 0 && h.y === 7) &&
   E.build(19).holesArr.some(h => h.c === "p" && h.x === 0 && h.y === 6));
 
+// --- lodged-ball hint aims at the ball's OWN matching hole (a destination pointer, not
+// a tilt direction). Rendered in game.js drawLodgedWarnings; the engine's job here is the
+// invariant it relies on: every colour has EXACTLY ONE hole, so "the matching hole" is
+// unambiguous and the hint can never legitimately point at another colour's hole. ---
+for (let L = 1; L <= E.LAST_LEVEL; L++) {
+  const byColor = {};
+  for (const h of E.build(L).holesArr) byColor[h.c] = (byColor[h.c] || 0) + 1;
+  const dup = Object.keys(byColor).find(c => byColor[c] > 1);
+  t.ok("L" + L + ": one hole per colour (lodged-ball hint has a unique matching target)", !dup);
+}
+
 process.exit(t.summary());

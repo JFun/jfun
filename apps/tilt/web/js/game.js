@@ -676,63 +676,54 @@
     });
   }
   /* wrong-hole made VISIBLE on the board (design 6a): the lodged ball pulses a
-     ring in its own color and gold chevrons march toward its matching hole —
-     you see WHICH ball is stuck and WHERE it belongs. Draw-pass overlay only;
-     costs nothing when nothing is lodged. Same lodge test as lodgedCount(). */
-  // Which way to nudge a lodged ball out: toward its home hole — but a lodged
-  // ball can ONLY pop out the ways that aren't blocked, so the arrow must stay
-  // inside that open cone. A top-left-corner lodge can only go right/down, never
-  // left/up into the two walls; if toward-home points into a wall or off-board,
-  // snap to the nearest OPEN cardinal instead. Returns radians, or null if the
-  // ball has no home (shouldn't happen while lodged).
-  function escapeAngle(m) {
-    let home = null;
-    for (const h of world.holes) if (!h.filled && h.c === m.c) { home = h; break; }
-    if (!home) return null;
-    const want = Math.atan2(home.y - m.y, home.x - m.x);
-    const bx = Math.floor(m.x), by = Math.floor(m.y);
-    const blocked = (x, y) => x < 0 || x >= N || y < 0 || y >= N ||
-      (world.blocks || []).some(b => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h);
-    const open = [];
-    for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]])
-      if (!blocked(bx + dx, by + dy)) open.push(Math.atan2(dy, dx));
-    if (!open.length) return want;               // fully boxed in — just show intent
-    const diff = (a, b) => { const d = Math.abs(a - b) % (2 * Math.PI); return d > Math.PI ? 2 * Math.PI - d : d; };
-    let best = open[0];
-    for (const a of open) if (diff(a, want) < diff(best, want)) best = a;
-    // keep the smooth toward-home angle when an open cardinal is close to it;
-    // otherwise snap to the open direction nearest home (never into a wall)
-    return diff(best, want) <= Math.PI / 4 ? want : best;
+     ring in its own color and gold chevrons march toward its MATCHING hole —
+     you see WHICH ball is stuck and WHERE it belongs. This is a DESTINATION
+     pointer — it aims straight at the ball's OWN colour hole (a diagonal is right
+     when that's where the hole is), NOT a "which way to tilt" arrow (the "Tilt
+     HARD to pop it out!" banner already covers freeing it).
+     REGRESSION FIXED 2026-07-05: game.js had drifted from the design to snapping
+     the arrow to an open *tilt* cardinal — so a white ball plugging the green cup,
+     whose white home sat one row up behind a wall, got sent LEFT to the yellow
+     hole. Restored to the design's straight-at-the-matching-hole aim. Draw-pass
+     overlay only; costs nothing when nothing is lodged. Same test as lodgedCount(). */
+  // Angle from a lodged ball to the empty hole it belongs in (radians), or null
+  // when that matching hole is already filled/absent. Straight at the home hole.
+  function homeAngle(m) {
+    for (const h of world.holes) if (!h.filled && h.c === m.c) return Math.atan2(h.y - m.y, h.x - m.x);
+    return null;
   }
   function drawLodgedWarnings() {
     if (tiltPhase !== "running" || won || lost) return;
-    const t = world.t;
+    const t = world.t, pulse = 0.5 + 0.5 * Math.sin(t * 6);
     for (const m of world.marbles) {
       if (m.captured) continue;
-      let lodged = false;
+      let wedged = false;
       for (const h of world.holes) {
         if (h.filled || h.c === m.c) continue;
-        if (Math.hypot(m.x - h.x, m.y - h.y) < h.r * world.params.captureFrac * 1.4) { lodged = true; break; }
+        if (Math.hypot(m.x - h.x, m.y - h.y) < h.r * world.params.captureFrac * 1.4) { wedged = true; break; }
       }
-      if (!lodged) continue;
+      if (!wedged) continue;
+      const home = world.holes.find(h => !h.filled && h.c === m.c);   // its matching hole
       const px = m.x * CELL, py = m.y * CELL;
-      const pulse = 0.5 + 0.5 * Math.sin(t * 6);
+      // pulsing ring in the ball's colour — WHICH ball is stuck
       tctx.save();
       tctx.beginPath(); tctx.arc(px, py, R * (1.4 + 0.28 * pulse), 0, 7);
       tctx.strokeStyle = SKIN[m.c]; tctx.globalAlpha = 0.35 + 0.45 * pulse; tctx.lineWidth = 3.5;
-      tctx.stroke();
-      tctx.restore();
-      const ang = escapeAngle(m);
-      if (ang == null) continue;
-      const ph = (t * 1.8) % 1;
+      tctx.stroke(); tctx.restore();
+      if (!home) continue;
+      // gold chevrons straight at the matching hole — WHERE IT BELONGS (the only
+      // on-board arrow; "how to tilt" lives in the bottom banner glyph, not here)
+      const ang = Math.atan2(home.y - m.y, home.x - m.x);
+      const reach = Math.hypot(home.x - m.x, home.y - m.y) * CELL - home.r * CELL * 0.6;
+      const ph = (t * 1.8) % 1, nx = Math.cos(ang), ny = Math.sin(ang), ox = -ny, oy = nx;
       tctx.save();
       tctx.lineWidth = 4; tctx.lineCap = "round";
       for (let i = 0; i < 3; i++) {
         const a = Math.max(0, Math.sin(Math.PI * Math.min(1, Math.max(0, ph * 1.4 - i * 0.18)))) * 0.95;
         if (a <= 0) continue;
-        const d = R * (2.3 + i * 1.1 + ph * 1.3);
-        const cx = px + Math.cos(ang) * d, cy = py + Math.sin(ang) * d;
-        const nx = Math.cos(ang), ny = Math.sin(ang), ox = -ny, oy = nx;
+        const d = R * (2.9 + i * 1.1 + ph * 1.3);
+        if (d > reach) continue;
+        const cx = px + nx * d, cy = py + ny * d;
         tctx.strokeStyle = "rgba(255,198,62," + a + ")";
         tctx.beginPath();
         tctx.moveTo(cx - nx * 6 + ox * 7, cy - ny * 6 + oy * 7);
@@ -1082,6 +1073,7 @@
   function hasInputSource() { return motionOK || !!devG || Object.values(keysHeld).some(Boolean); }
   function tiltLoop(now) {
     requestAnimationFrame(tiltLoop);
+    if (lsOpen) { lastT = now; return; }   // Level Select is up — freeze the run underneath
     if (!world) return;
     if (tiltPhase === "armed") {
       // no calibration, no gate: gravity is absolute and live from the first
@@ -1345,31 +1337,52 @@
     $("#ov").classList.add("show");
     $("#fromTop").onclick = () => startLevel(1);
   }
-  /* ---------- dev: level jumper (skip playing through to test any level) ----------
-     On device the ?lvl= URL hook is inert, so testing L30/the finish flow means
-     grinding 29 levels. Long-press the LEVEL chip → a grid of every level (with
-     your medals) → tap to jump anywhere, including the last. Flip DEV_LEVELS to
-     false to hide it for a public release. */
-  const DEV_LEVELS = true;
-  function openLevelPicker() {
-    if (!DEV_LEVELS) return;
-    const sv = loadSave();
-    let cells = "";
+  /* ---------- Level Select (the home) — replaces the dev long-press jumper ----------
+     The app opens HERE (design LEVELS_SPEC). Linear frontier unlock: level N is
+     playable once N-1 is cleared; cleared levels stay open to replay for a better
+     time; the rest are HARD-locked (the dead-end retry is free, so no safety-skip).
+     Progress reuses the save game.js already writes — sv.best[L] (best seconds) ⇒
+     cleared, sv.medal[L] ⇒ stars (bronze 1★ / silver 2★ / gold 3★ = cleared /
+     under-target / under-par). Dev/screenshots still reach any level via ?lvl=N
+     and window.__tilt.goto(). */
+  function clearedLvl(sv, L) { return !!(sv.best && sv.best[L]); }
+  function unlockedLvl(sv, L) { return L <= 1 || clearedLvl(sv, L - 1); }
+  function frontierLvl(sv) { let L = 1; while (L < E.LAST_LEVEL && clearedLvl(sv, L)) L++; return L; }
+  function starsFor(sv, L) { const m = (sv.medal || {})[L]; return m ? MEDAL_RANK[m] : (clearedLvl(sv, L) ? 1 : 0); }
+  function totalStars(sv) { let s = 0; for (let L = 1; L <= E.LAST_LEVEL; L++) s += starsFor(sv, L); return s; }
+  const IC_LOCK = '<svg class="tlock" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>';
+  // DEV JUMP: with DEV_UNLOCK on, EVERY tile in the Level Select is tappable —
+  // locked ones included — so you can jump to any level on the device without
+  // grinding there (the on-device replacement for the old long-press jumper; the
+  // grid shows a gold "· DEV: TAP ANY" tag so it's obvious). Flip to false for the
+  // release hard-lock. Browser/console also have ?lvl=N and window.__tilt.goto(n).
+  const DEV_UNLOCK = true;
+  let lsOpen = false;
+  function buildLevelSelect() {
+    const sv = loadSave(), frontier = frontierLvl(sv);
+    let html = "";
     for (let L = 1; L <= E.LAST_LEVEL; L++) {
-      const m = (sv.medal || {})[L];
-      const col = m ? MEDAL_COL[m] : "var(--dim)";
-      cells += `<button class="lvlcell${L === level ? " cur" : ""}" data-l="${L}" ` +
-        `style="color:${col};border-color:${m ? col : "var(--line)"}">${L}` +
-        (m ? `<i style="background:${col}"></i>` : "") + "</button>";
+      if (clearedLvl(sv, L)) {
+        const st = starsFor(sv, L);
+        let stars = ""; for (let i = 0; i < 3; i++) stars += `<i class="${i < st ? "on" : ""}">★</i>`;
+        html += `<button class="lvltile done" data-l="${L}"><span class="tn">${L}</span>` +
+          `<span class="ts">${stars}</span><span class="tb">${sv.best[L].toFixed(1)}s</span></button>`;
+      } else if (L === frontier) {
+        html += `<button class="lvltile play" data-l="${L}"><span class="tn">${L}</span>` +
+          `<span class="tplay">PLAY</span></button>`;
+      } else {
+        html += `<button class="lvltile lock" data-l="${L}"${DEV_UNLOCK ? "" : " disabled"}>${IC_LOCK}<span class="tnl">${L}</span></button>`;
+      }
     }
-    $("#card").innerHTML =
-      `<h2 style="margin-bottom:12px">LEVELS <span style="font-size:12px;color:var(--dim);font-family:var(--display)">1–${E.LAST_LEVEL}</span></h2>` +
-      `<div class="lvlgrid">${cells}</div>` +
-      `<div class="row"><button id="pickClose" class="primary">Close</button></div>`;
-    $("#ov").classList.add("show");
-    $("#card").querySelectorAll(".lvlcell").forEach(bn => bn.onclick = () => { $("#ov").classList.remove("show"); startLevel(+bn.dataset.l); });
-    $("#pickClose").onclick = () => $("#ov").classList.remove("show");
+    const grid = $("#lsGrid");
+    grid.innerHTML = html;
+    grid.querySelectorAll(DEV_UNLOCK ? ".lvltile" : ".lvltile:not(.lock)").forEach(bn =>
+      bn.onclick = () => { haptic("light"); closeLevelSelect(); startLevel(+bn.dataset.l); });
+    $("#lsStarN").textContent = totalStars(sv);
+    $("#lsDev").style.display = DEV_UNLOCK ? "inline" : "none";
   }
+  function openLevelSelect() { buildLevelSelect(); lsOpen = true; $("#levelsel").classList.add("show"); }
+  function closeLevelSelect() { lsOpen = false; $("#levelsel").classList.remove("show"); }
 
   // Visual hint chips (design 5a): every hint is [glyph] + short text. Glyphs are
   // the game's own pieces — tipping phone, bubble level, wall block, wedged ball —
@@ -1400,20 +1413,9 @@
 
   $("#reset").onclick = () => { restart(); toast("Level restarted"); haptic("light"); };
 
-  /* dev: long-press the LEVEL chip → level jumper (see openLevelPicker) */
-  (function () {
-    const chip = document.querySelector(".meta .chip");
-    if (!chip) return;
-    let lp = 0;
-    const arm = () => { clearTimeout(lp); lp = setTimeout(() => { haptic("medium"); openLevelPicker(); }, 500); };
-    const cancel = () => clearTimeout(lp);
-    chip.addEventListener("touchstart", arm, { passive: true });
-    chip.addEventListener("touchend", cancel);
-    chip.addEventListener("touchmove", cancel);
-    chip.addEventListener("mousedown", arm);
-    chip.addEventListener("mouseup", cancel);
-    chip.addEventListener("mouseleave", cancel);
-  })();
+  /* header layers button → Level Select; back-chevron closes it (resumes the board) */
+  $("#levelsBtn").onclick = () => { haptic("light"); openLevelSelect(); };
+  $("#lsBack").onclick = () => { haptic("light"); closeLevelSelect(); };
 
   /* tray input: tap anywhere on the tray to start the run */
   trayC.addEventListener("touchstart", e => { e.preventDefault(); startTiltRun(); }, { passive: false });
@@ -1454,7 +1456,7 @@
     start: startTiltRun, setGravity: (gx, gy) => { devG = (gx == null) ? null : { gx, gy }; },
     feedVec: (x, y, z) => lpVec(x, y, z, 1), angles: () => tiltAngles(),
     setCal: (p, r) => { cal = { pitch: p, roll: r }; }, gravity: () => currentGravity(),
-    pick: openLevelPicker, escapeAngle: m => escapeAngle(m), checkSeal: () => { checkSeal(); return lost; }, deadInfo: () => deadInfo,
+    levelsel: openLevelSelect, frontier: () => frontierLvl(loadSave()), homeAngle: m => homeAngle(m), checkSeal: () => { checkSeal(); return lost; }, deadInfo: () => deadInfo,
     tut: () => tutWorld, tutStep: s => tutStepFn && tutStepFn(s), showTut: () => showTutorial(() => {}),
     showWalls: () => showMechanicIntro(() => {}),
     stepN: (n, g) => {
@@ -1466,6 +1468,16 @@
       draw(); updateTimePill();
       if (!won && !lost && PH.solved(world)) winTilt();
     } }; } catch (e) {}
-  startLevel(loadSave().level || 1);
+  {
+    // Boot straight INTO the game, not the Level Select (feel call 2026-07-05:
+    // "new user 1st screen is levels not cool, previous version feels better" — a
+    // fresh player lands on level 1 with the tutorial, not a wall of locked tiles).
+    // The Level Select is on-demand via the header layers button. Returning players
+    // resume at their frontier (first uncleared level).
+    // dev/screenshot: ?lvl=N jumps straight to a specific level.
+    let bootLvl = 0;
+    try { const q = new URLSearchParams(location.search); if (q.has("lvl")) bootLvl = +q.get("lvl") || 1; } catch (e) {}
+    startLevel(bootLvl || frontierLvl(loadSave()));
+  }
   sizeBoards();
 })();
