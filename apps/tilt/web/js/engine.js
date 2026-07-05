@@ -37,11 +37,16 @@
     return null;
   }
 
-  /* Resolve a tilt. holes is a map "x,y"→color. Mutates st; returns
-     { moved, anim: [{ m, path: [{x,y}...], landed, fixed? }] }.
-     Every loose marble slides until wall or marble; rolling onto its matching
-     empty hole snaps it in (fixed). Marbles furthest along the direction go first. */
-  function tilt(st, dir, holes) {
+  /* Resolve a tilt. holes is a map "x,y"→color; walls an optional Set of "x,y"
+     block cells; slopes an optional map "x,y"→hill axis ("H"|"V").
+     Mutates st; returns { moved, anim: [{ m, path, landed, fixed? }] }.
+     Every loose marble slides until rim, wall block, or marble; HILL cells
+     pass a slide moving ALONG their axis (a committed full-tilt slide crests
+     the bump — physics: sustained tilt > slopeG climbs it) but stop sideways
+     approaches like a wall (crossing a hill laterally is a physics-only
+     stunt, never required by a solution). Rolling onto its matching empty
+     hole snaps it in (fixed). Marbles furthest along go first. */
+  function tilt(st, dir, holes, walls, slopes) {
     const dx = DIRS[dir][0], dy = DIRS[dir][1];
     const order = st.marbles.map((m, i) => i).sort((a, b) => {
       const ma = st.marbles[a], mb = st.marbles[b];
@@ -57,12 +62,18 @@
       let cx = m.x, cy = m.y, landed = false;
       for (;;) {
         const nx = cx + dx, ny = cy + dy;
-        if (nx < 0 || nx >= N || ny < 0 || ny >= N) break;   // wall
+        if (nx < 0 || nx >= N || ny < 0 || ny >= N) break;   // rim
+        if (walls && walls.has(key(nx, ny))) break;          // wall block
+        const sl = slopes && slopes[key(nx, ny)];
+        if (sl && (sl === "H" ? dy !== 0 : dx !== 0)) break; // hill: pass along its axis only
         if (occAt(st, nx, ny)) break;                        // blocked by marble
         cx = nx; cy = ny; path.push({ x: cx, y: cy });
         const h = holes[key(cx, cy)];
-        if (h === m.c) { landed = true; break; }             // matching empty hole: snap
-      }
+        if (h !== undefined) {                               // EVERY hole catches:
+          if (h === m.c) landed = true;                      // matching → sinks for good
+          break;                                             // wrong → parks in the dimple
+        }                                                    // (slides away next tilt; meanwhile
+      }                                                      //  it plugs the hole it sits in)
       if (cx !== m.x || cy !== m.y) movedAny = true;
       m.x = cx; m.y = cy;
       if (landed) m.fixed = true;
@@ -79,7 +90,7 @@
   function stateKey(st) { return st.marbles.map(m => m.x + "" + m.y + (m.fixed ? "F" : "")).join("|"); }
 
   /* BFS over tilt states; returns the optimal sequence of dirs or null. */
-  function solveBFS(init, holes, holeCount, maxDepth) {
+  function solveBFS(init, holes, holeCount, maxDepth, walls, slopes) {
     const start = cloneState(init);
     if (isSolved(start, holeCount)) return [];
     const seen = new Set([stateKey(start)]);
@@ -89,7 +100,7 @@
       for (const node of frontier) {
         for (const d of DIR4) {
           const ns = cloneState(node.st);
-          const r = tilt(ns, d, holes);
+          const r = tilt(ns, d, holes, walls, slopes);
           if (!r.moved) continue;
           const k = stateKey(ns);
           if (seen.has(k)) continue;
@@ -107,20 +118,25 @@
   }
 
   /* ---------------- level ramp ---------------- */
-  // Hole count climbs 3 → 6; par floor rises once the player has the hang of it.
+  // Hole count climbs 3 → 6; walls (bank-off blocks) appear from L4 and grow to 8;
+  // par floor rises once the player has the hang of it.
   function rampFor(level) {
     const L = Math.max(1, level | 0);
     const nHoles = Math.min(3 + Math.floor((L - 1) / 4), 6);
+    const nWalls = L < 4 ? 0 : Math.min(2 + Math.floor((L - 4) / 3), 8);
+    const nSlopes = 0;   // hills PARKED for MVP (user call: block obstacles only;
+                         // the slope visual never converged) — mechanism kept dormant
     const minPar = L < 5 ? 2 : 3;
     const maxDepth = nHoles >= 5 ? 16 : 12;
-    return { nHoles, minPar, maxDepth };
+    return { nHoles, nWalls, nSlopes, minPar, maxDepth };
   }
   function seedForLevel(n) { return ((n * 0x9e3779b1) ^ 0x7117) >>> 0; }
 
   /* Puzzle generation: distinct-colored holes at seeded cells, one matching marble
-     per hole scattered elsewhere, BFS-verified at par ≥ minPar. Constructive
-     fallbacks shrink the board's ambition but every path is re-verified —
-     never ship a lie. */
+     per hole scattered elsewhere, WALL blocks to bank off, BFS-verified at par ≥
+     minPar (walls can never make a shipped level impossible — unsolvable layouts
+     are rejected). Constructive fallbacks shrink the board's ambition (and drop
+     walls) but every path is re-verified — never ship a lie. */
   function genPuzzle(seed, ramp) {
     for (let attempt = 0; attempt < 400; attempt++) {
       const rng = makeRNG((seed + attempt * 977) >>> 0);
@@ -150,10 +166,36 @@
         if (!placed) { ok = false; break; }
       }
       if (!ok) continue;
+      // wall blocks: interior-biased, never on holes/marbles/each other
+      const walls = [], wallSet = new Set();
+      for (let wI = 0; wI < ramp.nWalls; wI++) {
+        for (let t = 0; t < 60; t++) {
+          const x = Math.floor(rng() * N), y = Math.floor(rng() * N), k = key(x, y);
+          if (occ.has(k)) continue;
+          walls.push({ x, y }); wallSet.add(k); occ.add(k); break;
+        }
+      }
+      // hill patches: two cells long along a random axis, ridge at the middle,
+      // never on holes/marbles/walls — BFS below plays the axis-pass rule, so
+      // a shipped layout is solvable WITH them
+      const slopes = [], slopeMap = {};
+      for (let sI = 0; sI < (ramp.nSlopes || 0); sI++) {
+        for (let t = 0; t < 60; t++) {
+          const a = rng() < 0.5 ? "H" : "V";
+          const sdx = a === "H" ? 1 : 0, sdy = a === "H" ? 0 : 1;
+          const x = Math.floor(rng() * N), y = Math.floor(rng() * N);
+          const x2 = x + sdx, y2 = y + sdy;
+          if (x2 < 0 || x2 >= N || y2 < 0 || y2 >= N) continue;
+          const k1 = key(x, y), k2 = key(x2, y2);
+          if (occ.has(k1) || occ.has(k2)) continue;
+          slopes.push({ x, y, w: sdx + 1, h: sdy + 1, a });
+          slopeMap[k1] = a; slopeMap[k2] = a; occ.add(k1); occ.add(k2); break;
+        }
+      }
       const init = { marbles };
-      const res = solveBFS(init, holes, holesArr.length, ramp.maxDepth);
+      const res = solveBFS(init, holes, holesArr.length, ramp.maxDepth, wallSet, slopeMap);
       if (res && res.length >= ramp.minPar) {
-        return { holes, holesArr, init: cloneState(init), par: res.length, solution: res };
+        return { holes, holesArr, walls, slopes, init: cloneState(init), par: res.length, solution: res };
       }
     }
 
@@ -190,7 +232,7 @@
       if (!ok) continue;
       const init = { marbles };
       const res = solveBFS(init, holes, holesArr.length, 16);
-      if (res) return { holes, holesArr, init: cloneState(init), par: res.length, solution: res };
+      if (res) return { holes, holesArr, walls: [], slopes: [], init: cloneState(init), par: res.length, solution: res };
     }
 
     // Last resort: one marble adjacent to its hole — verified before returning.
@@ -201,7 +243,7 @@
       const holes = {}; holes[key(hx, hy)] = c;
       const init = { marbles: [{ x: hx + 1, y: hy, c, fixed: false }] };
       const res = solveBFS(init, holes, 1, 8);
-      if (res) return { holes, holesArr: [{ x: hx, y: hy, c }], init: cloneState(init), par: res.length, solution: res };
+      if (res) return { holes, holesArr: [{ x: hx, y: hy, c }], walls: [], slopes: [], init: cloneState(init), par: res.length, solution: res };
     }
     return null;
   }
@@ -217,5 +259,5 @@
   }
 
   return { N, DIRS, DIR4, PAL, COLORS, key, cloneState, tilt, isSolved,
-           stateKey, solveBFS, rampFor, genPuzzle, seedForLevel, build, VERSION: "2.0.0" };
+           stateKey, solveBFS, rampFor, genPuzzle, seedForLevel, build, VERSION: "2.3.0" };
 });

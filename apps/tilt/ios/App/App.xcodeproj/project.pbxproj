@@ -17,6 +17,7 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		F1AE00000000000000000002 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F1AE00000000000000000001 /* GoogleService-Info.plist */; };
 		F1AE00000000000000000013 /* MotionNative.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AE00000000000000000011 /* MotionNative.swift */; };
+		F1AE00000000000000000023 /* SoundNative.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AE00000000000000000021 /* SoundNative.swift */; };
 		F1AE00000000000000000014 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AE00000000000000000012 /* MainViewController.swift */; };
 /* End PBXBuildFile section */
 
@@ -33,6 +34,7 @@
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		F1AE00000000000000000001 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		F1AE00000000000000000011 /* MotionNative.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionNative.swift; sourceTree = "<group>"; };
+		F1AE00000000000000000021 /* SoundNative.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundNative.swift; sourceTree = "<group>"; };
 		F1AE00000000000000000012 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -72,6 +74,7 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				F1AE00000000000000000012 /* MainViewController.swift */,
 				F1AE00000000000000000011 /* MotionNative.swift */,
+				F1AE00000000000000000021 /* SoundNative.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -167,6 +170,7 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				F1AE00000000000000000013 /* MotionNative.swift in Sources */,
+				F1AE00000000000000000023 /* SoundNative.swift in Sources */,
 				F1AE00000000000000000014 /* MainViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

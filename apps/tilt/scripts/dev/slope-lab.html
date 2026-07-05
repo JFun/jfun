@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>slope lab — hill round</title>
+<style>
+  body { background: #0a0b12; color: #e8ecff; font: 12px -apple-system, sans-serif; margin: 16px; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="lab"></canvas>
+<script>
+const cv = document.getElementById("lab"), ctx = cv.getContext("2d");
+const dpr = Math.min(3, window.devicePixelRatio || 1);
+const W = 900, H = 860;
+cv.width = W * dpr; cv.height = H * dpr;
+cv.style.width = W + "px"; cv.style.height = H + "px";
+ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+function board(x, y, w, h, cell) {
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  g.addColorStop(0, "#1b1f33"); g.addColorStop(1, "#11131f");
+  ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = "#ffffff08"; ctx.lineWidth = 1;
+  for (let gx = x + cell; gx < x + w; gx += cell) { ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx, y + h); ctx.stroke(); }
+  for (let gy = y + cell; gy < y + h; gy += cell) { ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x + w, gy); ctx.stroke(); }
+}
+const mix = (c1, c2, t) => {
+  const a = parseInt(c1.slice(1), 16), b = parseInt(c2.slice(1), 16);
+  const r = Math.round(((a >> 16) & 255) * (1 - t) + ((b >> 16) & 255) * t);
+  const g = Math.round(((a >> 8) & 255) * (1 - t) + ((b >> 8) & 255) * t);
+  const bl = Math.round((a & 255) * (1 - t) + (b & 255) * t);
+  return "rgb(" + r + "," + g + "," + bl + ")";
+};
+
+/* ---------- HILL v2: the peak is NEAREST the camera, so it MAGNIFIES —
+   rows are widest at the ridge and compress toward the ends; the silhouette
+   is a lens/pillow (ends slightly narrower), never a bow-tie. Two-tone
+   lit/shadow faces; ends meet the floor exactly (continuous). */
+function drawHill(x, y, cw, ch, axis, CELL) {
+  const w = cw * CELL, h = ch * CELL;
+  const horiz = axis === "H";
+  const half = (horiz ? w : h) / 2;
+  const K = 0.38, B = 0.16;                        // ridge magnification, end narrowing
+  const pos = u => half * ((1 + K) * u - K * u * u);   // wide rows near ridge → tight at ends
+  const wid = u => 1 - B * u;                      // full width at ridge, narrower ends
+  const pt = (f, u, c) => {
+    const a = pos(u), o = c * wid(u);
+    if (horiz) return [x + w / 2 + f * a, y + h / 2 + o * h];
+    return [x + w / 2 + o * w, y + h / 2 + f * a];
+  };
+  const quad = (f, u0, u1, c0, c1) => {
+    const p0 = pt(f, u0, c0), p1 = pt(f, u1, c0), p2 = pt(f, u1, c1), p3 = pt(f, u0, c1);
+    ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.lineTo(p3[0], p3[1]); ctx.closePath();
+  };
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x + 1, y + 1, w - 2, h - 2); ctx.clip();
+  ctx.fillStyle = "#161a2c"; ctx.fillRect(x, y, w, h);
+  const SUB = 3;                                    // sub-rows per cell for smooth magnification
+  const rows = (horiz ? cw : ch) * SUB, cols = (horiz ? ch : cw) * 2;
+  for (const f of [-1, 1]) {
+    const lit = f < 0;
+    const hiA = lit ? "#8a97dd" : "#4a548e", hiB = lit ? "#6b79bd" : "#3a4374";
+    const loA = "#1d2338", loB = "#161b2e";
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const t = (r + 0.5) / rows;
+      quad(f, r / rows, (r + 1) / rows, c / cols - 0.5, (c + 1) / cols - 0.5);
+      const checker = (Math.floor(r / (SUB / 2)) + c) % 2;   // checker at half-cell scale
+      ctx.fillStyle = checker ? mix(hiB, loB, t) : mix(hiA, loA, t);
+      ctx.fill();
+    }
+  }
+  // ridge: soft highlight band (the peak catches light) + fine crisp line
+  const g0 = pt(-1, 0.22, 0), g1 = pt(1, 0.22, 0);
+  const rg = horiz
+    ? ctx.createLinearGradient(g0[0], 0, g1[0], 0)
+    : ctx.createLinearGradient(0, g0[1], 0, g1[1]);
+  rg.addColorStop(0, "rgba(190,200,245,0)");
+  rg.addColorStop(0.5, "rgba(200,212,255,0.28)");
+  rg.addColorStop(1, "rgba(190,200,245,0)");
+  ctx.fillStyle = rg;
+  const q0 = pt(-1, 0.22, -0.5), q1 = pt(1, 0.22, -0.5), q2 = pt(1, 0.22, 0.5), q3 = pt(-1, 0.22, 0.5);
+  ctx.beginPath(); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); ctx.lineTo(q2[0], q2[1]); ctx.lineTo(q3[0], q3[1]); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(215,225,255,0.75)"; ctx.lineWidth = 1.5; ctx.lineCap = "round";
+  ctx.beginPath();
+  if (horiz) { ctx.moveTo(x + w / 2, y + 3); ctx.lineTo(x + w / 2, y + h - 3); }
+  else { ctx.moveTo(x + 3, y + h / 2); ctx.lineTo(x + w - 2, y + h / 2); }
+  ctx.stroke();
+  // shadow-side base: dark seam grounding the bump
+  ctx.strokeStyle = "rgba(0,0,0,0.5)"; ctx.lineWidth = 2;
+  ctx.beginPath();
+  if (horiz) { ctx.moveTo(x + 2, y + h - 1.5); ctx.lineTo(x + w - 2, y + h - 1.5); }
+  else { ctx.moveTo(x + w - 1.5, y + 2); ctx.lineTo(x + w - 1.5, y + h - 2); }
+  ctx.stroke();
+  ctx.restore();
+  // cast shadow on the floor beyond the shadow side (down/right of the light)
+  ctx.fillStyle = "rgba(0,0,0,0.30)";
+  if (horiz) ctx.fillRect(x + 3, y + h, w - 6, 3);
+  else ctx.fillRect(x + w, y + 3, 3, h - 6);
+}
+
+/* layout: zoomed hills (both axes, 2-cell and 4-cell) + actual size row */
+ctx.fillStyle = "#9aa4d0";
+ctx.fillText("HILL @1.5x — H axis (2 cells), V axis (2 cells), H long (4 cells)", 10, 14);
+const CZ = 60;
+board(10, 22, 6 * CZ, 4 * CZ, CZ);
+drawHill(10 + CZ, 22 + CZ * 1.5, 2, 1, "H", CZ);
+drawHill(10 + CZ * 4, 22 + CZ, 1, 2, "V", CZ);
+board(10 + 6 * CZ + 16, 22, 6 * CZ, 4 * CZ, CZ);
+drawHill(10 + 6 * CZ + 16 + CZ, 22 + CZ * 1.5, 4, 1, "H", CZ);
+
+ctx.fillStyle = "#ffd76b";
+ctx.fillText("ACTUAL SIZE (43px cells) — judge here:", 10, 22 + 4 * CZ + 24);
+const CA = 43, oy2 = 22 + 4 * CZ + 32;
+board(10, oy2, 10 * CA, 5 * CA, CA);
+drawHill(10 + CA, oy2 + CA * 2, 2, 1, "H", CA);
+drawHill(10 + CA * 4.5, oy2 + CA * 1.5, 1, 2, "V", CA);
+drawHill(10 + CA * 6.5, oy2 + CA * 2, 3, 1, "H", CA);
+
+// context: ball + hole + block next to a hill, actual size
+ctx.fillStyle = "#9aa4d0";
+ctx.fillText("with neighbors (ball/hole/block):", 10, oy2 + 5 * CA + 20);
+const oy3 = oy2 + 5 * CA + 28;
+board(10, oy3, 10 * CA, 4 * CA, CA);
+drawHill(10 + CA * 3, oy3 + CA * 1.5, 2, 1, "H", CA);
+// hole
+(function () {
+  const hx = 10 + CA * 1.5, hy = oy3 + CA * 2, r = CA * 0.36;
+  ctx.beginPath(); ctx.arc(hx, hy, r * 1.04, 0, 7); ctx.fillStyle = "#05060b"; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = "#5cffa0cc"; ctx.stroke();
+  ctx.beginPath(); ctx.arc(hx, hy, r * 0.45, 0, 7); ctx.fillStyle = "#5cffa02e"; ctx.fill();
+})();
+// marble
+(function () {
+  const mx = 10 + CA * 6.5, my = oy3 + CA * 2, r = CA * 0.36;
+  ctx.beginPath(); ctx.arc(mx, my + r * 0.25, r * 0.9, 0, 7); ctx.fillStyle = "#00000040"; ctx.fill();
+  const g = ctx.createRadialGradient(mx - r * 0.35, my - r * 0.4, r * 0.1, mx, my, r);
+  g.addColorStop(0, "#ffffff"); g.addColorStop(0.18, "#ff8d98"); g.addColorStop(0.7, "#ff5d6c"); g.addColorStop(1, "#a11f2e");
+  ctx.beginPath(); ctx.arc(mx, my, r, 0, 7); ctx.fillStyle = g; ctx.fill();
+  ctx.beginPath(); ctx.arc(mx - r * 0.32, my - r * 0.36, r * 0.18, 0, 7); ctx.fillStyle = "#ffffffcc"; ctx.fill();
+})();
+// block
+(function () {
+  const bx = 10 + CA * 8, by = oy3 + CA * 1.5, s = CA, rr = Math.max(4, CA * 0.16);
+  ctx.fillStyle = "#00000055";
+  ctx.beginPath(); ctx.roundRect(bx + 2, by + 4, s - 4, s - 4, rr); ctx.fill();
+  const g = ctx.createLinearGradient(bx, by, bx, by + s);
+  g.addColorStop(0, "#2e3552"); g.addColorStop(1, "#1c2136");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.roundRect(bx + 1.5, by + 1.5, s - 3, s - 3, rr); ctx.fill();
+  ctx.lineWidth = 1.5; ctx.strokeStyle = "#4a5680"; ctx.stroke();
+})();
+</script>
+</body>
+</html>
