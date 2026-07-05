@@ -1,3 +1,5 @@
+> **UPDATE (latest design):** in-game header = **layers (left) · LEVEL (center) · settings ⚙ (right)**. The top-right **restart button was removed** (deemed meaningless in a time-chase). Retry now lives only on the **DEAD END** card (TRY AGAIN) and **Replay** on the win card + level-select; the rotate-cw SVG is used inline in those card buttons (never the ⟳ text glyph). **Settings** is included as the final screen of the complete design.
+
 # Tilt — Level Select + Levels Entry + Dead-End (spec for porting)
 
 These three are **design-only** in the mock (`Tilt - Redesign Directions.dc.html`)
@@ -93,3 +95,34 @@ Board + card layout: header, timer, board **top-aligned right under the timer**
 (flex:0, not vertically centered — so the board sits at the same height whether
 or not a card is present), spacer, then the card. Board canvas display width
 ~320px inside the rim gutter.
+
+## 5. Settings (MVP) — screenshot 11
+
+Modal card, Arcade Night. **Two entry points**: a ⚙ (cog) on the **home**
+(level-select) header, and an in-game ⚙ **paired with restart at the top-right**
+of the play header (layers-left · LEVEL-center · [⚙ restart]-right). **Never put
+it at the bottom** — that's the iOS home-indicator gesture zone (repo CLAUDE.md).
+
+Card: gradient `#2b3268→#1b2050`, border 2px `#4a54a0`, radius 26, `pop` anim.
+Title `SETTINGS` (Lilita One 22px, ls .06em, `#fff`), close `✕` top-right (32px
+circle, `#141838`/`#3d4691`).
+
+**Three toggle rows** (each: bg `#141838`, border `#3d4691`, radius 14, padding
+11×12): a 34px icon tile (radius 10, `#252c5e`) + label (Nunito 800 14px
+`#eef1ff`) + toggle. Icon tint `#ffc63e` when on, `#7d86cf` when off.
+- **Sound Effects** → gates the SFX calls (`sndFail`/`sndSink`/…).
+- **Music** → a looping background track. **NEW — the app has no music track
+  yet**; either add one or hide this row until it exists.
+- **Vibration** → gates `haptic()` (Capacitor Haptics on device).
+
+Toggle **ON**: 52×30 pill, track gradient `#ffc63e→#ff9d1b`, 24px white knob
+right, `inset 0 1px 3px #00000040`. **OFF**: track `#2c3358`, border `#3d4691`,
+grey knob `#8b93c8` left.
+
+Divider `#3d4691`, then ONE secondary row: **How to Play** (30px icon tile +
+label `#dfe4ff` 700 13.5px + chevron `#7d86cf`) — replays the tutorial card.
+Restore Purchases and Rate Tilt are intentionally **omitted for MVP**. Footer
+version line `Tilt v1.0 · com.jfun.tilt` (700 11px `#5d65a8`, centered).
+
+Persist all three flags in the same storage as best-times; **default all ON**.
+Entry glyph = cog SVG (Feather "settings").
