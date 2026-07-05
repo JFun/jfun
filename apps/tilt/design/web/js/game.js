@@ -20,7 +20,6 @@
   /* ---------- audio (impacts sell the physics) ---------- */
   let AC = null;
   function initAudio() {
-    if (initNativeAudio()) return;   // device: native engine owns all audio
     if (AC) { resumeAudio(); return; }
     try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
   }
@@ -86,15 +85,13 @@
   // glass, not wood: high, short, bright — throttled PER PAIR so chain clacks all speak
   function sndClack(vol, pitch, key, dead) {
     if (!throttled("clack" + (key || ""), 45)) return;
-    if (snReady) { SN.play({ name: dead ? "clackDead" : "clack", rate: pitch, vol }); return; }
     if (dead) { tone(760 * pitch, 430 * pitch, 0.045, 0.3 * vol, "sine"); noiseBurst(0.02, 0.1 * vol, 1500); return; }
     tone(1900 * pitch, 1350 * pitch, 0.035, 0.26 * vol, "sine"); noiseBurst(0.02, 0.14 * vol, 3000);
   }
-  function sndWallHit(vol) { if (!throttled("wall", 60)) return; if (snReady) { SN.play({ name: "wall", rate: 1, vol }); return; } tone(120, 65, 0.1, 0.4 * vol, "sine"); noiseBurst(0.04, 0.2 * vol, 700); }
+  function sndWallHit(vol) { if (!throttled("wall", 60)) return; tone(120, 65, 0.1, 0.4 * vol, "sine"); noiseBurst(0.04, 0.2 * vol, 700); }
   // continuous rolling rumble — gain/brightness track the fastest free marble
   let rollSrc = null, rollGain = null, rollFilter = null;
   function initRollSound() {
-    if (SN) return;                    // native roll loop lives in the engine
     if (rollSrc || !AC) return;
     const n = Math.floor(AC.sampleRate * 0.5);
     const buf = AC.createBuffer(1, n, AC.sampleRate);
@@ -106,120 +103,21 @@
     rollSrc.connect(rollFilter); rollFilter.connect(rollGain); rollGain.connect(AC.destination);
     rollSrc.start();
   }
-  let rollSentAt = 0, rollSentGain = -1;
   function setRollLevel(maxSpeed) {   // maxSpeed in cells/s; 0 silences
-    if (snReady) {
-      const now = performance.now();
-      const gain = Math.min(0.11, maxSpeed / 15 * 0.11);
-      if (now - rollSentAt < 60 && Math.abs(gain - rollSentGain) < 0.008) return;
-      rollSentAt = now; rollSentGain = gain;
-      SN.setRoll({ gain, freq: 300 + maxSpeed * 70 });
-      return;
-    }
     if (!rollGain || !AC) return;
     const g = Math.min(0.11, maxSpeed / 15 * 0.11);
     rollGain.gain.setTargetAtTime(g, AC.currentTime, 0.06);
     rollFilter.frequency.setTargetAtTime(300 + maxSpeed * 70, AC.currentTime, 0.06);
   }
-  function sndCapture() { if (snReady) { SN.play({ name: "capture", rate: 1, vol: 1 }); return; } tone(500, 760, 0.12, 0.25, "sine"); tone(760, 1050, 0.2, 0.2, "triangle", 0.07); }
-  function sndPlunk() { if (!throttled("plunk", 120)) return; if (snReady) { SN.play({ name: "plunk", rate: 1, vol: 1 }); return; } tone(240, 110, 0.12, 0.32, "sine"); noiseBurst(0.03, 0.1, 900); }
-  function sndRim() { if (!throttled("rim", 90)) return; if (snReady) { SN.play({ name: "rim", rate: 1, vol: 1 }); return; } tone(300, 180, 0.05, 0.2, "triangle"); tone(250, 140, 0.05, 0.16, "triangle", 0.05); noiseBurst(0.03, 0.12, 1200); }
-  function sndWinChord() { if (snReady) { SN.play({ name: "win", rate: 1, vol: 1 }); return; } [523, 659, 784, 1047].forEach((f, i) => tone(f, f * 1.01, 0.28, 0.22, "triangle", i * 0.09)); }
-  function sndFail() { if (snReady) { SN.play({ name: "fail", rate: 1, vol: 1 }); return; } tone(320, 150, 0.25, 0.3, "triangle"); tone(210, 90, 0.35, 0.26, "triangle", 0.13); }
+  function sndCapture() { tone(500, 760, 0.12, 0.25, "sine"); tone(760, 1050, 0.2, 0.2, "triangle", 0.07); }
+  function sndPlunk() { if (!throttled("plunk", 120)) return; tone(240, 110, 0.12, 0.32, "sine"); noiseBurst(0.03, 0.1, 900); }
+  function sndRim() { if (!throttled("rim", 90)) return; tone(300, 180, 0.05, 0.2, "triangle"); tone(250, 140, 0.05, 0.16, "triangle", 0.05); noiseBurst(0.03, 0.12, 1200); }
+  function sndWinChord() { [523, 659, 784, 1047].forEach((f, i) => tone(f, f * 1.01, 0.28, 0.22, "triangle", i * 0.09)); }
+  function sndFail() { tone(320, 150, 0.25, 0.3, "triangle"); tone(210, 90, 0.35, 0.26, "triangle", 0.13); }
   function haptic(style) {
     const H = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics;
     if (H && H.impact) { H.impact({ style: style === "heavy" ? "HEAVY" : style === "medium" ? "MEDIUM" : "LIGHT" }).catch(() => {}); return; }
     if (navigator.vibrate) try { navigator.vibrate(style === "heavy" ? 35 : style === "medium" ? 20 : 10); } catch (e) {}
-  }
-
-  /* ---------- NATIVE audio (SoundNative plugin) — the backgrounding fix ----------
-     WKWebView's WebAudio unit dies silently after backgrounding and lies about
-     it (state "running", no output) — unfixable from JS after three attempts.
-     On device, ALL SFX go through a native AVAudioEngine that owns the audio
-     session and restarts itself on real interruption/foreground notifications.
-     The samples are the game's own synthesized sounds, rendered ONCE offline
-     (OfflineAudioContext is session-independent) and shipped to native as WAV;
-     playback varies rate (pitch) and volume per call. Web path = browser only. */
-  const SN = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SoundNative;
-  let snReady = false, snBooting = false;
-  function initNativeAudio() {
-    if (!SN) return false;
-    if (snReady || snBooting) return true;
-    snBooting = true;
-    renderAllSamples()
-      .then(async samples => {
-        for (const smp of samples) await SN.loadSample(smp);
-        await SN.start();
-        snReady = true;
-      })
-      .catch(() => { snBooting = false; });   // native boot failed → web fallback
-    return true;
-  }
-  function renderSample(name, dur, build) {
-    const sr = 44100;
-    const oc = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, Math.ceil(sr * dur), sr);
-    build(oc);
-    return oc.startRendering().then(buf => ({ name, wav: wavB64(buf) }));
-  }
-  function oTone(oc, freq, freq2, dur, vol, type, when) {
-    const t = when || 0;
-    const o = oc.createOscillator(), g = oc.createGain();
-    o.type = type || "triangle";
-    o.frequency.setValueAtTime(freq, t);
-    o.frequency.exponentialRampToValueAtTime(Math.max(30, freq2), t + dur);
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
-    o.connect(g); g.connect(oc.destination);
-    o.start(t); o.stop(t + dur + 0.02);
-  }
-  function oNoise(oc, dur, vol, hp, when) {
-    const t = when || 0;
-    const n = Math.floor(oc.sampleRate * dur);
-    const buf = oc.createBuffer(1, n, oc.sampleRate);
-    const d = buf.getChannelData(0);
-    let seed = 1234567;   // deterministic noise — same sample every boot
-    for (let i = 0; i < n; i++) { seed = (seed * 1664525 + 1013904223) >>> 0; d[i] = ((seed / 4294967296) * 2 - 1) * (1 - i / n); }
-    const src = oc.createBufferSource(); src.buffer = buf;
-    const f = oc.createBiquadFilter(); f.type = "highpass"; f.frequency.value = hp;
-    const g = oc.createGain(); g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
-    src.connect(f); f.connect(g); g.connect(oc.destination);
-    src.start(t);
-  }
-  function wavB64(buf) {
-    const d = buf.getChannelData(0), n = d.length;
-    const bytes = new Uint8Array(44 + n * 2);
-    const dv = new DataView(bytes.buffer);
-    const ws = (o, str) => { for (let i = 0; i < str.length; i++) dv.setUint8(o + i, str.charCodeAt(i)); };
-    ws(0, "RIFF"); dv.setUint32(4, 36 + n * 2, true); ws(8, "WAVE");
-    ws(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
-    dv.setUint32(24, buf.sampleRate, true); dv.setUint32(28, buf.sampleRate * 2, true);
-    dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
-    ws(36, "data"); dv.setUint32(40, n * 2, true);
-    for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, d[i])); dv.setInt16(44 + i * 2, v * 32767, true); }
-    let bin = "";
-    for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
-    return btoa(bin);
-  }
-  function renderAllSamples() {
-    return Promise.all([
-      renderSample("clack", 0.08, oc => { oTone(oc, 1900, 1350, 0.035, 0.26, "sine"); oNoise(oc, 0.02, 0.14, 3000); }),
-      renderSample("clackDead", 0.1, oc => { oTone(oc, 760, 430, 0.045, 0.3, "sine"); oNoise(oc, 0.02, 0.1, 1500); }),
-      renderSample("wall", 0.16, oc => { oTone(oc, 120, 65, 0.1, 0.4, "sine"); oNoise(oc, 0.04, 0.2, 700); }),
-      renderSample("rim", 0.15, oc => { oTone(oc, 300, 180, 0.05, 0.2, "triangle"); oTone(oc, 250, 140, 0.05, 0.16, "triangle", 0.05); oNoise(oc, 0.03, 0.12, 1200); }),
-      renderSample("plunk", 0.2, oc => { oTone(oc, 240, 110, 0.12, 0.32, "sine"); oNoise(oc, 0.03, 0.1, 900); }),
-      renderSample("capture", 0.35, oc => { oTone(oc, 500, 760, 0.12, 0.25, "sine"); oTone(oc, 760, 1050, 0.2, 0.2, "triangle", 0.07); }),
-      renderSample("win", 0.66, oc => { [523, 659, 784, 1047].forEach((f, i) => oTone(oc, f, f * 1.01, 0.28, 0.22, "triangle", i * 0.09)); }),
-      renderSample("fail", 0.55, oc => { oTone(oc, 320, 150, 0.25, 0.3, "triangle"); oTone(oc, 210, 90, 0.35, 0.26, "triangle", 0.13); }),
-      renderSample("roll", 0.5, oc => {
-        const n = Math.floor(oc.sampleRate * 0.5);
-        const buf = oc.createBuffer(1, n, oc.sampleRate);
-        const d = buf.getChannelData(0);
-        let seed = 424242;
-        for (let i = 0; i < n; i++) { seed = (seed * 1664525 + 1013904223) >>> 0; d[i] = (seed / 4294967296) * 2 - 1; }
-        const src = oc.createBufferSource(); src.buffer = buf; src.connect(oc.destination); src.start(0);
-      }),
-    ]);
   }
 
   /* ---------- campaign persistence ---------- */
@@ -232,11 +130,11 @@
 
   /* ---------- tilt state ---------- */
   let world = null, tiltPhase = "ready"; // ready → armed → running → done
-  // We keep the low-passed 3-axis gravity DIRECTION vector; board gravity is its
-  // screen-plane component (gx = 9.8·x, gy = −9.8·y — exact and bounded at EVERY
-  // orientation). Never go back to per-axis atan2 angles for this: they divide
-  // by z, which vanishes upright — hand jitter swung roll to ±90° and it flipped
-  // sign past vertical (device bug: balls frozen with the phone straight up).
+  // Tilt lives in ANGLE space. We keep the low-passed 3-axis gravity DIRECTION
+  // vector and derive pitch/roll; calibration subtracts ANGLES. Subtracting raw
+  // vector components is a trap: a few degrees of grip roll has an x-component
+  // that scales with cos(pitch), so pitching the phone up leaks a phantom
+  // sideways force ("more gravity on the left/right when tilting straight up").
   let motV = { x: 0, y: 0, z: -1 };      // gravity direction, device coords, g-units (flat face-up = 0,0,-1)
   let vecOK = false;                      // a 3-axis source is flowing
   let motA = null;                        // orientation-fallback angles {pitch, roll} (radians)
@@ -255,12 +153,7 @@
   function tiltAngles() {
     // pitch: top-of-phone toward/away (0 = flat, +90° = upright portrait)
     // roll:  left/right edge down     (+ = right edge down)
-    // roll uses hypot(y,z), NOT -z, as the reference: atan2(x, -z) degenerates
-    // to ±90° garbage as the phone nears vertical (z → 0).
-    if (vecOK) return {
-      pitch: Math.atan2(-motV.y, -motV.z),
-      roll: Math.atan2(motV.x, Math.hypot(motV.y, motV.z)),
-    };
+    if (vecOK) return { pitch: Math.atan2(-motV.y, -motV.z), roll: Math.atan2(motV.x, -motV.z) };
     if (motA) return motA;
     return { pitch: 0, roll: 0 };
   }
@@ -316,12 +209,9 @@
       motionDenied = rs.every(s => s !== "granted");
     });
   }
-  // ABSOLUTE gravity — the phone's real attitude IS the tray (user call 2026-07:
-  // per-run neutral calibration was invisible state that bred "sometimes" bugs —
-  // arm at a steep grip and upright lost its pull. Now flat = still, upright =
-  // max, every run identical, live from the tap — no gate, no coaching; the
-  // feel teaches itself). `cal` survives only as a dev/test hook (setCal); the
-  // game never writes it.
+  // neutral-tilt baseline: whatever ANGLE you hold the phone at when the run arms
+  // becomes "flat" — calibrated per-axis in angle space so pitch and roll never
+  // bleed into each other.
   let cal = { pitch: 0, roll: 0 };
   function currentGravity() {
     if (devG) return devG;
@@ -329,18 +219,6 @@
     if (keysHeld.L) kx -= 4; if (keysHeld.R) kx += 4;
     if (keysHeld.U) ky -= 4; if (keysHeld.D) ky += 4;
     if (kx || ky) return { gx: kx, gy: ky };
-    if (vecOK) {
-      // un-rotate by `cal` (identity in real play — dev hook only), then read
-      // the screen-plane components. |g| ≤ 9.8 by construction.
-      const m = Math.hypot(motV.x, motV.y, motV.z) || 1;
-      const x = motV.x / m, y = motV.y / m, z = motV.z / m;
-      const cp = Math.cos(cal.pitch), sp = Math.sin(cal.pitch);
-      const y1 = y * cp - z * sp, z1 = y * sp + z * cp;
-      const cr = Math.cos(cal.roll), sr = Math.sin(cal.roll);
-      const x1 = x * cr + z1 * sr;
-      return { gx: FLIP_X * 9.8 * x1, gy: FLIP_Y * -9.8 * y1 };
-    }
-    // orientation-angle fallback (browser only)
     const t = tiltAngles();
     let gx = FLIP_X * 9.8 * Math.sin(t.roll - cal.roll);
     let gy = FLIP_Y * 9.8 * Math.sin(t.pitch - cal.pitch);
@@ -676,7 +554,7 @@
       for (let i = 0; i < 3; i++) {
         const a = Math.max(0, Math.sin(Math.PI * Math.min(1, Math.max(0, ph * 1.4 - i * 0.18)))) * 0.95;
         if (a <= 0) continue;
-        const d = R * (2.3 + i * 1.1 + ph * 1.3);
+        const d = R * (2.9 + i * 1.1 + ph * 1.3); // start clear of the pulsing ring
         const cx = px + Math.cos(ang) * d, cy = py + Math.sin(ang) * d;
         const nx = Math.cos(ang), ny = Math.sin(ang), ox = -ny, oy = nx;
         tctx.strokeStyle = "rgba(255,198,62," + a + ")";
@@ -983,15 +861,14 @@
 
   /* ---------- tilt-the-phone mode: continuous sim ---------- */
   let lastT = 0, acc = 0, lastCaptureT = 0;
-  let armT0 = 0;   // armed = waiting only for an input source (watchdog)
+  let armT0 = 0, armSx = 0, armSy = 0, armN = 0;   // neutral-tilt ANGLE calibration sampling (armSx=pitch Σ, armSy=roll Σ)
   const rollAng = [], rollHead = [];                // rolling-texture cue per marble
   function hasInputSource() { return motionOK || !!devG || Object.values(keysHeld).some(Boolean); }
   function tiltLoop(now) {
     requestAnimationFrame(tiltLoop);
     if (!world) return;
     if (tiltPhase === "armed") {
-      // no calibration, no gate: gravity is absolute and live from the first
-      // frame — armed only waits for an input source (watchdog below)
+      // calibrate: average the held angle for ~0.35s → that's the new "flat"
       lastT = now; draw();
       if (!hasInputSource()) {
         if (!watchdogShown && now - armT0 > 2500) {
@@ -1002,7 +879,13 @@
         }
         return;
       }
-      beginRun();
+      if (devG || Object.values(keysHeld).some(Boolean)) { cal = { pitch: 0, roll: 0 }; beginRun(); return; }
+      const ta = tiltAngles();
+      armSx += ta.pitch; armSy += ta.roll; armN++;
+      if (now - armT0 >= 350 && armN >= 6) {
+        cal = { pitch: armSx / armN, roll: armSy / armN };
+        beginRun();
+      }
       return;
     }
     if (tiltPhase !== "running") { lastT = now; setRollLevel(0); if (tiltPhase === "ready") draw(); return; }
@@ -1043,7 +926,7 @@
         sndRim(); haptic("light");
       } else if (e.type === "plunk") {
         sndPlunk(); haptic("medium");   // wrong cup — you'll feel it
-        flashHint("Tilt HARD to pop it out!", 1, "stuck");
+        flashHint("Tilt hard — it pops free!", 1, "stuck");
       } else if (e.type === "capture") {
         lastCaptureT = world.t;
         sndCapture(); haptic("medium");
@@ -1055,8 +938,8 @@
     initAudio(); initRollSound(); requestMotion();
     if (tiltPhase === "ready") {
       tiltPhase = "armed";
-      armT0 = performance.now(); watchdogShown = false;
-      $("#hint").style.opacity = 0;
+      armT0 = performance.now(); armSx = 0; armSy = 0; armN = 0; watchdogShown = false;
+      $("#hint").style.opacity = 0;   // calibration is instant + automatic — no message (device feedback 2026-07)
     }
   }
   function updateTimePill() {
@@ -1152,6 +1035,8 @@
     tilt: '<span class="g-rock"><span class="g-phone"><i class="g-ball"></i></span></span>',
     wall: '<span class="g-wall"></span>',
     hill: '<span class="g-wall"></span>',   // hills reuse the block glyph for now
+    // a 2.8s demo, not an icon: phone snaps steep, the wedged ball pops out of
+    // the blue ring and rolls away (device feedback: "Tilt HARD" told, didn't show)
     stuck: '<span class="g-poprock"><i class="g-popring"></i><i class="g-ball g-popout"></i></span>',
     blocked: '<span class="g-phone g-noflow"><i class="g-slash"></i></span>',
   };
@@ -1186,12 +1071,6 @@
   window.addEventListener("resize", sizeBoards);
 
   /* ---------- boot ---------- */
-  // dev-only: ?lvl=N jumps straight to a level (skips tutorial + intro cards)
-  // so headless WebKit screenshots can reach any state — inert in Capacitor
-  try {
-    const q = new URLSearchParams(location.search);
-    if (q.has("lvl")) { const sv = loadSave(); sv.tutSeen = 1; sv.rulesV3 = 1; sv.wallsSeen = 1; sv.level = +q.get("lvl") || 1; writeSave(sv); }
-  } catch (e) {}
   {
     // rules migration: lodge-and-escape restored + dead-end game over (layouts
     // regenerated again), so old best times aren't comparable — clear them

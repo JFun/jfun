@@ -51,12 +51,22 @@
       captureFrac: 0.62,            // capture when path passes within holeR*frac
       captureSpeed: unit * 13,      // faster than this over the hole → rattles the lip
       capColliderFrac: 0.78,        // a captured ball sits recessed — smaller collider
-      wellK: unit * 18,             // funnel pull at a hole's center, px/s²
+      wellK: unit * 18,             // funnel pull at a hole's mouth, px/s²
+      cupHoldK: unit * 40,          // hold force on a WRONG ball lodged in a cup —
+                                    // escape needs a hard tilt (> ~cupHoldK/accel m/s²)
+      slopeG: 3.5,                  // hill steepness, in m/s² of extra gravity
+                                    // away from the ridge (≈ a 21° incline)
       sinkTime: 0.22,               // capture snap animation, seconds
     };
   }
 
-  /* world: geometry in px. marbles [{x,y,r,c}], holes [{x,y,r,c}] */
+  /* world: geometry in px. marbles [{x,y,r,c}], holes [{x,y,r,c}],
+     blocks [{x,y,w,h}] — solid AABB wall blocks to bank off,
+     slopes [{x,y,w,h,ax,ay}] — HILLS: a ridge across the patch center,
+     (ax,ay) the unit axis. While a marble is on the patch it feels slopeG
+     of extra gravity AWAY from the ridge — climbing to the peak needs speed
+     (stall → roll back), cresting flings you down the far side. A real bump:
+     both ends meet the floor, works from either direction. */
   function createWorld(opts) {
     const unit = opts.unit || 50;
     return {
@@ -69,9 +79,35 @@
         px: m.x, py: m.y,                // previous position (segment capture test)
       })),
       holes: opts.holes.map(h => ({ x: h.x, y: h.y, r: h.r, c: h.c, filled: false })),
+      blocks: (opts.blocks || []).map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h })),
+      slopes: (opts.slopes || []).map(s => ({ x: s.x, y: s.y, w: s.w, h: s.h, ax: s.ax, ay: s.ay })),
       t: 0,
       events: [],
     };
+  }
+  // circle vs AABB block: push out along the closest-point normal, reflect the
+  // inbound normal velocity (corners get the diagonal normal for free).
+  function collideBlock(w, m, b, dt, withEvents) {
+    const P = w.params;
+    const cx = m.x < b.x ? b.x : m.x > b.x + b.w ? b.x + b.w : m.x;
+    const cy = m.y < b.y ? b.y : m.y > b.y + b.h ? b.y + b.h : m.y;
+    let dx = m.x - cx, dy = m.y - cy;
+    let d = Math.hypot(dx, dy);
+    if (d >= m.r) return;
+    if (d < 1e-9) { dx = 0; dy = -1; d = 1e-9; }   // degenerate (center on face): push up, deterministic
+    const nx = dx / d, ny = dy / d;
+    m.x = cx + nx * m.r; m.y = cy + ny * m.r;
+    const vn = m.vx * nx + m.vy * ny;
+    if (vn < 0) {
+      if (withEvents) wallEv(w, m, -vn);
+      m.vx -= (1 + P.restWall) * vn * nx;
+      m.vy -= (1 + P.restWall) * vn * ny;
+      // grind the tangential component like the outer rails
+      const tx = -ny, ty = nx;
+      const vt = m.vx * tx + m.vy * ty;
+      const k = 1 - P.wallScrub * dt;
+      m.vx += tx * vt * (k - 1); m.vy += ty * vt * (k - 1);
+    }
   }
 
   function free(m) { return !m.captured; }
@@ -104,16 +140,40 @@
       // gravity
       m.vx += gravity.gx * P.accel * dt;
       m.vy += gravity.gy * P.accel * dt;
+      // HILLS: constant extra pull AWAY from the ridge while on the patch —
+      // climbing needs speed (stall → roll back), the far side flings you on
+      for (const s of w.slopes) {
+        if (m.x >= s.x && m.x <= s.x + s.w && m.y >= s.y && m.y <= s.y + s.h) {
+          const t = s.ax ? m.x - (s.x + s.w / 2) : m.y - (s.y + s.h / 2);
+          const sgn = t > 0 ? 1 : t < 0 ? -1 : 0;
+          m.vx += s.ax * sgn * P.slopeG * P.accel * dt;
+          m.vy += s.ay * sgn * P.slopeG * P.accel * dt;
+        }
+      }
       // hole DIMPLES: every open hole pulls nearby marbles toward its center —
-      // regardless of color; a real tray dips at every hole.
+      // regardless of color; a real tray dips at every hole. A WRONG ball deep in
+      // the cup feels a much stronger hold (it's lodged) — escaping needs a hard
+      // sustained tilt; the mistake costs time (and the DEAD-END detector in the
+      // game layer ends the run when every remaining ball is wedged).
       for (const h of w.holes) {
         if (h.filled) continue;
         const wellR = h.r + m.r * 0.5;
         const d = Math.hypot(m.x - h.x, m.y - h.y);
         if (d < wellR && d > 1e-9) {
-          const a = P.wellK * (1 - d / wellR) * dt;
-          m.vx += (h.x - m.x) / d * a;
-          m.vy += (h.y - m.y) / d * a;
+          const deep = d < h.r * P.captureFrac * 1.4 && h.c !== m.c;
+          if (deep) {
+            // lodged: constant-strength hold (a cup wall, not a slope) + settling
+            // damping — escape requires drive > cupHoldK, i.e. a HARD tilt
+            const a = P.cupHoldK * dt;
+            m.vx += (h.x - m.x) / d * a;
+            m.vy += (h.y - m.y) / d * a;
+            const dk = 1 - 6 * dt;
+            m.vx *= dk; m.vy *= dk;
+          } else {
+            const a = P.wellK * (1 - d / wellR) * dt;
+            m.vx += (h.x - m.x) / d * a;
+            m.vy += (h.y - m.y) / d * a;
+          }
         }
       }
       // rolling resistance: small constant deceleration + whisper of damping —
@@ -141,6 +201,8 @@
       if (m.x > hiX) { m.x = hiX; if (m.vx > 0) { wallEv(w, m, m.vx);  m.vx = -m.vx * P.restWall; } m.vy *= 1 - P.wallScrub * dt; }
       if (m.y < lo)  { m.y = lo;  if (m.vy < 0) { wallEv(w, m, -m.vy); m.vy = -m.vy * P.restWall; } m.vx *= 1 - P.wallScrub * dt; }
       if (m.y > hiY) { m.y = hiY; if (m.vy > 0) { wallEv(w, m, m.vy);  m.vy = -m.vy * P.restWall; } m.vx *= 1 - P.wallScrub * dt; }
+      // interior wall blocks — bank off them
+      for (const b of w.blocks) collideBlock(w, m, b, dt, true);
     }
 
     // marble-marble collisions. A CAPTURED marble sits in its hole — recessed but
@@ -193,30 +255,37 @@
         }
       }
     }
-    // pair separation can shove a marble past a rail — re-clamp positions only
-    // (no restitution, no event; the directional reflect above owns the bounce)
+    // pair separation can shove a marble past a rail or into a block — re-clamp
+    // (rails: position only; blocks: quiet collide, no event — the directional
+    // reflect above owns the audible bounce)
     for (const m of ms) {
       if (!free(m)) continue;
       const lo = w.pad + m.r, hiX = w.w - w.pad - m.r, hiY = w.h - w.pad - m.r;
       if (m.x < lo) m.x = lo; else if (m.x > hiX) m.x = hiX;
       if (m.y < lo) m.y = lo; else if (m.y > hiY) m.y = hiY;
+      for (const b of w.blocks) collideBlock(w, m, b, dt, false);
     }
 
-    // hole capture: the PATH this step is tested against the capture disc (fast
-    // grazes can't tunnel). Slow enough → sinks; too fast → rattles the lip once
-    // (speed loss + rim event) and rolls on.
+    // holes catch EVERYTHING: the PATH this step is tested against each open
+    // hole's capture disc (fast grazes can't tunnel). Too fast → rattles the lip
+    // once and rolls on (any color). Slow + matching → sinks for good. Slow +
+    // WRONG color → plunks into the cup and lodges (the hold force above keeps
+    // it there, plugging the hole, until a hard tilt pops it out).
     for (let i = 0; i < ms.length; i++) {
       const m = ms[i]; if (!free(m)) continue;
       let inside = -1;
       for (let hi = 0; hi < w.holes.length; hi++) {
         const h = w.holes[hi];
-        if (h.filled || h.c !== m.c) continue;
+        if (h.filled) continue;
         const d = segDist(h.x, h.y, m.px, m.py, m.x, m.y);
         if (d < h.r * P.captureFrac) {
           inside = hi;
           if (m.rimIn !== hi) {           // just entered the hole mouth
             const sp = speedOf(m);
-            if (sp <= P.captureSpeed) {
+            if (sp > P.captureSpeed) {
+              m.vx *= 0.85; m.vy *= 0.85;
+              w.events.push({ type: "rim", speed: sp, x: h.x, y: h.y, i });
+            } else if (h.c === m.c) {
               m.captured = true; h.filled = true;
               const svx = m.vx, svy = m.vy;
               const sn = sp > 0 ? sp : 1;
@@ -225,8 +294,9 @@
               m.vx = 0; m.vy = 0;
               w.events.push({ type: "capture", speed: sp, x: h.x, y: h.y, i, color: m.c });
             } else {
-              m.vx *= 0.85; m.vy *= 0.85;
-              w.events.push({ type: "rim", speed: sp, x: h.x, y: h.y, i });
+              // wrong cup: the drop swallows the ball's momentum — it lodges
+              m.vx *= 0.12; m.vy *= 0.12;
+              w.events.push({ type: "plunk", speed: sp, x: h.x, y: h.y, i, color: m.c });
             }
           }
           break;
@@ -254,5 +324,5 @@
     return { x: m.x, y: m.y, scale: 1 };
   }
 
-  return { DT, createWorld, step, renderPos, solved: solvedWorld, VERSION: "1.2.0" };
+  return { DT, createWorld, step, renderPos, solved: solvedWorld, VERSION: "1.6.0" };
 });

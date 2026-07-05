@@ -1,8 +1,3 @@
-/* vendored faces (Google Fonts latin subsets; Nunito is a variable font) */
-@font-face{font-family:'Lilita One'; font-style:normal; font-weight:400; font-display:swap;
-  src:url('fonts/lilitaone-latin.woff2') format('woff2')}
-@font-face{font-family:'Nunito'; font-style:normal; font-weight:200 1000; font-display:swap;
-  src:url('fonts/nunito-latin.woff2') format('woff2')}
 /* Tilt — "Arcade Night" skin (design pass 2026-07). Same DOM contract as before:
    game.js queries #lvlN #timeV #bestLab #reset #hint #stage #tray #ov #card #toast
    and card classes h2/.creature/.stats/.row/.primary. Layout change: wordmark is

@@ -17,14 +17,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     // Play SFX even when the ring/silent switch is on, mixing politely with other
     // audio. Logged (not try?) so the simulator/device console shows if it fails.
-    private func configureAudioSession() {
+    // Reactivation right at foreground can race the system ("cannot start
+    // playing"), so one failed attempt retries shortly after.
+    private func configureAudioSession(retry: Bool = true) {
         let s = AVAudioSession.sharedInstance()
         do {
             try s.setCategory(.playback, options: [.mixWithOthers])
             try s.setActive(true)
-            NSLog("MORAINE-AUDIO ok category=%@ active=true", s.category.rawValue)
+            NSLog("TILT-AUDIO ok category=%@ active=true", s.category.rawValue)
         } catch {
-            NSLog("MORAINE-AUDIO ERROR %@", error.localizedDescription)
+            NSLog("TILT-AUDIO ERROR %@ (retry=%d)", error.localizedDescription, retry ? 1 : 0)
+            if retry {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    self?.configureAudioSession(retry: false)
+                }
+            }
         }
     }
 
@@ -34,7 +41,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func applicationDidEnterBackground(_ application: UIApplication) {}
 
-    func applicationWillEnterForeground(_ application: UIApplication) {}
+    func applicationWillEnterForeground(_ application: UIApplication) {
+        // Earliest foreground hook — reactivate the session before the web view
+        // resumes so a fresh AudioContext lands on a live session (didBecomeActive
+        // re-asserts it again shortly after).
+        configureAudioSession()
+    }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         // Backgrounding deactivates the audio session, so WebAudio SFX go silent on
