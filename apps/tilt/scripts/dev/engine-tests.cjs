@@ -56,11 +56,14 @@ t.deterministic("build(17)", () => E.build(17), 3);
 
 t.section("every level fair across the campaign");
 const LEVELS = [];
-for (let L = 1; L <= 30; L++) LEVELS.push(L);
+for (let L = 1; L <= E.LAST_LEVEL; L++) LEVELS.push(L);
 const boards = LEVELS.map(L => ({ name: "L" + L, L, p: E.build(L) }));
+// curated onboarding levels are hand-authored: they follow the fairness rules
+// (in-bounds, distinct colors, solvable) but NOT the procedural count ramp.
+const procBoards = boards.filter(it => !E.CURATED[it.L]);
 
 t.invariant("puzzle generated", boards, it => !!it.p);
-t.invariant("hole count matches the ramp", boards, it =>
+t.invariant("hole count matches the ramp (procedural levels)", procBoards, it =>
   it.p.holesArr.length === E.rampFor(it.L).nHoles);
 t.invariant("hole colors are DISTINCT (goal legible at a glance)", boards, it =>
   new Set(it.p.holesArr.map(h => h.c)).size === it.p.holesArr.length);
@@ -87,14 +90,13 @@ const slopesOf = p => {
     for (let ix = 0; ix < s.w; ix++) for (let iy = 0; iy < s.h; iy++) m[(s.x + ix) + "," + (s.y + iy)] = s.a;
   return m;
 };
-t.invariant("walls in bounds, never on holes/marbles, count matches ramp", boards, it => {
-  const ws = wallsOf(it.p);
-  if ((it.p.walls || []).length !== E.rampFor(it.L).nWalls) return false;
-  return (it.p.walls || []).every(b =>
+t.invariant("walls in bounds, never on holes/marbles (all levels)", boards, it =>
+  (it.p.walls || []).every(b =>
     b.x >= 0 && b.x < E.N && b.y >= 0 && b.y < E.N &&
     !it.p.holes[b.x + "," + b.y] &&
-    !it.p.init.marbles.some(m => m.x === b.x && m.y === b.y));
-});
+    !it.p.init.marbles.some(m => m.x === b.x && m.y === b.y)));
+t.invariant("wall count matches the ramp (procedural levels)", procBoards, it =>
+  (it.p.walls || []).length === E.rampFor(it.L).nWalls);
 t.invariant("hills: 2-cell patches, in bounds, valid axis, never on holes/marbles/walls, count matches ramp", boards, it => {
   if ((it.p.slopes || []).length !== E.rampFor(it.L).nSlopes) return false;
   const ws = wallsOf(it.p);
@@ -125,5 +127,29 @@ t.section("ramp shape");
 t.ok("holes climb 3→6", E.rampFor(1).nHoles === 3 && E.rampFor(5).nHoles === 4 && E.rampFor(9).nHoles === 5 && E.rampFor(13).nHoles === 6 && E.rampFor(40).nHoles === 6);
 t.ok("walls arrive at L4 and climb to 8", E.rampFor(1).nWalls === 0 && E.rampFor(3).nWalls === 0 && E.rampFor(4).nWalls === 2 && E.rampFor(10).nWalls === 4 && E.rampFor(40).nWalls === 8);
 t.ok("hills are PARKED (never generated) — block obstacles only for MVP", E.rampFor(1).nSlopes === 0 && E.rampFor(6).nSlopes === 0 && E.rampFor(14).nSlopes === 0 && E.rampFor(40).nSlopes === 0);
+
+t.section("finite campaign + curated on-ramp");
+t.ok("campaign is finite (LAST_LEVEL = 60)", E.LAST_LEVEL === 60);
+t.ok("curated levels cover the onboarding stretch", Object.keys(E.CURATED).length >= 5 && !!E.CURATED[1] && !!E.CURATED[4]);
+const curBoards = Object.keys(E.CURATED).map(L => ({ name: "curated L" + L, L: +L, p: E.build(+L) }));
+t.invariant("curated level builds + is solvable", curBoards, it => !!it.p && Array.isArray(it.p.solution) && it.p.par >= 1);
+t.invariant("curated onboarding stays gentle (par ≤ 4)", curBoards, it => it.p.par <= 4);
+t.invariant("curated holes grow 1 → few (L1 is a single ball)", curBoards, it =>
+  it.p.holesArr.length >= 1 && it.p.holesArr.length <= 4);
+t.ok("L1 teaches the bare verb — exactly one ball", E.build(1).holesArr.length === 1 && E.build(1).init.marbles.length === 1);
+t.ok("walls stay out of the first lessons (none before L4)", (E.build(1).walls || []).length === 0 && (E.build(2).walls || []).length === 0 && (E.build(3).walls || []).length === 0 && (E.build(4).walls || []).length >= 1);
+
+t.section("gateway-hole detector (game.js checkSeal handles the dead end live)");
+// A "gateway hole" (every orthogonal neighbour a wall/rim/other-hole) is reachable
+// only THROUGH another hole (L19 green@(0,7) behind purple@(0,6)). Layouts are NOT
+// filtered for it — original levels are preserved; the live checkSeal() flood-fill
+// catches the dead end when the gateway is actually sealed by a captured ball.
+t.ok("hasGatewayHole flags a hole sealed by walls + a neighbour hole", E.hasGatewayHole(
+  [{ x: 0, y: 7, c: "g" }, { x: 0, y: 6, c: "p" }], { "0,7": "g", "0,6": "p" }, new Set(["1,7"])));
+t.ok("hasGatewayHole passes a hole with a free approach", !E.hasGatewayHole(
+  [{ x: 3, y: 3, c: "g" }], { "3,3": "g" }, new Set()));
+t.ok("L19 keeps its original gateway layout (green@(0,7) behind purple@(0,6))",
+  E.build(19).holesArr.some(h => h.c === "g" && h.x === 0 && h.y === 7) &&
+  E.build(19).holesArr.some(h => h.c === "p" && h.x === 0 && h.y === 6));
 
 process.exit(t.summary());

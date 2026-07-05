@@ -117,20 +117,62 @@
     return null;
   }
 
+  /* ---------------- finite campaign + curated on-ramp ---------------- */
+  // The MVP is a FINITE campaign of LAST_LEVEL hand-shaped-then-procedural
+  // levels — a real "you beat it" arc, not an endless grind. The first few
+  // levels are CURATED (hand-authored, not random) so onboarding teaches ONE
+  // idea at a time and difficulty rises smoothly: L1 the tilt→roll→drop verb,
+  // L2 color-matching, L3 routing order, L4 the walls debut, L5–6 four colors.
+  // Every curated layout is BFS-verified in build() — a bad edit fails the
+  // campaign test, never ships. Beyond CURATED the solver-verified generator
+  // fills the tail. Coords 0–7; each entry: h=holes, m=marbles [x,y,color],
+  // w=wall blocks [x,y].
+  const LAST_LEVEL = 60;
+  const CURATED = {
+    1: { h: [[2, 4, "r"]], m: [[6, 4, "r"]], w: [] },
+    2: { h: [[2, 2, "r"], [5, 5, "b"]], m: [[6, 2, "r"], [1, 5, "b"]], w: [] },
+    3: { h: [[1, 1, "r"], [6, 1, "g"], [3, 6, "b"]], m: [[1, 4, "r"], [6, 4, "g"], [3, 3, "b"]], w: [] },
+    4: { h: [[1, 1, "r"], [6, 1, "g"], [3, 6, "b"]], m: [[1, 4, "r"], [6, 4, "g"], [3, 2, "b"]], w: [[5, 4]] },
+    5: { h: [[1, 1, "r"], [6, 1, "y"], [2, 6, "g"], [5, 6, "b"]], m: [[1, 4, "r"], [6, 4, "y"], [2, 3, "g"], [5, 3, "b"]], w: [[0, 5], [7, 5]] },
+    6: { h: [[1, 1, "r"], [6, 1, "y"], [1, 6, "g"], [6, 6, "b"]], m: [[1, 3, "r"], [6, 3, "y"], [1, 5, "g"], [6, 5, "b"]], w: [[3, 3], [4, 4]] },
+  };
+
   /* ---------------- level ramp ---------------- */
   // Hole count climbs 3 → 6; walls (bank-off blocks) appear from L4 and grow to 8;
-  // par floor rises once the player has the hang of it.
+  // par floor rises once the player has the hang of it. Curated levels are
+  // intentionally gentle, so their floor is 1 (the campaign test honors this).
   function rampFor(level) {
     const L = Math.max(1, level | 0);
     const nHoles = Math.min(3 + Math.floor((L - 1) / 4), 6);
     const nWalls = L < 4 ? 0 : Math.min(2 + Math.floor((L - 4) / 3), 8);
     const nSlopes = 0;   // hills PARKED for MVP (user call: block obstacles only;
                          // the slope visual never converged) — mechanism kept dormant
-    const minPar = L < 5 ? 2 : 3;
+    const minPar = CURATED[L] ? 1 : (L < 5 ? 2 : 3);
     const maxDepth = nHoles >= 5 ? 16 : 12;
     return { nHoles, nWalls, nSlopes, minPar, maxDepth };
   }
   function seedForLevel(n) { return ((n * 0x9e3779b1) ^ 0x7117) >>> 0; }
+
+  // A "gateway hole" is reachable ONLY through another hole: every orthogonal
+  // neighbour is a wall, the rim, or another hole. Its ball must PARK on the
+  // gateway hole then step in — which works only in one fragile order, and once
+  // the gateway is sealed (a ball captured/wedged there) the inner hole can never
+  // be filled → a genuine, unrecoverable dead end (the L19 green@(0,7) trap).
+  // Reject any layout with one so no level can be driven into that state.
+  function hasGatewayHole(holesArr, holesMap, wallSet) {
+    for (const h of holesArr) {
+      let free = 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = h.x + dx, ny = h.y + dy;
+        if (nx < 0 || nx >= N || ny < 0 || ny >= N) continue;   // rim
+        if (wallSet && wallSet.has(key(nx, ny))) continue;      // wall
+        if (holesMap[key(nx, ny)] !== undefined) continue;      // another hole
+        free++;                                                  // a free approach cell
+      }
+      if (free === 0) return true;
+    }
+    return false;
+  }
 
   /* Puzzle generation: distinct-colored holes at seeded cells, one matching marble
      per hole scattered elsewhere, WALL blocks to bank off, BFS-verified at par ≥
@@ -249,8 +291,21 @@
   }
 
   /* ---------------- level campaign ---------------- */
+  // A curated layout, verified through the SAME solver as the generated ones —
+  // never ship a hand-authored level without proving it solves.
+  function buildCurated(L, spec) {
+    const holes = {}, holesArr = [];
+    for (const [x, y, c] of spec.h) { holes[key(x, y)] = c; holesArr.push({ x, y, c }); }
+    const walls = spec.w.map(([x, y]) => ({ x, y }));
+    const wallSet = new Set(spec.w.map(([x, y]) => key(x, y)));
+    const init = { marbles: spec.m.map(([x, y, c]) => ({ x, y, c, fixed: false })) };
+    const res = solveBFS(init, holes, holesArr.length, 24, wallSet, {});
+    if (!res) return null;   // authoring guard — surfaces as a failed campaign test
+    return { holes, holesArr, walls, slopes: [], init: cloneState(init), par: res.length, solution: res, level: L };
+  }
   function build(level) {
     const L = Math.max(1, level | 0);
+    if (CURATED[L]) return buildCurated(L, CURATED[L]);
     const ramp = rampFor(L);
     let seed = seedForLevel(L), p = null, guard = 0;
     while (!p && guard++ < 40) { p = genPuzzle(seed, ramp); seed = (seed + 7919) >>> 0; }
@@ -259,5 +314,6 @@
   }
 
   return { N, DIRS, DIR4, PAL, COLORS, key, cloneState, tilt, isSolved,
-           stateKey, solveBFS, rampFor, genPuzzle, seedForLevel, build, VERSION: "2.3.0" };
+           stateKey, solveBFS, rampFor, genPuzzle, seedForLevel, build,
+           LAST_LEVEL, CURATED, hasGatewayHole, VERSION: "2.4.0" };
 });
