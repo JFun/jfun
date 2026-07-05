@@ -59,6 +59,7 @@ canvas{display:block; touch-action:none}
 .g-poprock{display:inline-block; width:24px; height:36px; border:2px solid var(--dim2); border-radius:6px; position:relative; background:var(--panel2); transform-origin:50% 100%; animation:popRock 2.8s ease-in-out infinite}
 .g-popring{position:absolute; right:2.5px; bottom:2.5px; width:13px; height:13px; border-radius:50%; border:2.5px solid #43a6ff; box-sizing:border-box}
 .g-popout{position:absolute; right:5px; bottom:5px; width:8px; height:8px; animation:popOut 2.8s ease-in-out infinite}
+.g-flipx{display:inline-block; transform:scaleX(-1)}  /* right-pop variant: mirror the whole demo */
 .g-noflow{overflow:visible; border-color:var(--dim)}
 .g-slash{position:absolute; left:-5px; top:14px; width:30px; height:2.5px; background:var(--bad); transform:rotate(-35deg); border-radius:2px}
 /* glyph phones TIP in 3D (perspective+rotateY, same language as the tutorial
@@ -77,10 +78,12 @@ canvas{display:block; touch-action:none}
 }
 /* header restart icon — the only persistent control (end-of-level flow lives on
    the win card; footer buttons sit in the iOS home-indicator zone = dead) */
-.iconbtn{flex:0 0 auto; width:40px; height:40px; padding:0; border-radius:50%;
-  font-size:18px; line-height:1; color:var(--dim2);
+.iconbtn{flex:0 0 auto; width:44px; height:44px; padding:0; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; color:var(--dim2);
   border-bottom:1px solid var(--line);           /* circles get NO 3D edge (crescents) */
   box-shadow:0 4px 12px -2px #00000090}
+/* icon is drawn SVG, not the ⟳ text glyph — the character's built-in whitespace
+   made its ink read tiny next to everything else (device feedback 2026-07) */
 .iconbtn:active{color:var(--ink); transform:translateY(1px); box-shadow:0 2px 8px -2px #00000090}
 .row{display:flex; gap:10px}
 /* buttons are SINGLE-LAYER (device feedback 2026-07: ANY hard bottom edge —

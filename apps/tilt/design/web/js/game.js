@@ -16,6 +16,8 @@
   // Arcade Night skin: retuned marble colors (render-side only — the engine's
   // PAL + color KEYS are untouched, so engine/physics tests stay green)
   const SKIN = { r: "#ff4d6b", g: "#3ce07d", b: "#43a6ff", y: "#ffd23e", o: "#ff8a2a", p: "#b06bff", w: "#f2f5ff" };
+  // drawn restart icon for buttons — never the ⟳ text glyph (its ink reads tiny)
+  const IC_RESTART = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px; margin-right:4px"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>';
 
   /* ---------- audio (impacts sell the physics) ---------- */
   let AC = null;
@@ -228,15 +230,19 @@
   }
 
   const trayC = $("#tray"), tctx = trayC.getContext("2d");
-  let CELL = 40, R = 15;
+  let CELL = 40, R = 15, PAD = 10;   // PAD = rim gutter painted by the canvas
 
   function sizeBoards() {
     // ONE big board — the tray gets the full width (and never outgrows the height)
     const availW = Math.min(window.innerWidth - 54, 480 - 54);  // wrap padding + .trayframe
     const availH = Math.max(200, window.innerHeight - 335); // meta + timer + hint chip (no footer)
     const traySize = Math.min(availW, availH);
-    CELL = Math.floor(traySize / N);
-    const tpx = CELL * N;
+    // rim gutter (design 2026-07): the rail thickens INWARD so border-cell
+    // hole rings and rim-hugging balls sit fully inside the felt. Engine
+    // layouts are UNTOUCHED — this is pure render geometry.
+    PAD = Math.max(9, Math.round(traySize * 0.03));
+    CELL = Math.floor((traySize - 2 * PAD) / N);
+    const tpx = CELL * N + 2 * PAD;
     trayC.width = tpx; trayC.height = tpx; trayC.style.width = tpx + "px"; trayC.style.height = tpx + "px";
     R = CELL * 0.36;
     if (P) draw();
@@ -332,14 +338,30 @@
     return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
   }
 
+  function paintRim() {
+    const w = trayC.width, hgt = trayC.height;
+    const g = tctx.createLinearGradient(0, 0, 0, hgt);
+    g.addColorStop(0, "#272e66"); g.addColorStop(1, "#1b2150");
+    roundRectPath(tctx, 0, 0, w, hgt, 15); tctx.fillStyle = g; tctx.fill();
+    const f = tctx.createLinearGradient(0, PAD, 0, hgt - PAD);
+    f.addColorStop(0, "#171c46"); f.addColorStop(1, "#0f1233");
+    roundRectPath(tctx, PAD, PAD, w - 2 * PAD, hgt - 2 * PAD, 10);
+    tctx.fillStyle = f; tctx.fill();
+    tctx.lineWidth = 1.5; tctx.strokeStyle = "#0a0d26"; tctx.stroke();
+    tctx.strokeStyle = "#ffffff12"; tctx.lineWidth = 1;
+    tctx.beginPath(); tctx.moveTo(16, 1); tctx.lineTo(w - 16, 1); tctx.stroke();
+  }
   function drawGridBg() {
     tctx.clearRect(0, 0, trayC.width, trayC.height);
+    paintRim();
+    tctx.save(); tctx.translate(PAD, PAD);   // play space begins inside the rim
     tctx.fillStyle = "#ffffff0f";       // grid = dots at intersections (quieter than lines)
     for (let i = 1; i < N; i++) for (let j = 1; j < N; j++) {
       tctx.beginPath(); tctx.arc(i * CELL, j * CELL, 1.4, 0, 7); tctx.fill();
     }
     drawSlopes();
     drawBlocks();
+    tctx.restore();
   }
   // HILL rendering (lab v2 — corrected projection): the peak is NEAREST the
   // camera, so it MAGNIFIES — checker rows are widest at the ridge and
@@ -488,8 +510,10 @@
   }
   // draw any physics world into any ctx at a given cell scale — the ONE renderer
   // for the game board and the tutorial demo alike
-  function drawWorld(c, w, S, rolls) {
+  function drawWorld(c, w, S, rolls, holeClip) {
+    if (holeClip) { c.save(); holeClip(); c.clip(); }
     for (const h of w.holes) roundedHole(c, h.x * S, h.y * S, SKIN[h.c], S * 0.36);
+    if (holeClip) c.restore();
     w.marbles.forEach(m => {
       if (!m.captured) return;
       const rp = PH.renderPos(w, m);
@@ -570,8 +594,15 @@
   function draw() { if (world) drawTiltBoard(); }
   function drawTiltBoard() {
     drawGridBg();
-    drawWorld(tctx, world, CELL, { ang: rollAng, head: rollHead });
+    tctx.save(); tctx.translate(PAD, PAD);   // play space begins inside the rim
+    // hole rings/halos (decoration) clip at the felt edge so their glow reads
+    // as tucked under the rail; BALLS are physical and touch the rim exactly —
+    // never clipped, and with the gutter the rim never cuts them either.
+    const feltClip = () => roundRectPath(tctx, -PAD + 1.5, -PAD + 1.5, trayC.width - 3, trayC.height - 3, 10);
+    drawWorld(tctx, world, CELL, { ang: rollAng, head: rollHead }, feltClip);
+    feltClip(); tctx.clip();
     drawLodgedWarnings();
+    tctx.restore();
     if (tiltPhase === "ready") {
       tctx.fillStyle = "#ffffffd9";
       tctx.font = Math.round(CELL * 0.4) + "px 'Lilita One','Arial Rounded MT Bold',-apple-system,sans-serif";
@@ -595,7 +626,7 @@
     draw();
     pops.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= 0.05; });
     pops = pops.filter(p => p.life > 0);
-    tctx.save();
+    tctx.save(); tctx.translate(PAD, PAD);
     for (const p of pops) {
       tctx.globalAlpha = p.life;
       tctx.beginPath(); tctx.arc(p.x, p.y, R * 0.22 * p.life + 1, 0, 7); tctx.fillStyle = p.color; tctx.fill();
@@ -926,7 +957,15 @@
         sndRim(); haptic("light");
       } else if (e.type === "plunk") {
         sndPlunk(); haptic("medium");   // wrong cup — you'll feel it
-        flashHint("Tilt hard — it pops free!", 1, "stuck");
+        // the demo glyph tips TOWARD the ball's true hole, mirroring the
+        // on-board chevrons — a fixed direction can contradict the board
+        // (device feedback 2026-07). Never both ways: that reads as "wiggle",
+        // and a wiggle is exactly what won't pop it out.
+        const pm = world.marbles[e.i];
+        let tgt = null;
+        if (pm) for (const h of world.holes) { if (!h.filled && h.c === pm.c) { tgt = h; break; } }
+        const popRight = !!(pm && tgt && tgt.x > pm.x);
+        flashHint("Tilt hard — it pops free!", 1, popRight ? "stuck-r" : "stuck");
       } else if (e.type === "capture") {
         lastCaptureT = world.t;
         sndCapture(); haptic("medium");
@@ -972,21 +1011,26 @@
       else if (world.t - stuckAt > 3) {          // 3s grace to shake free
         lost = true;
         sndFail(); haptic("heavy");
-        showGameOver(lc.freeN);
+        showGameOver();
       }
     } else stuckAt = -1;
+    // TODO(engine): detect MORE dead ends — a dead end is any state with no
+    // solution from here (ball boxed off from its hole by walls, mutual
+    // plugs, …), not just all-wedged. When the engine can prove one, call
+    // showGameOver(reason) with a reason that names the cause. Never use a
+    // timer as a proxy: slow ≠ unsolvable (design decision 2026-07).
   }
-  function showGameOver(nStuck) {
+  // one card for EVERY dead end (wedged is just the rare provable one —
+  // design 10a/11a follow-up): the reason line names the actual cause.
+  function showGameOver(reason) {
     tiltPhase = "done";
-    const sunk = world.marbles.filter(m => m.captured).length;
+    // one line, no stats: a dead end means "no way to finish from here" —
+    // sunk counts and elapsed time add nothing to that message
+    reason = reason || "No way to finish from this position";
     $("#card").innerHTML = `
-      <h2>STUCK!</h2>
-      <div class="creature" style="color:var(--bad)">${nStuck > 1 ? "Every ball is wedged in a wrong hole" : "Your last ball is wedged in a wrong hole"}</div>
-      <div class="stats">
-        <div><span class="slab">SUNK</span><b>${sunk}/${P.holesArr.length}</b></div>
-        <div><span class="slab">TIME</span><b>${world.t.toFixed(1)}s</b></div>
-      </div>
-      <div class="row"><button id="retry" class="primary">⟳ TRY AGAIN</button></div>`;
+      <h2>DEAD END!</h2>
+      <div class="creature" style="color:var(--bad)">${reason}</div>
+      <div class="row"><button id="retry" class="primary">${IC_RESTART}TRY AGAIN</button></div>`;
     $("#ov").classList.add("show");
     $("#retry").onclick = () => startLevel(level);
   }
@@ -1021,7 +1065,7 @@
       </div>
       <div class="row">
         <button id="nextLvl" class="primary">NEXT ▸</button>
-        <button id="replay">⟳ Replay</button>
+        <button id="replay">${IC_RESTART}Replay</button>
       </div>`;
     $("#ov").classList.add("show");
     $("#nextLvl").onclick = () => startLevel(level + 1);
@@ -1038,6 +1082,7 @@
     // a 2.8s demo, not an icon: phone snaps steep, the wedged ball pops out of
     // the blue ring and rolls away (device feedback: "Tilt HARD" told, didn't show)
     stuck: '<span class="g-poprock"><i class="g-popring"></i><i class="g-ball g-popout"></i></span>',
+    "stuck-r": '<span class="g-flipx"><span class="g-poprock"><i class="g-popring"></i><i class="g-ball g-popout"></i></span></span>',
     blocked: '<span class="g-phone g-noflow"><i class="g-slash"></i></span>',
   };
   function flashHint(t, hot, glyph) {

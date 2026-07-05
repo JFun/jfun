@@ -60,9 +60,14 @@ re-styling.
   56px white, `text-shadow 0 4px 0 #1c2150, 0 10px 26px #00000070`, tabular-nums,
   gold `s` unit 32px `#ffc63e` (static span — JS writes the number only);
   below: `BEST 9.8s` / `FIRST RUN` 800 12px ls .1em `#7d86cf`.
-- **Restart**: 40px circle, bg `#252c5e`, border `#3d4691`, glyph ⟳ 18px
-  `#aab3ee`, soft shadow `0 4px 12px -2px #00000090` (no 3D edge on circles);
-  :active sinks 1px.
+- **Restart icons anywhere** (header circle, ⟳ Replay, ⟳ TRY AGAIN): always the
+  drawn SVG rotate-cw (`currentColor`; 24px in the header circle, 17px inline in
+  card buttons, stroke 2.4–2.8, `vertical-align:-3px; margin-right:4px`) — NEVER
+  the ⟳ text glyph, whose built-in whitespace makes its ink read tiny
+  (device feedback, three sightings).
+- **Restart button**: 44px circle (proper thumb target), bg `#252c5e`, border
+  `#3d4691`, icon `#aab3ee`, soft shadow `0 4px 12px -2px #00000090` (no 3D
+  edge on circles); :active sinks 1px.
 - **Tray frame** (DOM, outside the play canvas): gradient `180deg #2c3373→#1f2554`,
   border 2px `#4a54a0`, radius 24, padding 9, shadow `0 26px 54px -18px #000000d0`.
 - **Tray canvas**: felt `180deg #171c46→#0f1233`, radius 15, inset highlights
@@ -75,7 +80,12 @@ re-styling.
 - **Grid**: dots at cell intersections, r 1.4, `#ffffff0f` (no lines).
 - **Holes** (`roundedHole`): cup fill `#070918` r×1.1; ring `lineWidth 5`,
   stroke = marble color with `shadowColor = color, shadowBlur 12` (neon halo);
-  dimple r×0.5 fill `color+"30"`.
+  dimple r×0.5 fill `color+"30"`. **Rim gutter**: `sizeBoards` reserves
+  `PAD ≈ 3%` of the tray (min 9px); `paintRim()` paints the rail band + felt on
+  the canvas and every play element draws translated by PAD — so border-cell
+  hole rings and rim-hugging balls sit fully on the felt with engine layouts
+  untouched. Hole halos clip at the felt edge (tucked-under-the-rail read);
+  balls are never clipped.
 - **Marbles** (`marbleGrad`/`drawMarbleAt`): grounded ellipse shadow
   (cx, cy+0.55r, rx 0.85r, ry 0.5r, `#00000052`); radial gradient
   `0 #ffffff → 0.16 shade(+60) → 0.55 color → 1 shade(−70)` (highlight origin
@@ -103,11 +113,14 @@ radius 14, padding 10×8, label 900 10px ls .18em `#7d86cf`, value Lilita 20px,
 BEST value gold);
 buttons: one row — `NEXT ▸` primary (flex 1.4 visual weight) + `⟳ Replay`.
 
-### 4. Stuck card (`showGameOver`)
-Same card shell. h2 `STUCK!`; reason line `#ff8296`; 2 chips (SUNK n/m, TIME);
-full-width primary `⟳ TRY AGAIN`. (Design canvas also shows an optional
-wedged-ball vignette — red ball dipped in a blue ring with gold chevrons —
-not implemented in code; add only if asked.)
+### 4. Dead-end card (`showGameOver(reason?)`)
+Same card shell, deliberately bare: h2 `DEAD END!` + one line —
+“No way to finish from this position” — + full-width primary `⟳ TRY AGAIN`.
+No stats row (sunk/time add nothing to that message). A dead end = NO SOLUTION
+FROM THE CURRENT STATE — never a timer (slow ≠ unsolvable). Detectable today:
+all-wedged after the 3s grace. TODO(engine): prove more dead-end states (ball
+walled off from its hole, mutual plugs, …) and call `showGameOver()` promptly;
+pass a cause line only if it helps the player.
 
 ### 5. Tutorial card (`showTutorial`)
 Same card shell. h2 22px `ROLL EACH BALL INTO<br>ITS MATCHING HOLE`; the live
@@ -129,10 +142,18 @@ Every hint is a chip: `[glyph] short text`, centered under the tray.
   out and rolls away (popRock/popOut, 2.8s loop — shows the move, not just an
   icon); slashed phone — motion blocked. Onboarding rock likewise tips via
   `perspective(80px) rotateY(±26deg)`.
+- **The wrong-hole demo is direction-aware**: at plunk time the game finds the
+  ball's true hole and mirrors the glyph (`stuck-r` = `.g-flipx` scaleX(−1)
+  wrapper) so the chip tips the SAME way the on-board chevrons point. Never
+  animate both directions — that depicts a wiggle, the one gesture that won't
+  pop it out.
 - Copy (short — the glyph carries it): “Tap the tray, then tilt” · “Walls! Bank
   shots off them” · “Tilt hard — it pops free!” · “Motion blocked — quit and
   reopen the app”. Calibration happens silently (it's instant and automatic —
   a message there flashes too briefly to read and informs nothing).
+- Dead ends: no nudges, no timers — the card is the only surface, and it fires
+  when the engine PROVES the state unsolvable (see §4). The 25s/50s stall
+  heuristics were explored and cut: slow ≠ unsolvable.
 - Toast unchanged: bg `#252c5e`, border `#3d4691`, radius 999, padding 10×18,
   800 13px, shadow `0 8px 24px -8px #000000c0`.
 - **Wrong hole is ALSO drawn on the board** (`drawLodgedWarnings`): the lodged
@@ -192,7 +213,7 @@ capture + sink, loop with reset.
 
 - `tilt-web/index.html` — new DOM (all ids game.js queries preserved)
 - `tilt-web/style.css` — full Arcade Night stylesheet
-- `tilt-web/js/game.js` — transformed game layer (drawing + card markup + share)
+- `tilt-web/js/game.js` — transformed game layer (drawing + card markup)
 - `tilt-web/PORT_NOTES.md` — change log + device feel-test checklist
 - `assets/icon-1024.png`
 - `screenshots/` — captures of the RUNNING port (desktop-shaped; on device it's

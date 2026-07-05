@@ -11,6 +11,7 @@
   --bg:#0a0d2c; --panel:#252c5e; --panel2:#141838; --line:#3d4691; --ink:#eef1ff;
   --dim:#7d86cf; --dim2:#aab3ee;
   --gold:#ffc63e; --gold2:#ff9d1b; --goldedge:#b46a00;
+  --silver:#cdd6ec; --bronze:#e08a4c;
   --good:#3ce07d; --bad:#ff8296;
   --display:'Lilita One','Arial Rounded MT Bold',-apple-system,sans-serif;
 }
@@ -39,7 +40,11 @@ body{
 .tval .unit{font-size:32px; color:var(--gold)}
 .tbest{font-weight:800; font-size:12px; letter-spacing:.1em; color:var(--dim); min-height:16px}
 #stage{position:relative; width:100%; flex:1 1 auto; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; gap:14px; min-height:0}
+  align-items:center; justify-content:center; gap:14px; min-height:0;
+  /* reserve a bottom band so the board sits a touch higher (consistently, no
+     dynamic jump) — the dead-end banner drops into this band without covering
+     the board, and normal play just has calm breathing room below the hint */
+  padding-bottom:96px}
 /* raised frame OUTSIDE the play area — physics still owns the full canvas */
 .trayframe{background:linear-gradient(180deg,#2c3373,#1f2554); border:2px solid #4a54a0;
   border-radius:24px; padding:9px; box-shadow:0 26px 54px -18px #000000d0}
@@ -71,19 +76,21 @@ canvas{display:block; touch-action:none}
 @keyframes rock{0%,100%{transform:perspective(80px) rotateY(-26deg)}50%{transform:perspective(80px) rotateY(26deg)}}
 @keyframes rollX{0%,100%{transform:translateX(-5px)}50%{transform:translateX(5px)}}
 @keyframes popRock{0%,22%{transform:perspective(80px) rotateY(0)}42%,72%{transform:perspective(80px) rotateY(-34deg)}88%,100%{transform:perspective(80px) rotateY(0)}}
+/* ball pops straight UP out of the cup (no left/right bias — a sideways pop read
+   as "tilt that way", which contradicted the real escape direction) */
 @keyframes popOut{
-  0%,24%{transform:translate(0,0); opacity:1}
-  30%{transform:translate(-1.5px,0)} 35%{transform:translate(.5px,0)} 40%{transform:translate(-2px,0)}
-  52%{transform:translate(-9px,-1px)}
-  70%{transform:translate(-12px,0); opacity:1}
-  78%{transform:translate(-12px,0); opacity:0}
+  0%,24%{transform:translate(0,0) scale(1); opacity:1}
+  30%{transform:translate(0,1px)} 35%{transform:translate(0,-1px)} 40%{transform:translate(0,1px)}
+  52%{transform:translate(0,-9px) scale(1.05)}
+  70%{transform:translate(0,-13px) scale(1.1); opacity:1}
+  78%{transform:translate(0,-13px); opacity:0}
   88%{transform:translate(0,0); opacity:0}
-  96%,100%{transform:translate(0,0); opacity:1}
+  96%,100%{transform:translate(0,0) scale(1); opacity:1}
 }
 /* header restart icon — the only persistent control (end-of-level flow lives on
    the win card; footer buttons sit in the iOS home-indicator zone = dead) */
-.iconbtn{flex:0 0 auto; width:40px; height:40px; padding:0; border-radius:50%;
-  font-size:18px; line-height:1; color:var(--dim2);
+.iconbtn{flex:0 0 auto; width:54px; height:54px; padding:0; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; color:var(--ink);
   border-bottom:1px solid var(--line);           /* circles get NO 3D edge (crescents) */
   box-shadow:0 4px 12px -2px #00000090}
 .iconbtn:active{color:var(--ink); transform:translateY(1px); box-shadow:0 2px 8px -2px #00000090}
@@ -92,12 +99,12 @@ canvas{display:block; touch-action:none}
    offset shadow or thick border — reads as a doubled button). Depth = one soft
    shadow; press = sink 2px with the shadow tightening. */
 button{flex:1; border:1px solid var(--line); background:var(--panel); color:var(--dim2);
-  font-size:14px; font-weight:800; padding:13px; border-radius:16px; cursor:pointer;
+  font-size:16px; font-weight:800; padding:17px 14px; border-radius:16px; cursor:pointer;
   transition:transform .08s, box-shadow .08s, background .15s; font-family:inherit;
   box-shadow:0 6px 14px -6px #000000a0}
 button:active{transform:translateY(2px); box-shadow:0 3px 8px -4px #000000a0}
 button.primary{background:linear-gradient(180deg,var(--gold),var(--gold2)); border:none;
-  color:#3d2400; font-weight:900; font-size:15px; letter-spacing:.04em; padding:14px;
+  color:#3d2400; font-weight:900; font-size:17px; letter-spacing:.04em; padding:18px 14px;
   box-shadow:0 6px 16px -6px #000000a0}
 button.primary:active{transform:translateY(2px); box-shadow:0 3px 8px -4px #000000a0}
 button:disabled{opacity:.4}
@@ -105,6 +112,15 @@ button:disabled{opacity:.4}
 #ov{position:fixed; inset:0; background:#080a20d9; backdrop-filter:blur(8px);
   display:none; align-items:center; justify-content:center; z-index:20; padding:22px}
 #ov.show{display:flex}
+/* dead-end: DON'T cover the board — the annotation on it IS the explanation. No
+   dim/blur; a compact banner slides up at the bottom and STAYS until TRY AGAIN. */
+#ov.deadend{background:transparent; backdrop-filter:none; align-items:flex-end; justify-content:center;
+  padding:0 16px calc(20px + env(safe-area-inset-bottom)); pointer-events:none}
+#ov.deadend .card{max-width:420px; pointer-events:auto; animation:slideup .32s cubic-bezier(.2,1,.35,1);
+  padding:16px 18px; border-radius:20px; box-shadow:0 -10px 40px -12px #000c, 0 0 0 1px #ffffff10}
+#ov.deadend .card h2{font-size:21px; margin-bottom:2px}
+#ov.deadend .card .creature{margin-bottom:12px}
+@keyframes slideup{from{transform:translateY(30px); opacity:0}to{transform:translateY(0); opacity:1}}
 .card{width:100%; max-width:350px; position:relative; overflow:hidden;
   background:linear-gradient(180deg,#2b3268,#1b2050); border:2px solid #4a54a0;
   border-radius:26px; padding:24px 22px 22px; text-align:center;
@@ -124,10 +140,19 @@ button:disabled{opacity:.4}
 .card .stars span:last-child{transform:rotate(10deg)}
 .card .stars .big{font-size:52px; margin-bottom:4px; transform:none}
 .card .creature{font-size:13px; font-weight:800; color:var(--dim2); margin-bottom:14px}
+.card .chase{font-size:12px; font-weight:800; color:var(--dim); margin:-8px 0 16px}
+.card .chase b{font-family:var(--display); font-weight:400; font-size:14px; letter-spacing:.02em}
 .stats{display:flex; gap:10px; justify-content:center; margin:0 0 18px}
 .stats > div{flex:1; background:var(--panel2); border:1px solid var(--line); border-radius:14px; padding:10px 8px}
 .stats .slab{display:block; font-weight:900; font-size:10px; letter-spacing:.18em; color:var(--dim)}
 .stats b{display:block; color:var(--ink); font-family:var(--display); font-weight:400; font-size:20px}
+/* dev level jumper grid */
+.lvlgrid{display:grid; grid-template-columns:repeat(5,1fr); gap:7px; margin-bottom:16px; max-height:62vh; overflow-y:auto}
+.lvlcell{position:relative; aspect-ratio:1; border:1.5px solid var(--line); background:var(--panel2);
+  border-radius:12px; font-family:var(--display); font-weight:400; font-size:18px; color:var(--dim);
+  display:flex; align-items:center; justify-content:center}
+.lvlcell.cur{box-shadow:0 0 0 2px var(--gold)}
+.lvlcell i{position:absolute; bottom:5px; left:50%; transform:translateX(-50%); width:5px; height:5px; border-radius:50%}
 .toast{position:fixed; bottom:calc(24px + env(safe-area-inset-bottom)); left:50%;
   transform:translateX(-50%) translateY(20px);
   background:var(--panel); border:1px solid var(--line); padding:10px 18px; border-radius:999px;

@@ -16,6 +16,9 @@
   // Arcade Night skin: retuned marble colors (render-side only — the engine's
   // PAL + color KEYS are untouched, so engine/physics tests stay green)
   const SKIN = { r: "#ff4d6b", g: "#3ce07d", b: "#43a6ff", y: "#ffd23e", o: "#ff8a2a", p: "#b06bff", w: "#f2f5ff" };
+  // the restart/replay icon = the DESIGN's SVG (Feather refresh-cw), NOT the thin
+  // Unicode ⟳ — sized up for the bigger buttons
+  const IC_RESTART = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-5px;margin-right:5px"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>';
 
   /* ---------- audio (impacts sell the physics) ---------- */
   let AC = null;
@@ -350,29 +353,34 @@
   }
 
   const trayC = $("#tray"), tctx = trayC.getContext("2d");
-  let CELL = 40, R = 15;
+  let CELL = 40, R = 15, PAD = 10;   // PAD = rim gutter painted on the canvas (render-only)
 
   function sizeBoards() {
     // ONE big board — the tray gets the full width (and never outgrows the height)
     const availW = Math.min(window.innerWidth - 54, 480 - 54);  // wrap padding + .trayframe
     const availH = Math.max(200, window.innerHeight - 335); // meta + timer + hint chip (no footer)
     const traySize = Math.min(availW, availH);
-    CELL = Math.floor(traySize / N);
-    const tpx = CELL * N;
+    // rim gutter (design 2026-07): the rail thickens INWARD by PAD so border-cell
+    // hole rings + rim-hugging balls sit fully on the felt. Engine layouts are
+    // untouched — pure render geometry; all play art draws translated by PAD.
+    PAD = Math.max(9, Math.round(traySize * 0.03));
+    CELL = Math.floor((traySize - 2 * PAD) / N);
+    const tpx = CELL * N + 2 * PAD;
     trayC.width = tpx; trayC.height = tpx; trayC.style.width = tpx + "px"; trayC.style.height = tpx + "px";
     R = CELL * 0.36;
     if (P) draw();
   }
 
   function startLevel(n) {
-    level = n;
+    level = Math.max(1, Math.min(n | 0 || 1, E.LAST_LEVEL));
+    n = level;
     P = E.build(n);
     if (!P) { flashHint("Could not build this level — try again."); return; }
     won = false;
     const sv = loadSave();
     sv.level = Math.max(sv.level || 1, n);
     writeSave(sv);
-    $("#ov").classList.remove("show");
+    $("#ov").classList.remove("show", "deadend");
     buildWorld();
     updateHUD();
     draw();
@@ -398,7 +406,7 @@
     tiltPhase = "ready";
     watchdogShown = false;
     lastCaptureT = 0;
-    lost = false; stuckAt = -1;
+    lost = false; stuckHint = false; deadInfo = null;
     rollAng.length = 0; rollHead.length = 0;
     updateTimePill();
   }
@@ -411,8 +419,12 @@
   }
   function updateHUD() {
     $("#lvlN").textContent = level;
-    const b = bestFor(loadSave(), level);
-    $("#bestLab").textContent = b ? "BEST " + b.toFixed(1) + "s" : "FIRST RUN";
+    const sv = loadSave();
+    const b = bestFor(sv, level), m = bestMedal(sv, level);
+    // best time + a persistent medal pip so "chase gold" is always visible
+    $("#bestLab").innerHTML = b
+      ? `BEST ${b.toFixed(1)}s${m ? ` <span style="color:${MEDAL_COL[m]}">●</span>` : ""}`
+      : "FIRST RUN";
   }
 
   /* ---------- drawing ---------- */
@@ -454,14 +466,32 @@
     return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
   }
 
+  // the rim gutter, painted on the canvas: outer rail band + inset felt, so edge
+  // holes/balls have room inside the felt (the DOM .trayframe is the outer bevel).
+  function paintRim() {
+    const w = trayC.width, hgt = trayC.height;
+    const g = tctx.createLinearGradient(0, 0, 0, hgt);
+    g.addColorStop(0, "#272e66"); g.addColorStop(1, "#1b2150");
+    roundRectPath(tctx, 0, 0, w, hgt, 15); tctx.fillStyle = g; tctx.fill();
+    const f = tctx.createLinearGradient(0, PAD, 0, hgt - PAD);
+    f.addColorStop(0, "#171c46"); f.addColorStop(1, "#0f1233");
+    roundRectPath(tctx, PAD, PAD, w - 2 * PAD, hgt - 2 * PAD, 10);
+    tctx.fillStyle = f; tctx.fill();
+    tctx.lineWidth = 1.5; tctx.strokeStyle = "#0a0d26"; tctx.stroke();
+    tctx.strokeStyle = "#ffffff12"; tctx.lineWidth = 1;
+    tctx.beginPath(); tctx.moveTo(16, 1); tctx.lineTo(w - 16, 1); tctx.stroke();
+  }
   function drawGridBg() {
     tctx.clearRect(0, 0, trayC.width, trayC.height);
+    paintRim();
+    tctx.save(); tctx.translate(PAD, PAD);   // play space begins inside the rim
     tctx.fillStyle = "#ffffff0f";       // grid = dots at intersections (quieter than lines)
     for (let i = 1; i < N; i++) for (let j = 1; j < N; j++) {
       tctx.beginPath(); tctx.arc(i * CELL, j * CELL, 1.4, 0, 7); tctx.fill();
     }
     drawSlopes();
     drawBlocks();
+    tctx.restore();
   }
   // HILL rendering (lab v2 — corrected projection): the peak is NEAREST the
   // camera, so it MAGNIFIES — checker rows are widest at the ridge and
@@ -649,6 +679,31 @@
      ring in its own color and gold chevrons march toward its matching hole —
      you see WHICH ball is stuck and WHERE it belongs. Draw-pass overlay only;
      costs nothing when nothing is lodged. Same lodge test as lodgedCount(). */
+  // Which way to nudge a lodged ball out: toward its home hole — but a lodged
+  // ball can ONLY pop out the ways that aren't blocked, so the arrow must stay
+  // inside that open cone. A top-left-corner lodge can only go right/down, never
+  // left/up into the two walls; if toward-home points into a wall or off-board,
+  // snap to the nearest OPEN cardinal instead. Returns radians, or null if the
+  // ball has no home (shouldn't happen while lodged).
+  function escapeAngle(m) {
+    let home = null;
+    for (const h of world.holes) if (!h.filled && h.c === m.c) { home = h; break; }
+    if (!home) return null;
+    const want = Math.atan2(home.y - m.y, home.x - m.x);
+    const bx = Math.floor(m.x), by = Math.floor(m.y);
+    const blocked = (x, y) => x < 0 || x >= N || y < 0 || y >= N ||
+      (world.blocks || []).some(b => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h);
+    const open = [];
+    for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]])
+      if (!blocked(bx + dx, by + dy)) open.push(Math.atan2(dy, dx));
+    if (!open.length) return want;               // fully boxed in — just show intent
+    const diff = (a, b) => { const d = Math.abs(a - b) % (2 * Math.PI); return d > Math.PI ? 2 * Math.PI - d : d; };
+    let best = open[0];
+    for (const a of open) if (diff(a, want) < diff(best, want)) best = a;
+    // keep the smooth toward-home angle when an open cardinal is close to it;
+    // otherwise snap to the open direction nearest home (never into a wall)
+    return diff(best, want) <= Math.PI / 4 ? want : best;
+  }
   function drawLodgedWarnings() {
     if (tiltPhase !== "running" || won || lost) return;
     const t = world.t;
@@ -667,10 +722,9 @@
       tctx.strokeStyle = SKIN[m.c]; tctx.globalAlpha = 0.35 + 0.45 * pulse; tctx.lineWidth = 3.5;
       tctx.stroke();
       tctx.restore();
-      let target = null;
-      for (const h of world.holes) if (!h.filled && h.c === m.c) { target = h; break; }
-      if (!target) continue;
-      const ang = Math.atan2(target.y - m.y, target.x - m.x), ph = (t * 1.8) % 1;
+      const ang = escapeAngle(m);
+      if (ang == null) continue;
+      const ph = (t * 1.8) % 1;
       tctx.save();
       tctx.lineWidth = 4; tctx.lineCap = "round";
       for (let i = 0; i < 3; i++) {
@@ -692,14 +746,54 @@
   function draw() { if (world) drawTiltBoard(); }
   function drawTiltBoard() {
     drawGridBg();
+    tctx.save(); tctx.translate(PAD, PAD);   // play space begins inside the rim
     drawWorld(tctx, world, CELL, { ang: rollAng, head: rollHead });
     drawLodgedWarnings();
+    tctx.restore();
+    if (deadInfo) drawDeadEnd();             // dims full canvas itself, then offsets by PAD
     if (tiltPhase === "ready") {
       tctx.fillStyle = "#ffffffd9";
       tctx.font = Math.round(CELL * 0.4) + "px 'Lilita One','Arial Rounded MT Bold',-apple-system,sans-serif";
       tctx.textAlign = "center";
-      tctx.fillText("TAP TO START", trayC.width / 2, trayC.height - CELL * 0.45);
+      tctx.fillText("TAP TO START", trayC.width / 2, trayC.height - PAD - CELL * 0.45);
     }
+  }
+  // The "why" behind a dead end, drawn ON the board. COLOUR-CONSISTENT: the trapped
+  // ball, its matching-colour home hole, and the tie between them are ALL the ball's
+  // own colour (so "this green ball ↔ its green hole" reads at a glance). The ONLY
+  // red is the ✕ on the ball actually sealing the way — the single problem.
+  function drawDeadEnd() {
+    const t = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(t * 5);
+    const col = SKIN[deadInfo.color];
+    tctx.save();
+    tctx.fillStyle = "rgba(8,10,32,0.66)"; tctx.fillRect(0, 0, trayC.width, trayC.height);
+    tctx.translate(PAD, PAD);            // annotation is in play (CELL) space, inside the rim
+    tctx.lineCap = "round";
+    const bpx = deadInfo.bx * CELL, bpy = deadInfo.by * CELL;
+    const hpx = (deadInfo.home.x + 0.5) * CELL, hpy = (deadInfo.home.y + 0.5) * CELL;
+    // tie: ball ↔ its home hole, dotted, in the ball's OWN colour (a "these belong
+    // together" link, not a route — the ball can't actually travel it)
+    tctx.strokeStyle = col; tctx.globalAlpha = 0.4 + 0.3 * pulse; tctx.lineWidth = 3; tctx.setLineDash([5, 9]);
+    tctx.beginPath(); tctx.moveTo(bpx, bpy); tctx.lineTo(hpx, hpy); tctx.stroke();
+    tctx.setLineDash([]); tctx.globalAlpha = 1;
+    // its home hole, ringed in the ball's colour + pulsing (the target it wants)
+    tctx.strokeStyle = col; tctx.lineWidth = 4; tctx.globalAlpha = 0.55 + 0.45 * pulse;
+    tctx.beginPath(); tctx.arc(hpx, hpy, R * (1.18 + 0.12 * pulse), 0, 7); tctx.stroke();
+    tctx.globalAlpha = 1;
+    // the trapped ball, redrawn bright + a ring in its colour
+    tctx.fillStyle = col;
+    tctx.beginPath(); tctx.arc(bpx, bpy, R, 0, 7); tctx.fill();
+    tctx.strokeStyle = col; tctx.lineWidth = 3.5; tctx.globalAlpha = 0.55 + 0.45 * pulse;
+    tctx.beginPath(); tctx.arc(bpx, bpy, R * (1.35 + 0.22 * pulse), 0, 7); tctx.stroke();
+    tctx.globalAlpha = 1;
+    // the ONE problem: a red ✕ on the ball sealing the hole's only approach
+    tctx.strokeStyle = "#ff5a6e"; tctx.lineWidth = 5;
+    for (const s of deadInfo.seals) {
+      const cx = (s.x + 0.5) * CELL, cy = (s.y + 0.5) * CELL, r = CELL * 0.3;
+      tctx.beginPath(); tctx.moveTo(cx - r, cy - r); tctx.lineTo(cx + r, cy + r);
+      tctx.moveTo(cx + r, cy - r); tctx.lineTo(cx - r, cy + r); tctx.stroke();
+    }
+    tctx.restore();
   }
 
   /* particle pops (decorative — rAF-only is fine here) */
@@ -717,7 +811,7 @@
     draw();
     pops.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= 0.05; });
     pops = pops.filter(p => p.life > 0);
-    tctx.save();
+    tctx.save(); tctx.translate(PAD, PAD);   // pops are in play (CELL) space
     for (const p of pops) {
       tctx.globalAlpha = p.life;
       tctx.beginPath(); tctx.arc(p.x, p.y, R * 0.22 * p.life + 1, 0, 7); tctx.fillStyle = p.color; tctx.fill();
@@ -976,7 +1070,7 @@
     $("#tutGo").onclick = () => {
       tutOn = false; cancelAnimationFrame(tutRAF);
       tutWorld = null; tutStepFn = null;
-      $("#ov").classList.remove("show");
+      $("#ov").classList.remove("show", "deadend");
       onDone && onDone();
     };
   }
@@ -1005,12 +1099,16 @@
       beginRun();
       return;
     }
+    if (tiltPhase === "dead") {   // frozen board + persistent "why" annotation (banner is a bottom sheet)
+      lastT = now; setRollLevel(0); draw();
+      return;
+    }
     if (tiltPhase !== "running") { lastT = now; setRollLevel(0); if (tiltPhase === "ready") draw(); return; }
     let dt = (now - lastT) / 1000; lastT = now;
     if (dt > 0.05) dt = 0.05;   // clamp hiccups (backgrounding etc.)
     acc += dt;
     const g = currentGravity();
-    while (acc >= PH.DT) { PH.step(world, g); acc -= PH.DT; consumeEvents(); }
+    while (acc >= PH.DT) { PH.step(world, g); acc -= PH.DT; consumeEvents(); if (lost) break; }
     // rolling-texture cue + rolling-rumble level
     let smax = 0;
     world.marbles.forEach((m, i) => {
@@ -1043,11 +1141,12 @@
         sndRim(); haptic("light");
       } else if (e.type === "plunk") {
         sndPlunk(); haptic("medium");   // wrong cup — you'll feel it
-        flashHint("Tilt HARD to pop it out!", 1, "stuck");
+        flashHint("Tilt HARD to pop it out!", 1, "stuck"); stuckHint = true;
       } else if (e.type === "capture") {
         lastCaptureT = world.t;
         sndCapture(); haptic("medium");
         popAt(e.x * CELL, e.y * CELL, SKIN[e.color]);
+        checkSeal();   // a new permanent obstacle — did it seal off any remaining ball's home?
       }
     }
   }
@@ -1064,6 +1163,26 @@
     $("#timeV").textContent = world.t.toFixed(1);
   }
   function bestFor(sv, lvl) { return sv.best && sv.best[lvl]; }
+  /* ---------- time medals (the replay hook) ----------
+     Thresholds scale off the level's BFS par (min tilts): a par-1 sprint wants
+     gold in a few seconds, a long level gets proportionally more room. Clearing
+     ALWAYS earns at least bronze. First-pass constants — tune to real playtest
+     times (that's the deliberate "set from your own runs" step). */
+  function medalTimes(par) { const p = Math.max(1, par || 1); return { gold: 1.2 + p * 1.6, silver: 2.0 + p * 2.6 }; }
+  function medalFor(time, par) { const t = medalTimes(par); return time <= t.gold ? "gold" : time <= t.silver ? "silver" : "bronze"; }
+  const MEDAL_RANK = { bronze: 1, silver: 2, gold: 3 };
+  const MEDAL_COL = { gold: "var(--gold)", silver: "var(--silver)", bronze: "var(--bronze)" };
+  function bestMedal(sv, lvl) { return sv.medal && sv.medal[lvl]; }
+  // 3 stars, lit center-out by tier (bronze 1 / silver 2 / gold 3), tinted the
+  // medal colour — the big centre star anchors every tier so bronze still reads.
+  function medalStarsHTML(medal) {
+    const lit = { 1: [1], 2: [0, 1], 3: [0, 1, 2] }[MEDAL_RANK[medal]];
+    const cls = ["", "big", ""];
+    return [0, 1, 2].map(i => {
+      const on = lit.indexOf(i) >= 0;
+      return `<span class="${cls[i]}" style="color:${on ? MEDAL_COL[medal] : "var(--dim2)"};${on ? "" : "opacity:.28"}">★</span>`;
+    }).join("");
+  }
   /* ---------- dead end = game over (the card, not endless grinding) ----------
      Lodged balls ARE physically escapable (hard tilt), but when EVERY remaining
      ball sits wedged in a wrong hole and stays there past the grace window, the
@@ -1080,31 +1199,77 @@
     }
     return { lodged, freeN };
   }
-  let stuckAt = -1;                 // world.t when the all-lodged state began
+  let stuckHint = false;            // "pop it out" hint is up — clear it once nothing is wedged
+  // DEAD END, done RIGHT (2026-07): a full solver run is not just slow (~1s) but the
+  // WRONG oracle — the discrete slide model can't stop a ball mid-board, so it calls
+  // almost every settled arrangement "dead" though the player could still roll home.
+  // The only UNRECOVERABLE dead end is PHYSICAL: a ball's home hole walled/captured
+  // off so it can never reach it. Walls are static and the fragile "gateway hole" is
+  // now forbidden at build (engine.hasGatewayHole), so this can only happen when a
+  // CAPTURED ball (a permanent obstacle) seals the last approach — so we re-check
+  // only on capture, with a cheap grid flood-fill. Wrong holes are passable (lip-out),
+  // captured balls + walls block. Sound: fires only on a genuine seal, never on a
+  // ball that just rolled somewhere awkward. Cost: a 64-cell BFS, instant.
+  function homeReachable(m, blocked) {
+    const home = P.holesArr.find(h => h.c === m.c);
+    if (!home) return true;
+    const sx = Math.max(0, Math.min(N - 1, Math.round(m.x - 0.5)));
+    const sy = Math.max(0, Math.min(N - 1, Math.round(m.y - 0.5)));
+    const seen = new Set([sx + "," + sy]);
+    let q = [[sx, sy]];
+    while (q.length) {
+      const [x, y] = q.shift();
+      if (x === home.x && y === home.y) return true;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy, k = nx + "," + ny;
+        if (nx < 0 || nx >= N || ny < 0 || ny >= N || seen.has(k) || blocked.has(k)) continue;
+        seen.add(k); q.push([nx, ny]);
+      }
+    }
+    return false;
+  }
+  let deadInfo = null;
+  function checkSeal() {
+    if (won || lost || !world || tiltPhase !== "running") return;
+    const blocked = new Set(), capCells = new Set();
+    for (const b of (P.walls || [])) blocked.add(b.x + "," + b.y);
+    for (const m of world.marbles) if (m.captured) { const k = Math.round(m.x - 0.5) + "," + Math.round(m.y - 0.5); blocked.add(k); capCells.add(k); }
+    for (const m of world.marbles) {
+      if (m.captured) continue;
+      if (homeReachable(m, blocked)) continue;
+      // this ball can never reach its hole — capture the "why" for the board
+      // annotation: the ball, its sealed home hole, and the CAPTURED ball(s) sealing
+      // the approach (walls are static context — only the captured ball is the cause).
+      const home = P.holesArr.find(h => h.c === m.c);
+      const seals = [];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = home.x + dx, ny = home.y + dy;
+        if (nx >= 0 && nx < N && ny >= 0 && ny < N && capCells.has(nx + "," + ny)) seals.push({ x: nx, y: ny });
+      }
+      lost = true; sndFail(); haptic("heavy");
+      deadInfo = { bx: m.x, by: m.y, home: { x: home.x, y: home.y }, seals: seals, color: m.c };
+      tiltPhase = "dead";           // board keeps the "why" annotation up; banner slides in
+      showDeadEnd("This ball can’t reach its hole");
+      return;
+    }
+  }
   function checkDeadEnd() {
     if (won || lost || !world || tiltPhase !== "running") return;
     const lc = lodgedCount();
-    if (lc.freeN > 0 && lc.lodged === lc.freeN) {
-      if (stuckAt < 0) stuckAt = world.t;
-      else if (world.t - stuckAt > 3) {          // 3s grace to shake free
-        lost = true;
-        sndFail(); haptic("heavy");
-        showGameOver(lc.freeN);
-      }
-    } else stuckAt = -1;
+    // the "Tilt HARD to pop it out!" hint only makes sense while a ball is
+    // actually wedged — once the last wrong ball frees, drop it
+    if (stuckHint && lc.lodged === 0) { $("#hint").style.opacity = 0; stuckHint = false; }
   }
-  function showGameOver(nStuck) {
-    tiltPhase = "done";
-    const sunk = world.marbles.filter(m => m.captured).length;
+  // Dead-end banner: a COMPACT bottom sheet that does NOT cover the board — the
+  // annotation on the board is the explanation, and it stays lit (phase "dead")
+  // until the player taps. One line, no stats.
+  function showDeadEnd(reason) {
+    reason = reason || "No way to finish from this position";
     $("#card").innerHTML = `
-      <h2>STUCK!</h2>
-      <div class="creature" style="color:var(--bad)">${nStuck > 1 ? "Every ball is wedged in a wrong hole" : "Your last ball is wedged in a wrong hole"}</div>
-      <div class="stats">
-        <div><span class="slab">SUNK</span><b>${sunk}/${P.holesArr.length}</b></div>
-        <div><span class="slab">TIME</span><b>${world.t.toFixed(1)}s</b></div>
-      </div>
-      <div class="row"><button id="retry" class="primary">⟳ TRY AGAIN</button></div>`;
-    $("#ov").classList.add("show");
+      <h2>DEAD END!</h2>
+      <div class="creature" style="color:var(--bad)">${reason}</div>
+      <div class="row"><button id="retry" class="primary">${IC_RESTART}TRY AGAIN</button></div>`;
+    $("#ov").classList.add("show", "deadend");
     $("#retry").onclick = () => startLevel(level);
   }
   function winTilt() {
@@ -1112,10 +1277,15 @@
     // score the moment the LAST marble dropped, not the end of its sink animation
     const time = Math.round((lastCaptureT || world.t) * 10) / 10;
     const sv = loadSave();
-    sv.level = Math.max(sv.level || 1, level + 1);
+    sv.level = Math.min(Math.max(sv.level || 1, level + 1), E.LAST_LEVEL);
     sv.best = sv.best || {};
     const prev = sv.best[level];
     sv.best[level] = prev ? Math.min(prev, time) : time;
+    // medal: keep the best tier ever earned on this level
+    const medal = medalFor(time, P.par);
+    sv.medal = sv.medal || {};
+    if (!sv.medal[level] || MEDAL_RANK[medal] > MEDAL_RANK[sv.medal[level]]) sv.medal[level] = medal;
+    if (level >= E.LAST_LEVEL) sv.done = 1;
     writeSave(sv);
     sndWinChord(); haptic("medium");
     let burst = 0; const bi = setInterval(() => {
@@ -1127,22 +1297,78 @@
   function showTiltResult(time, prevBest) {
     const sv = loadSave();
     const isPB = !prevBest || time <= prevBest;
+    const medal = medalFor(time, P.par);         // THIS run's medal — the card rates the run you just played, not your best-ever
+    const mt = medalTimes(P.par);
+    const isLast = level >= E.LAST_LEVEL;
+    const chase = medal === "gold" ? "" :
+      `<div class="chase">for <b style="color:${medal === "bronze" ? MEDAL_COL.silver : MEDAL_COL.gold}">${medal === "bronze" ? "SILVER" : "GOLD"}</b> clear under ${(medal === "bronze" ? mt.silver : mt.gold).toFixed(1)}s</div>`;
     $("#card").innerHTML = `
       <div class="glow"></div>
-      <div class="stars"><span>★</span><span class="big">★</span><span>★</span></div>
+      <div class="stars">${medalStarsHTML(medal)}</div>
       <h2>LEVEL ${level} CLEAR!</h2>
-      <div class="creature">${isPB ? '<span style="color:var(--good)">New best!</span>' : '<span style="color:var(--gold)">Solved</span>'}</div>
+      <div class="creature"><span style="color:${MEDAL_COL[medal]}">${medal.toUpperCase()}</span>${isPB ? ' · <span style="color:var(--good)">New best!</span>' : ""}</div>
       <div class="stats">
         <div><span class="slab">TIME</span><b>${time.toFixed(1)}s</b></div>
         <div><span class="slab">BEST</span><b style="color:var(--gold)">${(sv.best[level]).toFixed(1)}s</b></div>
       </div>
+      ${chase}
       <div class="row">
-        <button id="nextLvl" class="primary">NEXT ▸</button>
-        <button id="replay">⟳ Replay</button>
+        <button id="nextLvl" class="primary">${isLast ? "FINISH ★" : "NEXT ▸"}</button>
+        <button id="replay">${IC_RESTART}Replay</button>
       </div>`;
     $("#ov").classList.add("show");
-    $("#nextLvl").onclick = () => startLevel(level + 1);
+    $("#nextLvl").onclick = () => isLast ? showCampaignComplete() : startLevel(level + 1);
     $("#replay").onclick = () => startLevel(level);   // chase the best time
+  }
+  // Finite campaign payoff — the "you beat it" card with a medal tally and a
+  // reason to come back (turn silvers/bronzes into gold).
+  function showCampaignComplete() {
+    const sv = loadSave();
+    let g = 0, s = 0, b = 0;
+    for (let L = 1; L <= E.LAST_LEVEL; L++) {
+      const m = (sv.medal || {})[L];
+      if (m === "gold") g++; else if (m === "silver") s++; else if (m === "bronze") b++;
+    }
+    const flawless = g === E.LAST_LEVEL;
+    $("#card").innerHTML = `
+      <div class="glow"></div>
+      <div class="stars"><span style="color:var(--gold)">★</span><span class="big" style="color:var(--gold)">★</span><span style="color:var(--gold)">★</span></div>
+      <h2>YOU BEAT TILT!</h2>
+      <div class="creature">All ${E.LAST_LEVEL} levels cleared</div>
+      <div class="stats">
+        <div><span class="slab">GOLD</span><b style="color:${MEDAL_COL.gold}">${g}</b></div>
+        <div><span class="slab">SILVER</span><b style="color:${MEDAL_COL.silver}">${s}</b></div>
+        <div><span class="slab">BRONZE</span><b style="color:${MEDAL_COL.bronze}">${b}</b></div>
+      </div>
+      <div class="chase">${flawless ? "Flawless — every level gold." : "Replay to turn silver &amp; bronze into gold."}</div>
+      <div class="row"><button id="fromTop" class="primary">${IC_RESTART}PLAY AGAIN</button></div>`;
+    $("#ov").classList.add("show");
+    $("#fromTop").onclick = () => startLevel(1);
+  }
+  /* ---------- dev: level jumper (skip playing through to test any level) ----------
+     On device the ?lvl= URL hook is inert, so testing L30/the finish flow means
+     grinding 29 levels. Long-press the LEVEL chip → a grid of every level (with
+     your medals) → tap to jump anywhere, including the last. Flip DEV_LEVELS to
+     false to hide it for a public release. */
+  const DEV_LEVELS = true;
+  function openLevelPicker() {
+    if (!DEV_LEVELS) return;
+    const sv = loadSave();
+    let cells = "";
+    for (let L = 1; L <= E.LAST_LEVEL; L++) {
+      const m = (sv.medal || {})[L];
+      const col = m ? MEDAL_COL[m] : "var(--dim)";
+      cells += `<button class="lvlcell${L === level ? " cur" : ""}" data-l="${L}" ` +
+        `style="color:${col};border-color:${m ? col : "var(--line)"}">${L}` +
+        (m ? `<i style="background:${col}"></i>` : "") + "</button>";
+    }
+    $("#card").innerHTML =
+      `<h2 style="margin-bottom:12px">LEVELS <span style="font-size:12px;color:var(--dim);font-family:var(--display)">1–${E.LAST_LEVEL}</span></h2>` +
+      `<div class="lvlgrid">${cells}</div>` +
+      `<div class="row"><button id="pickClose" class="primary">Close</button></div>`;
+    $("#ov").classList.add("show");
+    $("#card").querySelectorAll(".lvlcell").forEach(bn => bn.onclick = () => { $("#ov").classList.remove("show"); startLevel(+bn.dataset.l); });
+    $("#pickClose").onclick = () => $("#ov").classList.remove("show");
   }
 
   // Visual hint chips (design 5a): every hint is [glyph] + short text. Glyphs are
@@ -1168,11 +1394,26 @@
   function restart() {
     won = false; lost = false;
     buildWorld();
-    $("#ov").classList.remove("show");
+    $("#ov").classList.remove("show", "deadend");
     updateHUD(); draw(); showOnboarding();
   }
 
   $("#reset").onclick = () => { restart(); toast("Level restarted"); haptic("light"); };
+
+  /* dev: long-press the LEVEL chip → level jumper (see openLevelPicker) */
+  (function () {
+    const chip = document.querySelector(".meta .chip");
+    if (!chip) return;
+    let lp = 0;
+    const arm = () => { clearTimeout(lp); lp = setTimeout(() => { haptic("medium"); openLevelPicker(); }, 500); };
+    const cancel = () => clearTimeout(lp);
+    chip.addEventListener("touchstart", arm, { passive: true });
+    chip.addEventListener("touchend", cancel);
+    chip.addEventListener("touchmove", cancel);
+    chip.addEventListener("mousedown", arm);
+    chip.addEventListener("mouseup", cancel);
+    chip.addEventListener("mouseleave", cancel);
+  })();
 
   /* tray input: tap anywhere on the tray to start the run */
   trayC.addEventListener("touchstart", e => { e.preventDefault(); startTiltRun(); }, { passive: false });
@@ -1198,6 +1439,13 @@
     // once; keep level progress
     const sv = loadSave();
     if (!sv.rulesV3) { sv.rulesV3 = 1; delete sv.best; writeSave(sv); }
+    // curated onboarding changed L1–6 layouts + added medals — old bests/medals
+    // for those don't compare; clear once, keep progress (capped to the campaign)
+    if (!sv.mvpV1) {
+      sv.mvpV1 = 1; delete sv.best; delete sv.medal;
+      if (sv.level) sv.level = Math.min(sv.level, E.LAST_LEVEL);
+      writeSave(sv);
+    }
   }
   tryNativeMotion();   // native accelerometer needs no gesture/permission — flow from boot
   try { window.__tilt = { puzzle: () => P, level: () => level,
@@ -1206,6 +1454,7 @@
     start: startTiltRun, setGravity: (gx, gy) => { devG = (gx == null) ? null : { gx, gy }; },
     feedVec: (x, y, z) => lpVec(x, y, z, 1), angles: () => tiltAngles(),
     setCal: (p, r) => { cal = { pitch: p, roll: r }; }, gravity: () => currentGravity(),
+    pick: openLevelPicker, escapeAngle: m => escapeAngle(m), checkSeal: () => { checkSeal(); return lost; }, deadInfo: () => deadInfo,
     tut: () => tutWorld, tutStep: s => tutStepFn && tutStepFn(s), showTut: () => showTutorial(() => {}),
     showWalls: () => showMechanicIntro(() => {}),
     stepN: (n, g) => {
