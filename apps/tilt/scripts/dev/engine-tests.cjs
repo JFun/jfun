@@ -124,12 +124,12 @@ t.invariant("independent BFS agrees with par", boards, it => {
 });
 
 t.section("ramp shape");
-t.ok("holes climb 3→6", E.rampFor(1).nHoles === 3 && E.rampFor(5).nHoles === 4 && E.rampFor(9).nHoles === 5 && E.rampFor(13).nHoles === 6 && E.rampFor(40).nHoles === 6);
-t.ok("walls arrive at L4 and climb to 8", E.rampFor(1).nWalls === 0 && E.rampFor(3).nWalls === 0 && E.rampFor(4).nWalls === 2 && E.rampFor(10).nWalls === 4 && E.rampFor(40).nWalls === 8);
-t.ok("hills are PARKED (never generated) — block obstacles only for MVP", E.rampFor(1).nSlopes === 0 && E.rampFor(6).nSlopes === 0 && E.rampFor(14).nSlopes === 0 && E.rampFor(40).nSlopes === 0);
+t.ok("holes climb 3→6", E.rampFor(1).nHoles === 3 && E.rampFor(5).nHoles === 4 && E.rampFor(9).nHoles === 5 && E.rampFor(13).nHoles === 6 && E.rampFor(30).nHoles === 6);
+t.ok("walls arrive at L4 and climb to 8", E.rampFor(1).nWalls === 0 && E.rampFor(3).nWalls === 0 && E.rampFor(4).nWalls === 2 && E.rampFor(10).nWalls === 4 && E.rampFor(30).nWalls === 8);
+t.ok("hills are PARKED (never generated) — block obstacles only for MVP", E.rampFor(1).nSlopes === 0 && E.rampFor(6).nSlopes === 0 && E.rampFor(14).nSlopes === 0 && E.rampFor(30).nSlopes === 0);
 
 t.section("finite campaign + curated on-ramp");
-t.ok("campaign is finite (LAST_LEVEL = 60)", E.LAST_LEVEL === 60);
+t.ok("campaign is finite (LAST_LEVEL = 30)", E.LAST_LEVEL === 30);
 t.ok("curated levels cover the onboarding stretch", Object.keys(E.CURATED).length >= 5 && !!E.CURATED[1] && !!E.CURATED[4]);
 const curBoards = Object.keys(E.CURATED).map(L => ({ name: "curated L" + L, L: +L, p: E.build(+L) }));
 t.invariant("curated level builds + is solvable", curBoards, it => !!it.p && Array.isArray(it.p.solution) && it.p.par >= 1);
