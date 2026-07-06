@@ -127,7 +127,7 @@
   // campaign test, never ships. Beyond CURATED the solver-verified generator
   // fills the tail. Coords 0–7; each entry: h=holes, m=marbles [x,y,color],
   // w=wall blocks [x,y].
-  const LAST_LEVEL = 60;
+  const LAST_LEVEL = 30;
   const CURATED = {
     1: { h: [[2, 4, "r"]], m: [[6, 4, "r"]], w: [] },
     2: { h: [[2, 2, "r"], [5, 5, "b"]], m: [[6, 2, "r"], [1, 5, "b"]], w: [] },

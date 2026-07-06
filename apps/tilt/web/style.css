@@ -163,7 +163,7 @@ button:disabled{opacity:.4}
 .ls-eyebrow{flex:0 0 auto; font-weight:800; font-size:10px; letter-spacing:.24em; color:var(--dim); padding:0 20px 10px}
 #lsDev{display:none; color:var(--gold); font-weight:900}   /* dev jump tag (DEV_UNLOCK) */
 .ls-grid{flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
-  display:grid; grid-template-columns:repeat(5,1fr); gap:11px;
+  display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:11px; align-content:start;   /* minmax(0,…): aspect-ratio tiles inflate a bare 1fr → 5th column overflowed off-screen; align-content:start packs rows tight at the top instead of stretching them down the screen */
   padding:4px 18px calc(28px + env(safe-area-inset-bottom))}
 .lvltile{position:relative; aspect-ratio:1/1.06; border-radius:15px; padding:0; cursor:pointer;
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
