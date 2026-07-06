@@ -84,16 +84,21 @@
     s.connect(f); f.connect(g); g.connect(AC.destination);
     s.start(t);
   }
+  // Settings gates (persisted in the save, default ON). SFX_ON gates every snd* call
+  // + the rolling rumble; VIBE_ON gates haptic(). applySettings() reloads them.
+  let SFX_ON = true, VIBE_ON = true;
+  function applySettings() { const sv = loadSave(); SFX_ON = !sv.soundOff; VIBE_ON = !sv.vibeOff; }
   const sndAt = {};
   function throttled(kind, ms) { const now = performance.now(); if (sndAt[kind] && now - sndAt[kind] < ms) return false; sndAt[kind] = now; return true; }
   // glass, not wood: high, short, bright — throttled PER PAIR so chain clacks all speak
   function sndClack(vol, pitch, key, dead) {
+    if (!SFX_ON) return;
     if (!throttled("clack" + (key || ""), 45)) return;
     if (snReady) { SN.play({ name: dead ? "clackDead" : "clack", rate: pitch, vol }); return; }
     if (dead) { tone(760 * pitch, 430 * pitch, 0.045, 0.3 * vol, "sine"); noiseBurst(0.02, 0.1 * vol, 1500); return; }
     tone(1900 * pitch, 1350 * pitch, 0.035, 0.26 * vol, "sine"); noiseBurst(0.02, 0.14 * vol, 3000);
   }
-  function sndWallHit(vol) { if (!throttled("wall", 60)) return; if (snReady) { SN.play({ name: "wall", rate: 1, vol }); return; } tone(120, 65, 0.1, 0.4 * vol, "sine"); noiseBurst(0.04, 0.2 * vol, 700); }
+  function sndWallHit(vol) { if (!SFX_ON) return; if (!throttled("wall", 60)) return; if (snReady) { SN.play({ name: "wall", rate: 1, vol }); return; } tone(120, 65, 0.1, 0.4 * vol, "sine"); noiseBurst(0.04, 0.2 * vol, 700); }
   // continuous rolling rumble — gain/brightness track the fastest free marble
   let rollSrc = null, rollGain = null, rollFilter = null;
   function initRollSound() {
@@ -111,6 +116,7 @@
   }
   let rollSentAt = 0, rollSentGain = -1;
   function setRollLevel(maxSpeed) {   // maxSpeed in cells/s; 0 silences
+    if (!SFX_ON) maxSpeed = 0;        // settings: sound off → no rolling rumble
     if (snReady) {
       const now = performance.now();
       const gain = Math.min(0.11, maxSpeed / 15 * 0.11);
@@ -124,12 +130,13 @@
     rollGain.gain.setTargetAtTime(g, AC.currentTime, 0.06);
     rollFilter.frequency.setTargetAtTime(300 + maxSpeed * 70, AC.currentTime, 0.06);
   }
-  function sndCapture() { if (snReady) { SN.play({ name: "capture", rate: 1, vol: 1 }); return; } tone(500, 760, 0.12, 0.25, "sine"); tone(760, 1050, 0.2, 0.2, "triangle", 0.07); }
-  function sndPlunk() { if (!throttled("plunk", 120)) return; if (snReady) { SN.play({ name: "plunk", rate: 1, vol: 1 }); return; } tone(240, 110, 0.12, 0.32, "sine"); noiseBurst(0.03, 0.1, 900); }
-  function sndRim() { if (!throttled("rim", 90)) return; if (snReady) { SN.play({ name: "rim", rate: 1, vol: 1 }); return; } tone(300, 180, 0.05, 0.2, "triangle"); tone(250, 140, 0.05, 0.16, "triangle", 0.05); noiseBurst(0.03, 0.12, 1200); }
-  function sndWinChord() { if (snReady) { SN.play({ name: "win", rate: 1, vol: 1 }); return; } [523, 659, 784, 1047].forEach((f, i) => tone(f, f * 1.01, 0.28, 0.22, "triangle", i * 0.09)); }
-  function sndFail() { if (snReady) { SN.play({ name: "fail", rate: 1, vol: 1 }); return; } tone(320, 150, 0.25, 0.3, "triangle"); tone(210, 90, 0.35, 0.26, "triangle", 0.13); }
+  function sndCapture() { if (!SFX_ON) return; if (snReady) { SN.play({ name: "capture", rate: 1, vol: 1 }); return; } tone(500, 760, 0.12, 0.25, "sine"); tone(760, 1050, 0.2, 0.2, "triangle", 0.07); }
+  function sndPlunk() { if (!SFX_ON) return; if (!throttled("plunk", 120)) return; if (snReady) { SN.play({ name: "plunk", rate: 1, vol: 1 }); return; } tone(240, 110, 0.12, 0.32, "sine"); noiseBurst(0.03, 0.1, 900); }
+  function sndRim() { if (!SFX_ON) return; if (!throttled("rim", 90)) return; if (snReady) { SN.play({ name: "rim", rate: 1, vol: 1 }); return; } tone(300, 180, 0.05, 0.2, "triangle"); tone(250, 140, 0.05, 0.16, "triangle", 0.05); noiseBurst(0.03, 0.12, 1200); }
+  function sndWinChord() { if (!SFX_ON) return; if (snReady) { SN.play({ name: "win", rate: 1, vol: 1 }); return; } [523, 659, 784, 1047].forEach((f, i) => tone(f, f * 1.01, 0.28, 0.22, "triangle", i * 0.09)); }
+  function sndFail() { if (!SFX_ON) return; if (snReady) { SN.play({ name: "fail", rate: 1, vol: 1 }); return; } tone(320, 150, 0.25, 0.3, "triangle"); tone(210, 90, 0.35, 0.26, "triangle", 0.13); }
   function haptic(style) {
+    if (!VIBE_ON) return;              // settings: vibration off
     const H = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics;
     if (H && H.impact) { H.impact({ style: style === "heavy" ? "HEAVY" : style === "medium" ? "MEDIUM" : "LIGHT" }).catch(() => {}); return; }
     if (navigator.vibrate) try { navigator.vibrate(style === "heavy" ? 35 : style === "medium" ? 20 : 10); } catch (e) {}
@@ -404,7 +411,7 @@
         ax: s.a === "H" ? 1 : 0, ay: s.a === "H" ? 0 : 1 })),
     });
     tiltPhase = "ready";
-    watchdogShown = false;
+    watchdogShown = false; restChecked = false;
     lastCaptureT = 0;
     lost = false; stuckHint = false; deadInfo = null;
     rollAng.length = 0; rollHead.length = 0;
@@ -1113,10 +1120,18 @@
     draw();
     if (!lost) updateTimePill();
     checkDeadEnd();
+    // seal re-check ON SETTLE, not only on capture: a ball can roll into a pocket
+    // already sealed by walls + captured balls AFTER the last capture — that dead
+    // end fires no capture event, so nothing would catch it. Cheap O(64) flood-fill,
+    // run once each time the board comes to rest.
+    if (!won && !lost) {
+      if (smax < 0.05) { if (!restChecked) { restChecked = true; checkSeal(); } }
+      else restChecked = false;
+    }
     if (!won && !lost && PH.solved(world) &&
         world.marbles.every(m => m.sink && m.sink.t >= world.params.sinkTime)) winTilt();
   }
-  let watchdogShown = false;
+  let watchdogShown = false, restChecked = false;
   function beginRun() { tiltPhase = "running"; $("#hint").style.opacity = 0; }
   requestAnimationFrame(tiltLoop);
   function consumeEvents() {
@@ -1230,13 +1245,18 @@
       if (m.captured) continue;
       if (homeReachable(m, blocked)) continue;
       // this ball can never reach its hole — capture the "why" for the board
-      // annotation: the ball, its sealed home hole, and the CAPTURED ball(s) sealing
-      // the approach (walls are static context — only the captured ball is the cause).
+      // annotation: the ball, its sealed home hole, and the CAPTURED ball(s) doing the
+      // sealing. Sealers can cap the HOME's approach (gateway trap) OR box the BALL
+      // into a pocket (walls left/right, captured balls up/down) — mark both so the ✕
+      // lands on the real culprit. Walls are static context; only captured balls count.
       const home = P.holesArr.find(h => h.c === m.c);
-      const seals = [];
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const nx = home.x + dx, ny = home.y + dy;
-        if (nx >= 0 && nx < N && ny >= 0 && ny < N && capCells.has(nx + "," + ny)) seals.push({ x: nx, y: ny });
+      const bx = Math.round(m.x - 0.5), by = Math.round(m.y - 0.5);
+      const seals = [], seen = new Set();
+      for (const [cx, cy] of [[home.x, home.y], [bx, by]]) {
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = cx + dx, ny = cy + dy, k = nx + "," + ny;
+          if (nx >= 0 && nx < N && ny >= 0 && ny < N && capCells.has(k) && !seen.has(k)) { seen.add(k); seals.push({ x: nx, y: ny }); }
+        }
       }
       lost = true; sndFail(); haptic("heavy");
       deadInfo = { bx: m.x, by: m.y, home: { x: home.x, y: home.y }, seals: seals, color: m.c };
@@ -1384,6 +1404,44 @@
   function openLevelSelect() { buildLevelSelect(); lsOpen = true; $("#levelsel").classList.add("show"); }
   function closeLevelSelect() { lsOpen = false; $("#levelsel").classList.remove("show"); }
 
+  /* ---------- Settings (design screenshot 11) — a modal in the #ov overlay ----------
+     Toggles for Sound Effects + Vibration (persisted in the save, default ON; gate
+     SFX_ON/VIBE_ON via applySettings). Music has NO track yet → row HIDDEN per the
+     spec ("add one or hide until it exists"). How to Play replays the tutorial. */
+  const IC_SOUND = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+  const IC_VIBE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>';
+  const IC_HELP = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+  const IC_X = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+  function settingRow(id, ic, label, key) {
+    const on = !loadSave()[key];
+    return `<button class="set-row" id="${id}"><span class="set-ic${on ? "" : " off"}">${ic}</span>` +
+      `<span class="set-lbl">${label}</span><span class="set-tog${on ? " on" : ""}"></span></button>`;
+  }
+  function openSettings() {
+    $("#card").className = "card settings";
+    $("#card").innerHTML =
+      `<div class="set-head"><h2>SETTINGS</h2><button id="setClose" class="set-x">${IC_X}</button></div>` +
+      settingRow("rowSound", IC_SOUND, "Sound Effects", "soundOff") +
+      settingRow("rowVibe", IC_VIBE, "Vibration", "vibeOff") +
+      `<div class="set-div"></div>` +
+      `<button class="set-row2" id="rowHow"><span class="set-ic sm">${IC_HELP}</span>` +
+      `<span class="set-lbl">How to Play</span><span class="set-chev">›</span></button>` +
+      `<div class="set-ver">Tilt v1.0 · com.jfun.tilt</div>`;
+    $("#ov").classList.add("show");
+    $("#setClose").onclick = closeSettings;
+    $("#rowSound").onclick = () => toggleSetting("soundOff", "#rowSound");
+    $("#rowVibe").onclick = () => toggleSetting("vibeOff", "#rowVibe");
+    $("#rowHow").onclick = () => { closeSettings(); showTutorial(() => {}); };
+  }
+  function toggleSetting(key, sel) {
+    const sv = loadSave(); sv[key] = !sv[key]; writeSave(sv); applySettings();
+    const on = !sv[key];
+    $(sel).querySelector(".set-tog").classList.toggle("on", on);
+    $(sel).querySelector(".set-ic").classList.toggle("off", !on);
+    haptic("light");   // self-gates: silent if vibration was just turned off
+  }
+  function closeSettings() { $("#card").className = "card"; $("#ov").classList.remove("show"); }
+
   // Visual hint chips (design 5a): every hint is [glyph] + short text. Glyphs are
   // the game's own pieces — tipping phone, bubble level, wall block, wedged ball —
   // built as plain DOM, animated by CSS keyframes only (no rAF, no perf cost).
@@ -1411,11 +1469,12 @@
     updateHUD(); draw(); showOnboarding();
   }
 
-  $("#reset").onclick = () => { restart(); toast("Level restarted"); haptic("light"); };
-
   /* header layers button → Level Select; back-chevron closes it (resumes the board) */
   $("#levelsBtn").onclick = () => { haptic("light"); openLevelSelect(); };
   $("#lsBack").onclick = () => { haptic("light"); closeLevelSelect(); };
+  /* settings ⚙ — in-game header (right, replaced restart) + level-select header */
+  $("#settingsBtn").onclick = () => { haptic("light"); openSettings(); };
+  $("#lsSettings").onclick = () => { haptic("light"); openSettings(); };
 
   /* tray input: tap anywhere on the tray to start the run */
   trayC.addEventListener("touchstart", e => { e.preventDefault(); startTiltRun(); }, { passive: false });
@@ -1449,6 +1508,7 @@
       writeSave(sv);
     }
   }
+  applySettings();     // load persisted Sound/Vibration toggles before the first sound
   tryNativeMotion();   // native accelerometer needs no gesture/permission — flow from boot
   try { window.__tilt = { puzzle: () => P, level: () => level,
     goto: n => startLevel(n), won: () => won, restart,

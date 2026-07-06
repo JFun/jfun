@@ -4,7 +4,7 @@
 @font-face{font-family:'Nunito'; font-style:normal; font-weight:200 1000; font-display:swap;
   src:url('fonts/nunito-latin.woff2') format('woff2')}
 /* Tilt — "Arcade Night" skin (design pass 2026-07). Same DOM contract as before:
-   game.js queries #lvlN #timeV #bestLab #reset #hint #stage #tray #ov #card #toast
+   game.js queries #lvlN #timeV #bestLab #settingsBtn #hint #stage #tray #ov #card #toast
    and card classes h2/.creature/.stats/.row/.primary. Layout change: wordmark is
    gone from the play screen — the TIMER is the hero (it IS the score). */
 :root{
@@ -184,6 +184,32 @@ button:disabled{opacity:.4}
 .lvltile.lock{background:#171c40; border:1px solid #262c55; opacity:.8; box-shadow:none; cursor:default}
 .lvltile.lock .tlock{color:#5d65a8}
 .lvltile.lock .tnl{font-weight:800; font-size:9px; color:#454c7d; margin-top:3px}
+.ls-right{display:flex; align-items:center; gap:8px}
+
+/* ---------- Settings modal (design screenshot 11) — rendered into #card ---------- */
+.card.settings{text-align:left; padding:20px 18px 16px; max-width:340px}
+.set-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px}
+.set-head h2{font-size:22px; letter-spacing:.06em; margin:0}
+.set-x{flex:0 0 auto; width:32px; height:32px; border-radius:50%; background:var(--panel2); border:1px solid var(--line);
+  color:var(--dim2); display:flex; align-items:center; justify-content:center; padding:0}
+.set-row,.set-row2{width:100%; display:flex; align-items:center; gap:11px; background:var(--panel2); border:1px solid var(--line);
+  border-radius:14px; padding:11px 12px; margin-bottom:9px; cursor:pointer; text-align:left; box-shadow:none}
+.set-row:active,.set-row2:active{transform:translateY(1px)}
+.set-ic{flex:0 0 auto; width:34px; height:34px; border-radius:10px; background:var(--panel);
+  display:flex; align-items:center; justify-content:center; color:var(--gold)}
+.set-ic.off{color:var(--dim)}
+.set-ic.sm{width:30px; height:30px; color:var(--dim2)}
+.set-lbl{flex:1 1 auto; font-weight:800; font-size:14px; color:var(--ink)}
+.set-tog{flex:0 0 auto; width:52px; height:30px; border-radius:999px; background:#2c3358; border:1px solid var(--line);
+  position:relative; transition:background .15s, border-color .15s}
+.set-tog::after{content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%;
+  background:#8b93c8; box-shadow:inset 0 1px 3px #00000040; transition:transform .15s, background .15s}
+.set-tog.on{background:linear-gradient(180deg,var(--gold),var(--gold2)); border-color:transparent}
+.set-tog.on::after{transform:translateX(22px); background:#fff}
+.set-div{height:1px; background:var(--line); margin:5px 2px 12px}
+.set-row2 .set-lbl{color:#dfe4ff; font-weight:700; font-size:13.5px}
+.set-chev{flex:0 0 auto; color:var(--dim); font-size:18px; font-weight:800; line-height:1}
+.set-ver{text-align:center; font-weight:700; font-size:11px; color:#5d65a8; margin-top:14px}
 .toast{position:fixed; bottom:calc(24px + env(safe-area-inset-bottom)); left:50%;
   transform:translateX(-50%) translateY(20px);
   background:var(--panel); border:1px solid var(--line); padding:10px 18px; border-radius:999px;
