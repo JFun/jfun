@@ -42,4 +42,10 @@ Re-vendor after a package update: copy `packages/*/src/*.js` → `web/js/vendor/
 
 1. `bash scripts/dev/test.sh`
 2. iOS: copy `@jfun/native-shell` templates into `ios/`, set team `Y3T546NP6T`,
-   then `scripts/dev/deploy_ios.sh`. TestFlight flow: see the studio handbook.
+   then `scripts/dev/deploy_ios.sh`.
+3. **App Store:** the release tooling ships in this template —
+   `scripts/dev/shots.cjs` (App Store screenshots), `scripts/dev/upload_testflight.sh`
+   + `ExportOptions.plist` (TestFlight upload), and `docs/{privacy,support}.html`
+   (fill the `[[...]]` markers, host under `jfun/docs/<game>/`). Full walkthrough —
+   Firebase wiring, App Privacy answers, ASC submission order, gotchas — is in
+   **`docs/handbook/07-app-store-release.md`**.
