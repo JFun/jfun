@@ -118,4 +118,44 @@ Paste Support into App Information -> Support URL and Privacy into App Privacy -
 - [x] iPad orientations: `UIRequiresFullScreen` already set (portrait-only universal)
 - [x] Screenshots at exact sizes (section 11)
 - [x] Dev level-jump auto-stripped from Release builds (#if DEBUG gated)
-- [ ] Bump `CURRENT_PROJECT_VERSION`, archive Release, upload to TestFlight
+- [x] Build 1.0 (1) archived Release + uploaded to TestFlight
+
+## 14. Full App Store Connect walkthrough (do in this order)
+
+These live in the LEFT SIDEBAR of the app (app-level, apply to every version) plus the version page.
+
+### A. Pricing and Availability
+- **Price:** Free (USD 0.00 / "Free").
+- **Availability:** All countries and regions.
+- Pre-Orders: off. No custom pricing.
+
+### B. App Privacy  (Privacy Policy URL + data questionnaire)
+- **Privacy Policy URL:** `https://jfun.github.io/jfun/tilt/privacy.html`
+- "Do you or your partners collect data from this app?" -> **Yes**.
+- Add exactly TWO data types:
+  1. **Usage Data -> Product Interaction**
+  2. **Identifiers -> Device ID**
+- For BOTH, on the follow-up screens: Purpose = **Analytics** only; "Linked to the user's identity?" = **No**; "Used for tracking?" = **No**.
+- Result should read "Data Not Linked to You", no tracking -> no ATT prompt needed. Publish.
+
+### C. Age Rating  (App Information -> Age Rating, "Edit")
+- Answer EVERY content question **None** / **No** (no violence, sexual content, profanity, drugs, horror, gambling, contests, unrestricted web, medical). No age-verification features.
+- Result: **4+**. Save.
+
+### D. App Information
+- **Category:** Primary **Puzzle**, Secondary **Arcade**.
+- **Content Rights:** "No, it does not contain, show, or access third-party content."
+
+### E. Version page (1.0 Prepare for Submission) - remaining fields
+- Screenshots (drag from `screenshots/appstore/*`), Description, Keywords, Promo text, Support URL, Copyright `2026 Qili Chen` (all in this doc).
+- **Build:** select **1.0 (1)** once it finishes processing (~5-15 min, email confirms).
+- **App Review Information:** Sign-In Required = **No**; fill your contact name / phone / email; paste the section-10 reviewer notes. Attachment optional.
+- **Version Release:** "Automatically release this version" (recommended for a first app).
+
+### F. Submit-time gotchas
+- **IDFA / Advertising Identifier:** if asked "Does this app use the Advertising Identifier (IDFA)?" -> **No** (Firebase Analytics does NOT use IDFA; no ads).
+- **Export Compliance:** `ITSAppUsesNonExemptEncryption=false` is set, so it should not prompt; if it does, answer "uses no non-exempt encryption".
+- **Skip entirely:** Game Center, In-App Purchases, App Clip, iMessage App, Custom Product Pages, In-App Events.
+- First submission often gets a boilerplate "2.1 Information Needed" - the section-10 notes answer it; a 30-60s screen recording of gameplay helps.
+
+Then: **Add for Review**.
