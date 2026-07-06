@@ -88,6 +88,14 @@
   // + the rolling rumble; VIBE_ON gates haptic(). applySettings() reloads them.
   let SFX_ON = true, VIBE_ON = true;
   function applySettings() { const sv = loadSave(); SFX_ON = !sv.soundOff; VIBE_ON = !sv.vibeOff; }
+  // Firebase Analytics: the native plugin auto-collects sessions/retention/first_open;
+  // these are the custom funnel events on top. Safe no-op in the browser / if absent.
+  function track(name, params) {
+    try {
+      const A = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FirebaseAnalytics;
+      if (A) A.logEvent({ name: name, params: params || {} });
+    } catch (e) {}
+  }
   const sndAt = {};
   function throttled(kind, ms) { const now = performance.now(); if (sndAt[kind] && now - sndAt[kind] < ms) return false; sndAt[kind] = now; return true; }
   // glass, not wood: high, short, bright — throttled PER PAIR so chain clacks all speak
@@ -364,8 +372,13 @@
 
   function sizeBoards() {
     // ONE big board — the tray gets the full width (and never outgrows the height)
-    const availW = Math.min(window.innerWidth - 54, 480 - 54);  // wrap padding + .trayframe
-    const availH = Math.max(200, window.innerHeight - 335); // meta + timer + hint chip (no footer)
+    // Tablets (iPad) scale UP: the board grows to ~78% of the width (capped) so it
+    // fills the screen instead of floating phone-sized in a sea of empty space. The
+    // #wrap max-width + HUD type scale up to match in a min-width:700 media query.
+    const tablet = window.innerWidth >= 700;
+    const maxTray = tablet ? Math.min(700, Math.round(window.innerWidth * 0.78)) : 480 - 54;
+    const availW = Math.min(window.innerWidth - 54, maxTray);  // wrap padding + .trayframe
+    const availH = Math.max(200, window.innerHeight - (tablet ? 400 : 335)); // meta + timer + hint (no footer)
     const traySize = Math.min(availW, availH);
     // rim gutter (design 2026-07): the rail thickens INWARD by PAD so border-cell
     // hole rings + rim-hugging balls sit fully on the felt. Engine layouts are
@@ -384,6 +397,7 @@
     P = E.build(n);
     if (!P) { flashHint("Could not build this level — try again."); return; }
     won = false;
+    track("level_start", { level: n });
     const sv = loadSave();
     sv.level = Math.max(sv.level || 1, n);
     writeSave(sv);
@@ -1259,6 +1273,7 @@
         }
       }
       lost = true; sndFail(); haptic("heavy");
+      track("dead_end", { level: level });
       deadInfo = { bx: m.x, by: m.y, home: { x: home.x, y: home.y }, seals: seals, color: m.c };
       tiltPhase = "dead";           // board keeps the "why" annotation up; banner slides in
       showDeadEnd("This ball can’t reach its hole");
@@ -1295,6 +1310,7 @@
     sv.best[level] = prev ? Math.min(prev, time) : time;
     // medal: keep the best tier ever earned on this level
     const medal = medalFor(time, P.par);
+    track("level_complete", { level: level, time_ms: Math.round(time * 1000), stars: MEDAL_RANK[medal] });
     sv.medal = sv.medal || {};
     if (!sv.medal[level] || MEDAL_RANK[medal] > MEDAL_RANK[sv.medal[level]]) sv.medal[level] = medal;
     if (level >= E.LAST_LEVEL) sv.done = 1;
@@ -1341,6 +1357,7 @@
       const m = (sv.medal || {})[L];
       if (m === "gold") g++; else if (m === "silver") s++; else if (m === "bronze") b++;
     }
+    track("campaign_complete", { golds: g, stars: g * 3 + s * 2 + b });
     const flawless = g === E.LAST_LEVEL;
     $("#card").innerHTML = `
       <div class="glow"></div>
@@ -1376,7 +1393,10 @@
   // grinding there (the on-device replacement for the old long-press jumper; the
   // grid shows a gold "· DEV: TAP ANY" tag so it's obvious). Flip to false for the
   // release hard-lock. Browser/console also have ?lvl=N and window.__tilt.goto(n).
-  const DEV_UNLOCK = true;
+  // ON only in DEBUG native builds (MainViewController injects window.__DEV_BUILD via
+  // #if DEBUG) and browser dev (http://localhost). A Release/App-Store build has neither
+  // → hard-locked grid, no "DEV: TAP ANY". No manual flag to forget.
+  const DEV_UNLOCK = !!window.__DEV_BUILD || location.protocol === "http:";
   let lsOpen = false;
   function buildLevelSelect() {
     const sv = loadSave(), frontier = frontierLvl(sv);
@@ -1529,15 +1549,42 @@
       if (!won && !lost && PH.solved(world)) winTilt();
     } }; } catch (e) {}
   {
-    // Boot straight INTO the game, not the Level Select (feel call 2026-07-05:
-    // "new user 1st screen is levels not cool, previous version feels better" — a
-    // fresh player lands on level 1 with the tutorial, not a wall of locked tiles).
-    // The Level Select is on-demand via the header layers button. Returning players
-    // resume at their frontier (first uncleared level).
-    // dev/screenshot: ?lvl=N jumps straight to a specific level.
-    let bootLvl = 0;
-    try { const q = new URLSearchParams(location.search); if (q.has("lvl")) bootLvl = +q.get("lvl") || 1; } catch (e) {}
-    startLevel(bootLvl || frontierLvl(loadSave()));
+    // ---- dev screenshot harness (App Store captures) — inert unless ?shot= is set ----
+    //   ?shot=play&lvl=<n> · ?shot=win&lvl=<n>&s=<1-3> · ?shot=levels · ?shot=howto
+    // Driven by scripts/dev/shots.cjs (headless Chrome/CDP at exact device pixel sizes).
+    const q = new URLSearchParams(window.__SHOT__ || location.search);
+    const shot = q.get("shot");
+    if (shot) {
+      const sv = loadSave();
+      sv.tutSeen = 1; sv.rulesV3 = 1; sv.mvpV1 = 1; sv.wallsSeen = 1;
+      if (shot === "levels") {                       // seed a rich, mostly-cleared grid
+        sv.best = {}; sv.medal = {};
+        const meds = ["gold", "gold", "gold", "silver", "gold", "silver", "gold", "gold", "silver", "gold", "gold"];
+        const times = [4.2, 7.1, 5.8, 9.3, 6.0, 11.2, 8.7, 10.4, 7.9, 6.6, 8.1];
+        for (let L = 1; L <= 11; L++) { sv.best[L] = times[L - 1]; sv.medal[L] = meds[L - 1]; }
+      }
+      writeSave(sv);
+      const lvl = +(q.get("lvl") || (shot === "win" ? 6 : 12)) || 12;
+      if (shot === "howto") { startLevel(5); showTutorial(function () {}); }
+      else if (shot === "levels") { startLevel(12); openLevelSelect(); try { $("#lsDev").style.display = "none"; } catch (e) {} }
+      else if (shot === "win") {
+        startLevel(lvl);
+        const stars = Math.max(1, Math.min(3, +(q.get("s") || 3)));
+        const mt = medalTimes(P.par);
+        const time = Math.round((stars === 3 ? Math.max(0.6, mt.gold - 0.6) : stars === 2 ? (mt.gold + mt.silver) / 2 : mt.silver + 1) * 10) / 10;
+        const svw = loadSave(); svw.best = svw.best || {}; svw.best[lvl] = time; writeSave(svw);
+        won = true; tiltPhase = "done";
+        showTiltResult(time, null);
+      } else { startLevel(lvl); }                    // play
+      // headless: force board resize recomputes so it fits the final viewport width
+      [120, 420, 900].forEach(function (t) { setTimeout(function () { sizeBoards(); draw(); }, t); });
+    } else {
+      // Boot straight INTO the game (feel call: new player lands on level 1 + tutorial,
+      // not the Level Select). Returning players resume at their frontier; ?lvl=N jumps.
+      let bootLvl = 0;
+      try { if (q.has("lvl")) bootLvl = +q.get("lvl") || 1; } catch (e) {}
+      startLevel(bootLvl || frontierLvl(loadSave()));
+    }
   }
   sizeBoards();
 })();

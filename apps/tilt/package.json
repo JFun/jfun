@@ -5,6 +5,8 @@
   "description": "Tilt — swipe to tilt the tray; every marble rolls at once into its matching hole, revealing a pixel creature.",
   "dependencies": {
     "@jfun/web-game-core": "*",
+    "@capacitor-firebase/analytics": "^8.3.0",
+    "@capacitor-firebase/app": "^8.3.0",
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
     "@capacitor/haptics": "^8.0.2",

@@ -217,3 +217,29 @@ button:disabled{opacity:.4}
   box-shadow:0 8px 24px -8px #000000c0}
 .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
 [hidden]{display:none!important}
+
+/* ---------- Tablet (iPad) scale-up: SAME design, bigger, fills the screen ----------
+   Portrait-locked + UIRequiresFullScreen means width is always the device short side,
+   so min-width:700 cleanly targets iPad only (iPhone short side ≤ ~430). The board
+   itself grows in sizeBoards() (tablet branch); this scales the frame + HUD to match. */
+@media (min-width: 700px) {
+  #wrap{max-width:780px; padding-left:24px; padding-right:24px; gap:16px}
+  .tlab{font-size:15px}
+  .tval{font-size:80px}
+  .tval .unit{font-size:46px}
+  .tbest{font-size:15px}
+  .chip{font-size:16px; padding:11px 20px}
+  .iconbtn{width:52px; height:52px}
+  .iconbtn svg{width:26px; height:26px}
+  .chip-hint{font-size:16px; padding:9px 20px 9px 16px}
+  /* level select + settings scale with it */
+  .ls-head{padding-left:24px; padding-right:24px}
+  .ls-title{font-size:26px}
+  .ls-eyebrow{font-size:12px; padding-left:26px}
+  .ls-grid{gap:14px; padding-left:24px; padding-right:24px}
+  .lvltile .tn{font-size:26px}
+  .lvltile.play .tn{font-size:28px}
+  .lvltile .ts{font-size:12px}
+  .lvltile .tb{font-size:11px}
+  .card{max-width:420px}
+}
