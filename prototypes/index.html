@@ -81,13 +81,13 @@
 <body>
 <div class="wrap">
   <header class="top">
-    <p class="eyebrow">Playable review board</p>
+    <p class="eyebrow">Playable review board · round 3</p>
     <h1>Eleven prototypes — play each in place</h1>
-    <p class="sub">Every concept runs <b>live inside its card</b> — no navigating away. Alongside each is a blunt read on <b>how it's differentiated from what already exists</b> and its <b>growth potential</b>. Excavate (01) already shipped; the rest are candidates for what's next.</p>
+    <p class="sub">Every cut last round failed the same test: <b>the goal wasn't obvious in one glance</b>. The six new builds fix that at the root — each is a verb proven for decades (pour, pluck, sling, topple, cut, drop) with <b>real simulated physics as the moat</b>, because the research says feel is the one thing clone farms consistently fail to copy. Excavate (01) shipped; Tilt is the active app; 11 is the expanded-scope roguelite bet.</p>
     <div class="legend">
       <span class="chip"><span class="dot" style="background:var(--ship)"></span>shipped</span>
       <span class="chip"><span class="dot" style="background:var(--kept)"></span>kept from an earlier round</span>
-      <span class="chip"><span class="dot" style="background:var(--acc2)"></span>new — built this round to beat the batch on both axes</span>
+      <span class="chip"><span class="dot" style="background:var(--acc2)"></span>new — one-glance verb + honest physics, built this round</span>
       <span class="chip"><b>Differentiation /5</b> = how open &amp; defensible the niche is (5 = open lane, 1 = a near-identical game already ships)</span>
       <span class="chip"><b>Growth /5</b> = share hook + retention + content-pipeline economics (5 = viral &amp; free-to-keep-fresh)</span>
       <span class="chip">scored by AI market analysis — verify before betting</span>
@@ -96,7 +96,7 @@
 
   <main class="grid" id="grid"></main>
 
-  <footer class="foot">11 prototypes · each plays inline (scroll to load) · “Open full ↗” for a full-screen tab · 09 Fold &amp; 11 Dowse are the two Tilt evolutions — play both, keep one</footer>
+  <footer class="foot">11 prototypes · each plays inline (scroll to load) · “Open full ↗” for a full-screen tab · new this round: 02 Pour · 03 Pluck · 06 Sling · 08 Topple · 10 Cut · 11 Drop</footer>
 </div>
 
 <script>
@@ -108,18 +108,18 @@ const DATA = [
     comp:["PICSEY","Framed","Gamedle","Heat Cue"],
     growth:"Wordle-style spoiler-safe share + streak/gallery are built (good virality + retention). Killer weakness: hand-drawn procedural subjects are a perpetual art-eng cost and read as clip-art vs the free, infinite real photos PICSEY/Framed run on. Big-audience, thin-monetization category.",
     score:3, verdict:"Clever twist on a crowded genre; worth pushing only if the reveal art gets dramatically better or swaps to real imagery." },
-  { n:2, file:'02-mosaic.html', title:'Mosaic', badge:null,
-    pitch:"Pack the day's stained-glass shards edge-to-edge with no gaps and watch a hidden picture light up.",
-    diff:"Drag-and-rotate polyomino packing is the single most-cloned mechanic in mobile (Block Blast: 368M downloads in 2025); the stained-glass skin is already Absolutist's. Only wedge is packing-as-a-daily-web-puzzle — positioning, not a moat — and the promised 'hidden picture' isn't actually delivered.",
-    comp:["Block Blast","Glass Mosaic (Absolutist)","LinkedIn Queens","Woodoku"],
-    growth:"Free-forever procedural content + Wordle-style share/streak. But procedural = interchangeable, low-craft puzzles with no designed 'aha', which caps retention and word-of-mouth. Large daily-web market, but no distribution and unclear monetization.",
-    score:2, verdict:"Polished reskin of the most-cloned mechanic in mobile; smart lane, interchangeable puzzles — a nice-to-have, not the one to build next." },
-  { n:3, file:'03-prism.html', title:'Prism', badge:null,
-    pitch:"Rotate mirrors and prisms to bend a beam of light onto every target — split white into color and route each hue home.",
-    diff:"Rotate-optics-to-route-light is decades old (Lazors, Pipes, Infinity Loop) and a same-named 'Prism: Daily Puzzle' already ships the exact daily + streak + share feature list. The only fresh sliver is the stained-glass collection — a cosmetic meta-layer.",
-    comp:["Prism: Daily Puzzle","Lazors","Infinity Loop","Simon Tatham's Net"],
-    growth:"Content is the one strength: procedural + machine-verified solvable = ~zero cost forever. But daily puzzling is winner-take-all (people play the ONE game their friends play) and a namesake already owns 'Prism daily' — no discovery edge.",
-    score:2, verdict:"A me-too daily light-bender crashing into a same-named incumbent plus a wall of laser/rotate-tile classics — no wedge." },
+  { n:2, file:'02-pour.html', title:'Pour', badge:'new',
+    pitch:"Grab a glass and tip it — real sand streams out grain by grain, piles and settles. Pour until every glass holds one pure color; partial pours are the skill.",
+    diff:"Sort is the fastest-growing puzzle subgenre (5.6× YoY 2024, sort+screw doubled again into 2025) and every incumbent FAKES the pour with canned animation — Deconstructor of Fun's verdict: generic water-sort clones are saturated, mechanically fresh sort is not. True simulated granular pouring (hold-to-tip, spill risk, partial pours) is unclaimed; Sandtrix proved raw material physics goes viral on its own.",
+    comp:["Water Sort Puzzle","Hexa Sort","Sandtrix / Setris","Magic Sort"],
+    growth:"The verb IS the retention (fidget-grade tactility + ASMR grain hiss), levels are seeded-procedural at zero art cost, and 'PERFECT POUR — 0 spilled' is a natural brag stat. Rides the proven sort audience instead of fighting for a new behavior.",
+    score:null, verdict:"The highest upside-to-saturation ratio the research found: a proven, still-growing goal structure where feel — the one moat a solo dev can hold — is exactly what incumbents lack." },
+  { n:3, file:'03-pluck.html', title:'Pluck', badge:'new',
+    pitch:"Dig glossy pebbles out of a real heap that shifts, slumps and clacks, and drop them into the matching bowl — grab one and its bowl lights the way.",
+    diff:"Sheep a Sheep hit 60M players in two weeks and spawned 100+ stack-elimination clones — ALL on painted, fake piles. Jenga-style physical extraction (tug one item, the pile responds, easy picks run out) is the biggest gap between real-world love and digital exploitation; near-zero credible digital takes exist.",
+    comp:["Sheep a Sheep","Triple Match 3D","Jenga","Part Time UFO"],
+    growth:"One-glance goal (color → tray) carries the proven sort loop; the physical heap adds honest tension clones can't copy-paste. Time-attack + best-times give a clean score axis; haptics on every clack is the App-Store-review quote waiting to happen.",
+    score:null, verdict:"A proven-appetite verb (pluck-from-pile) upgraded with the one thing the 60M-player incumbents faked — worth feeling on device." },
   { n:4, file:'04-unblur.html', title:'Unblur', badge:'kept',
     pitch:"Tap where the photo looks clearest, sharpen it region-by-region, and guess what it is in the fewest focuses.",
     diff:"Aiming a limited focus budget at where detail hides is a genuine but thin feel-twist — nearly every rival sharpens the whole frame (unblur.app, Blur, What's Blurry). Free-text guessing is a UX liability (punishing on synonyms), not a moat.",
@@ -132,46 +132,46 @@ const DATA = [
     comp:["Art Keeper","Easybrain Art Puzzle","Art Heist Puzzle","Artle (NGA)"],
     growth:"Proven 🟩🟨 share + streak, and a large 45+ jigsaw/mindfulness audience. But a real 'museum' needs beautiful, rights-cleared art with hand-authored fragment layouts forever — costly editorial; the prototype fakes it with one SVG gradient.",
     score:2, verdict:"A reveal animation on a 4-piece drag-match; the whole concept already ships as Art Keeper — skip it." },
-  { n:6, file:'06-pan.html', title:'Pan', badge:'kept',
-    pitch:"Pan and zoom around a tight daily crop and name the picture it was lifted from.",
-    diff:"Spydle is literally this (daily extreme-zoom, name it before it zooms out); ZoomOut / Framed own the peel-back-clues template. Free-text naming and a zoom-restraint grade are thin, copyable tweaks; 6 throwaway SVGs = no content advantage.",
-    comp:["Spydle","ZoomOut","Close Up Pics (30M+)","Framed"],
-    growth:"Good grade-grid share + streak. Killer: lives on a large, fresh, cleverly-cropped, rights-clear image library forever plus robust synonym matching — expensive hand-curation, and the corner is already occupied and cheap to clone.",
-    score:2, verdict:"Crisp take on a mechanic with a near-identical incumbent (Spydle) and an expensive forever-content pipeline — pass unless you own a killer image library." },
+  { n:6, file:'06-sling.html', title:'Sling', badge:'new',
+    pitch:"Endless one-thumb flick-golf over moonlit dunes: pull back, release, and ride real gravity, bounce and roll-out into the flag's pocket. Infinite holes, one stroke count.",
+    diff:"Sling is the most proven verb in touch history (drawback tension → ballistic arc → consequence), yet the Desert Golfing lane has sat quiet for a decade while hypercasual slings degraded into fake-physics runners. A premium-feel, honest-ballistics golf with real roll-out physics has no current owner on phones.",
+    comp:["Desert Golfing","Golf Battle","OK Golf","Angry Birds"],
+    growth:"Endless procedural terrain = zero content cost forever; 'hole 47, 132 strokes' is a naturally shareable run stat with a decade of precedent (Desert Golfing is canonized). Risk: quiet lane partly reflects modest ceiling — this is the taste-anchor bet, not the growth bet.",
+    score:null, verdict:"The timeless-verb control: if this batch's research is right that feel wins, the purest feel-game in it should prove that on device in 30 seconds." },
   { n:7, file:'07-cascade.html', title:'Cascade', badge:null,
     pitch:"Place slope tiles to thread a pouring stream through every glowing basin before it runs off the edge.",
     diff:"Gravity routing is Gravity Maze / Where's My Water (100M+) plus a swarm of pipe-flow clones. The open seam is 'gravity routing as a daily' — format, not mechanic — but it's build-and-verify, not deduce-from-feedback, so the share glyph leaks little social pull.",
     comp:["Where's My Water?","Gravity Maze","Flow Free","Duckt"],
     growth:"Weak share (low-drama glyph, none of Wordle's 'we solved the SAME grid' hook). Only 6 hand-authored days; procedural spatial puzzles trend samey/gameable without a human difficulty curve → real ongoing design cost. Saturated daily segment.",
     score:2, verdict:"A clean gravity-router in a crowded pond; the daily-shell novelty is undercut by a weak share glyph — a fine demo, soft bet." },
-  { n:8, file:'08-contour.html', title:'Contour', badge:'new',
-    pitch:"Sketch one freehand curve to uncover the day's hidden function — your line glows warm where you're close, cool where you're off, and you feel your hand toward the invisible shape over 4 tries.",
-    diff:"The verb — draw a curve AS your guess against an INVISIBLE target, refining by hot/cold — is unclaimed. One-stroke games (Zip, 1LINE) trace a visible path; precision toys (Draw a Perfect Circle) match a visible contour; math dailies (Nerdle, Chartle) are typed. No daily uses a freehand gesture as the guess.",
-    comp:["Zip / 1LINE","Draw a Perfect Circle","Nerdle / Chartle","Daily Unfold"],
-    growth:"Zero art cost forever: the curve is a seeded blend of sine/poly/gaussian primitives, provably solvable within tolerance — just a grid and lines. The share is a per-attempt heat sparkline (🟦🟨🟧🟥🟩 rows) that visibly shows a hand homing in on the SAME curve everyone drew today — real Wordle-grade comparability, not a low-drama glyph.",
-    score:null, verdict:"A novel motor-deduction verb with free-forever content and a genuine comparability engine — the strongest concept in the batch." },
-  { n:9, file:'09-fold.html', title:'Fold', badge:'new',
+  { n:8, file:'08-topple.html', title:'Topple', badge:'new',
+    pitch:"Knock every can off the carnival plinths — without waking the cat sleeping among them. Direct hits, hard tumbles or a fall wake it; soft nudges just make it stir.",
+    diff:"Plain knockdown was flagged as a smash fest — this is the differentiation attempt: a protected thing among the targets (the Fruit-Ninja-bomb pattern) turns smashing into aiming. Angle, power and collapse direction all start to matter; no carnival-knockdown game ships a precision constraint like it.",
+    comp:["Can Knockdown","Angry Birds","Fruit Ninja (bombs)","Boom Blox"],
+    growth:"Hand-authored layouts stay cheap and the cat multiplies design space (guarded stacks, lob-over shots). Near-misses — cat stirring while the last can wobbles — are the retention engine. Honest verdict: this twist either lands in the hands or the game is cut.",
+    score:null, verdict:"On probation per feel-test: 'cut unless significant differentiation'. The sleeping cat is that attempt — if it still feels like a smash fest, delete it without ceremony." },
+  { n:9, file:'09-fold.html', title:'Fold', badge:'kept',
     pitch:"You are the wind, not the shepherd — every swipe slides the whole flock AND the wolf; pen every sheep before dawn, and the ones you lose stay lost.",
     diff:"Evolves Tilt's loved verb (everything slides at once) but adds an adversary moved by YOUR input, with chomp-and-continue — searched clean: RogueSlide is avatar combat, Herd is individual rook-slides, sheep/wolf mobile games are fence-placement. No avatar, no merging, no holes: a protective, par-scored objective no tilt game ships.",
     comp:["RogueSlide","Move (Nitako)","Herd","Chip's Challenge (ancestor)"],
     growth:"Procedural + solver-verified daily (the wolf provably shapes every solution); no undo, so no undo-spam — a real 3–6-minute think. The share is a survival timeline that carries story (which tilts penned sheep, near-miss wolf glyphs) + Flawless badge + a 'watch the perfect line' reveal. Partial failure (4/6 saved) is still postable — retention, not churn.",
     score:null, verdict:"Keeps exactly what was fun about Tilt and swaps everything commodity around it — the judge's pick for best combined lift on both axes." },
-  { n:10, file:'10-sway.html', title:'Sway', badge:'new',
-    pitch:"Don't guess the answer — guess where the whole crowd's needle will settle on today's 5 spectrum prompts, knowing everyone's guessing you too.",
-    diff:"A Keynesian beauty-contest (predict the crowd's own moving average) has never shipped as a cozy daily — only as econ-classroom tools. Mind the Hive / Guess Their Answer score you against a FIXED majority; Wavelength/Spectrum are live party games. Sway's target forms TODAY and is self-referential — 'what will they think we think?'.",
-    comp:["Mind the Hive","Guess Their Answer","Wavelength","Jackbox Guesspionage"],
-    growth:"Procedural prompts (≈150 axes × 400 subjects) = fresh forever at zero art cost, and it uniquely dodges the consensus-game cold-start with a seeded prior so day-one players still get a target. Share = a spoiler-safe spectrum ribbon with an 'in-tune %' + drift arrows — same prompts for everyone, no opinions revealed, instantly comparable.",
-    score:null, verdict:"An untapped social mechanic (guess-the-crowd) with free procedural content and a clever cold-start fix — a strong, differentiated second bet." },
-  { n:11, file:'11-dowse.html', title:'Dowse', badge:'new',
-    pitch:"The pegs under the felt are invisible — every swipe rolls every marble at once, and every clack is a clue you paid a move for. Park the marbles into the target shape before the tilts run out.",
-    diff:"The other strong Tilt evolution (runner-up to Fold): Black Box-style deduction fused with global-tilt physics, where the probe IS the move and both spend one currency. Invisible Maze apps are single-avatar dexterity; Black Box probes never change the board; BallSwipe is the visible-walls commodity family. The one-currency explore/exploit economy under a daily par appears unshipped.",
-    comp:["Black Box","Invisible Maze","Mazele","BallSwipe"],
-    growth:"Procedural + BFS-certified fair (edge-slam spam provably can't win); no undo makes probing a real cost. Share is tilt-golf plus a pegs-found line ('solved it having mapped only 3/7') — a clean second brag axis. Hard-fail on a bad day is the main retention risk vs Fold.",
-    score:null, verdict:"Genuinely novel probe-equals-move deduction — kept on the board as the alternate Tilt evolution; play both and pick." },
+  { n:10, file:'10-cut.html', title:'Cut', badge:'new',
+    pitch:"Your swipe is a blade: sever real ropes holding a crate so it swings, tips and drops into the basket — 8 puzzles of cut-order and timing.",
+    diff:"Cut-to-release is distinct from slicing: the swipe converts stored, VISIBLE tension into motion. Cut the Rope's lane has been strangely empty since ZeptoLab moved on, and modern verlet rope/soft-body sim on phones is dramatically better than 2010 — a solo dev superpower the clone farms don't bother with.",
+    comp:["Cut the Rope","Where's My Water?","Slice It All","Zen Koi cutters"],
+    growth:"Order-of-cuts gives real puzzle depth from one gesture; levels are hand-authored but tiny (anchor points + a basket). The held-breath 'last cut' moment is the retention hook. Content pipeline is the main cost vs the procedural siblings.",
+    score:null, verdict:"A beloved, vacated verb rebuilt with honest physics — the strongest puzzle-depth-per-gesture ratio in the batch." },
+  { n:11, file:'11-drop.html', title:'Drop', badge:'new',
+    pitch:"Build your own pachinko machine: drop a ball, pegs pay, meet the quota — then draft a part and PLACE IT YOURSELF. By round ten the board is a contraption you designed. Dumb verb, smart run.",
+    diff:"The push-and-release pachinko verb already has a popular incumbent — so the ball is no longer the game; THE BOARD IS. You author every gold peg, bumper and splitter position (Ballionaire-style board-building, unshipped on mobile). Same one-glance drop, completely different ownership: their machine vs a machine you built.",
+    comp:["Plinko-style incumbents","Peglin","Ballionaire","Luck Be a Landlord"],
+    growth:"Placement makes every run a build (drop skill + architecture skill); 'look at my round-12 machine' is a screenshot brag no drop-only game has. Upgrade pool grows content cheaply. Monetizes the Balatro way — free taste, one unlock, no ads.",
+    score:null, verdict:"The expanded-scope bet, now differentiated on authorship: if placing your own parts doesn't feel meaningfully different from the incumbent's push-release, this gets cut too." },
 ];
 
-// per-prototype [differentiation, growth] scores (1-5), from the market-analysis pass
-const SCORES = {1:[3,2], 2:[2,3], 3:[1,3], 4:[2,2], 5:[2,2], 6:[2,2], 7:[3,2], 8:[5,4], 9:[4,4.5], 10:[4,4], 11:[4.5,3.5]};
+// per-prototype [differentiation, growth] scores (1-5), from the market-research pass
+const SCORES = {1:[3,2], 2:[4.5,4], 3:[4,3.5], 4:[2,2], 5:[2,2], 6:[3,3.5], 7:[3,2], 8:[4,3], 9:[4,4.5], 10:[4,3.5], 11:[4,4.5]};
 
 const esc = s => String(s==null?'':s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const pad = n => String(n).padStart(2,'0');

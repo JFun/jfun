@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>PLUCK</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#0b0d12; }
+  canvas { display:block; touch-action:none; -webkit-user-select:none; user-select:none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+'use strict';
+/* ============================== PLUCK ==============================
+   Pull colored pebbles out of a real physically-settling heap and
+   drop them into the matching bowls. Verlet circles + spatial hash.
+=================================================================== */
+
+const cvs = document.getElementById('c');
+const ctx = cvs.getContext('2d');
+
+const FDT = 1 / 120;           // fixed physics timestep
+const K_SPRING = 0.25 / (FDT * FDT);  // closes ~25% of gap per step
+const PALETTE = [
+  { b:'#ffce6b', d:'#c78f2a', name:'amber'  },
+  { b:'#6ea8ff', d:'#3a6fd8', name:'sky'    },
+  { b:'#ff6b6b', d:'#d13c4b', name:'coral'  },
+  { b:'#4bd48a', d:'#22995f', name:'mint'   },
+  { b:'#9d7bff', d:'#6b4fd8', name:'violet' },
+];
+
+let W = 0, H = 0, DPR = 1, BASE = 0, G = 0, wallHalf = 6, cellSize = 40;
+
+// ----- game state -----
+let items = [];        // verlet circles
+let trays = [];        // {x,y,w,h,c,count,need,flash,shake,squash}
+let walls = [];        // {ax,ay,bx,by}
+let particles = [];
+let level = 1, sorted = 0, remaining = 0;
+let elapsed = 0, timerOn = false;
+let simT = 0, stepCount = 0, spawnClock = 0;
+let grabbed = null;
+let ptr = { x: 0, y: 0 };
+let ptrSamples = [];
+let cleared = false, clearT = 0, clearElapsed = 0, clearBest = 0;
+let firstSortDone = false, hintA = 1;
+let learned = 0;                       // successful sorts; guide arc teaches until 3
+let demoKilled = false, demoStart = -1, demoNext = 1.4, demoSrc = null;
+let pairClack = new Map();     // pair key -> last clack simT
+let clackBudgetT = 0, clackBudgetN = 0;
+
+// =========================== AUDIO ===========================
+let AC = null, master = null, noiseBuf = null;
+
+function initAudio() {
+  if (AC) return;
+  try {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    const comp = AC.createDynamicsCompressor();
+    master = AC.createGain();
+    master.gain.value = 0.5;
+    master.connect(comp);
+    comp.connect(AC.destination);
+    const len = Math.floor(AC.sampleRate * 0.3);
+    noiseBuf = AC.createBuffer(1, len, AC.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  } catch (e) { AC = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && AC && AC.state === 'suspended') AC.resume();
+});
+
+function tone(type, f0, f1, dur, vol, when) {
+  if (!AC) return;
+  const t0 = AC.currentTime + (when || 0);
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(Math.max(1, f0), t0);
+  if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t0 + dur);
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(master);
+  o.start(t0); o.stop(t0 + dur + 0.03);
+}
+function noiseSweep(f0, f1, dur, vol, when) {
+  if (!AC || !noiseBuf) return;
+  const t0 = AC.currentTime + (when || 0);
+  const src = AC.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+  const bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+  bp.frequency.setValueAtTime(f0, t0);
+  bp.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t0 + dur);
+  const g = AC.createGain();
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(bp); bp.connect(g); g.connect(master);
+  src.start(t0); src.stop(t0 + dur + 0.03);
+}
+function sClack(v) {                     // woody "tok"
+  if (!AC) return;
+  if (simT - clackBudgetT > 0.06) { clackBudgetT = simT; clackBudgetN = 0; }
+  if (clackBudgetN >= 6) return;
+  clackBudgetN++;
+  const f = 700 + Math.random() * 400;
+  tone('triangle', f, f * 0.6, 0.05, Math.min(0.45, v) * 0.6);
+}
+function sGrab()  { tone('square', 1300, 1850, 0.05, 0.12); }
+function sPop()   { tone('sine', 480, 980, 0.10, 0.45); tone('triangle', 1450, 1650, 0.045, 0.18); }
+function sBuzz()  { tone('sawtooth', 120, 88, 0.20, 0.30); }
+function sSwish() { noiseSweep(900, 4200, 0.16, 0.30); }
+function sFanfare() {
+  [523, 659, 784, 1046].forEach((f, i) => tone('triangle', f, f, 0.20, 0.30, i * 0.09));
+  noiseSweep(2000, 6000, 0.30, 0.15, 0.36);
+}
+
+// =========================== LAYOUT ===========================
+function layout() {
+  BASE = Math.min(W, H * 0.62);
+  G = H * 2.2;
+  wallHalf = BASE * 0.022;
+  walls = [
+    { ax: W * 0.05, ay: H * 0.14,  bx: W * 0.13, by: H * 0.575 }, // left slant
+    { ax: W * 0.13, ay: H * 0.575, bx: W * 0.87, by: H * 0.575 }, // bin floor
+    { ax: W * 0.95, ay: H * 0.14,  bx: W * 0.87, by: H * 0.575 }, // right slant
+  ];
+  const n = trays.length;
+  if (n > 0) {
+    const gap = W * 0.03;
+    const tw = (W - gap * (n + 1)) / n;
+    const th = H * 0.115, ty = H * 0.80;
+    for (let i = 0; i < n; i++) {
+      const t = trays[i];
+      t.x = gap + i * (tw + gap);
+      t.y = ty;
+      t.w = tw;
+      t.h = th;
+      t.cx = t.x + tw / 2;
+      t.mouthY = ty + th * 0.18;
+      t.mr = tw * 0.42;
+      t.mry = tw * 0.42 * 0.28;
+      t.baseY = ty + th;
+    }
+  }
+  let maxD = 0;
+  for (const it of items) if (it.r * 2 > maxD) maxD = it.r * 2;
+  cellSize = Math.max(8, maxD || BASE / 8);
+}
+
+function resize() {
+  const w = Math.max(140, window.innerWidth), h = Math.max(200, window.innerHeight);
+  DPR = Math.min(2.5, window.devicePixelRatio || 1);
+  if (W > 0 && H > 0 && (w !== W || h !== H)) {
+    const sx = w / W, sy = h / H;
+    const sr = Math.min(w, h * 0.62) / BASE;
+    for (const it of items) {
+      it.x *= sx; it.px *= sx; it.y *= sy; it.py *= sy;
+      it.cx0 *= sx; it.cy0 *= sy;
+      it.r *= sr; it.m = it.r * it.r; it.im = 1 / it.m;
+    }
+    for (const p of particles) { p.x *= sx; p.y *= sy; }
+  }
+  W = w; H = h;
+  cvs.width = Math.round(W * DPR);
+  cvs.height = Math.round(H * DPR);
+  cvs.style.width = W + 'px';
+  cvs.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  layout();
+}
+window.addEventListener('resize', resize);
+
+// =========================== LEVEL ===========================
+function levelCfg(n) {
+  if (n === 1) return { count: 18, colors: 3 };
+  if (n === 2) return { count: 30, colors: 3 };
+  if (n === 3) return { count: 44, colors: 4 };
+  return { count: Math.min(90, Math.round(60 * Math.pow(1.1, n - 4))), colors: 5 };
+}
+function loadBest() {
+  try { return JSON.parse(localStorage.getItem('pluck-best') || '{}') || {}; }
+  catch (e) { return {}; }
+}
+function saveBest(lv, t) {
+  try {
+    const b = loadBest();
+    if (!(lv in b) || t < b[lv]) b[lv] = Math.round(t * 100) / 100;
+    localStorage.setItem('pluck-best', JSON.stringify(b));
+    return b[lv];
+  } catch (e) { return t; }
+}
+
+function startLevel(n) {
+  level = n;
+  const cfg = levelCfg(n);
+  items = [];
+  particles = [];
+  grabbed = null;
+  sorted = 0;
+  elapsed = 0;
+  timerOn = false;
+  cleared = false;
+  spawnClock = 0;
+  pairClack = new Map();
+  demoSrc = null; demoStart = -1; demoNext = simT + 1.4;
+  trays = [];
+  for (let i = 0; i < cfg.colors; i++)
+    trays.push({ x: 0, y: 0, w: 0, h: 0, c: i, count: 0, need: 0, flash: 0, shake: 0, squash: 0,
+                 cx: 0, mouthY: 0, mr: 0, mry: 0, baseY: 0, done: false, celebT: 0, wobble: 0 });
+  layout();
+  // nominal radii, then shrink so the heap fits the bin with headroom
+  const rMin = BASE / 22, rMax = BASE / 15;
+  const radii = [];
+  let area = 0;
+  for (let i = 0; i < cfg.count; i++) {
+    const r = rMin + Math.random() * (rMax - rMin);
+    radii.push(r);
+    area += Math.PI * r * r;
+  }
+  const binArea = (W * 0.82) * (H * 0.435);
+  const mult = Math.min(1.35, Math.sqrt(binArea * 0.62 / area)); // >1: low counts get chunkier pebbles
+  for (let i = 0; i < cfg.count; i++) {
+    const r = radii[i] * mult;
+    const c = i % cfg.colors;
+    trays[c].need++;
+    items.push({
+      x: W * 0.18 + Math.random() * W * 0.64,
+      y: -r - Math.random() * H * 0.35,
+      px: 0, py: 0, r: r, m: r * r, im: 1 / (r * r),
+      c: c, state: 2,                       // 0 active | 1 caught | 2 pending spawn
+      spawnT: (i / cfg.count) * 0.7,
+      sleepN: 0, grab: false, flicked: false,
+      caughtT: 0, cx0: 0, cy0: 0, tray: null, lastThud: -1,
+    });
+  }
+  // shuffle draw order so colors interleave in the heap
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    const t = items[i]; items[i] = items[j]; items[j] = t;
+  }
+  for (const it of items) { it.px = it.x; it.py = it.y; }
+  remaining = items.length;
+  let maxD = 0;
+  for (const it of items) if (it.r * 2 > maxD) maxD = it.r * 2;
+  cellSize = Math.max(8, maxD);
+}
+
+// =========================== PHYSICS ===========================
+function wakeAround(x, y, rad) {
+  for (const it of items) {
+    if (it.state !== 0) continue;
+    const dx = it.x - x, dy = it.y - y;
+    if (dx * dx + dy * dy < rad * rad) it.sleepN = 0;
+  }
+}
+
+function trayAt(x, y, slack) {
+  for (const t of trays) {
+    if (x > t.x && x < t.x + t.w && y > t.y - (slack || 0) && y < t.y + t.h) return t;
+  }
+  return null;
+}
+
+function catchItem(it, t) {
+  it.state = 1;
+  it.grab = false;
+  if (grabbed === it) grabbed = null;
+  it.caughtT = simT;
+  it.cx0 = it.x; it.cy0 = it.y;
+  it.tray = t;
+  t.count++;
+  t.flash = 1;
+  t.squash = 1;
+  sorted++;
+  learned++;
+  remaining--;
+  if (t.count >= t.need && !t.done) {   // bowl complete
+    t.done = true;
+    t.celebT = simT;
+    t.wobble = 1;
+    spawnStars(t.cx, t.mouthY, PALETTE[t.c].b);
+    tone('triangle', 660, 990, 0.18, 0.26);
+    tone('triangle', 990, 1320, 0.18, 0.20, 0.09);
+  }
+  sPop();
+  if (it.flicked) {
+    sSwish();
+    spawnStars(it.x, it.y, PALETTE[it.c].b);
+  }
+  if (!firstSortDone) firstSortDone = true;
+  if (remaining === 0) doClear();
+}
+
+function wrongDrop(it, t) {
+  sBuzz();
+  t.shake = 1;
+  it.y = Math.min(it.y, t.y - it.r - 1);
+  const vx = (it.x - it.px);
+  it.px = it.x - vx;
+  it.py = it.y + H * 0.65 * FDT;   // bounce up
+  it.flicked = false;
+}
+
+function doClear() {
+  cleared = true;
+  clearT = simT;
+  clearElapsed = elapsed;
+  clearBest = saveBest(level, elapsed);
+  sFanfare();
+  for (const t of trays) {
+    for (let i = 0; i < 26; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
+      const sp = H * (0.5 + Math.random() * 0.9);
+      particles.push({
+        x: t.x + Math.random() * t.w, y: t.y + 4,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        life: 0.9 + Math.random() * 0.7, age: 0,
+        col: PALETTE[t.c].b, size: BASE * (0.008 + Math.random() * 0.012),
+        rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 14, type: 0,
+      });
+    }
+  }
+}
+
+function spawnStars(x, y, col) {
+  for (let i = 0; i < 7; i++) {
+    const a = Math.random() * 6.28, sp = H * (0.2 + Math.random() * 0.35);
+    particles.push({
+      x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - H * 0.2,
+      life: 0.5 + Math.random() * 0.3, age: 0,
+      col: col, size: BASE * (0.010 + Math.random() * 0.008),
+      rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 10, type: 1,
+    });
+  }
+}
+
+function segCollide(it, s) {
+  const abx = s.bx - s.ax, aby = s.by - s.ay;
+  const L2 = abx * abx + aby * aby;
+  let t = ((it.x - s.ax) * abx + (it.y - s.ay) * aby) / L2;
+  t = t < 0 ? 0 : (t > 1 ? 1 : t);
+  const cx = s.ax + abx * t, cy = s.ay + aby * t;
+  const dx = it.x - cx, dy = it.y - cy;
+  const d2 = dx * dx + dy * dy;
+  const R = it.r + wallHalf;
+  if (d2 >= R * R || d2 < 1e-9) return;
+  const d = Math.sqrt(d2), nx = dx / d, ny = dy / d;
+  it.x += nx * (R - d); it.y += ny * (R - d);
+  let vx = it.x - it.px, vy = it.y - it.py;
+  const vn = vx * nx + vy * ny;
+  if (vn < 0) {
+    const vtx = vx - vn * nx, vty = vy - vn * ny;
+    const e = 0.15, f = 0.95;
+    vx = vtx * f - vn * e * nx;
+    vy = vty * f - vn * e * ny;
+    it.px = it.x - vx; it.py = it.y - vy;
+    const spd = -vn / FDT;
+    if (spd > H * 0.30 && simT - it.lastThud > 0.09) {
+      it.lastThud = simT;
+      sClack((spd / H - 0.30) * 0.8);
+    }
+    it.sleepN = 0;
+  }
+}
+
+function trayRectCollide(it, t) {
+  const cx = Math.max(t.x, Math.min(it.x, t.x + t.w));
+  const cy = Math.max(t.y, Math.min(it.y, t.y + t.h));
+  let dx = it.x - cx, dy = it.y - cy;
+  const d2 = dx * dx + dy * dy;
+  if (cx === it.x && cy === it.y) {         // center inside: push out the top
+    it.y = t.y - it.r;
+    const vy = it.y - it.py;
+    if (vy > 0) it.py = it.y + vy * 0.15;
+    return;
+  }
+  if (d2 >= it.r * it.r || d2 < 1e-9) return;
+  const d = Math.sqrt(d2), nx = dx / d, ny = dy / d;
+  it.x += nx * (it.r - d); it.y += ny * (it.r - d);
+  let vx = it.x - it.px, vy = it.y - it.py;
+  const vn = vx * nx + vy * ny;
+  if (vn < 0) {
+    const vtx = vx - vn * nx, vty = vy - vn * ny;
+    vx = vtx * 0.92 - vn * 0.2 * nx;
+    vy = vty * 0.92 - vn * 0.2 * ny;
+    it.px = it.x - vx; it.py = it.y - vy;
+    const spd = -vn / FDT;
+    if (spd > H * 0.35 && simT - it.lastThud > 0.25) {
+      it.lastThud = simT;
+      sClack(0.15);
+    }
+  }
+}
+
+function pairKey(i, j) { return i < j ? i * 1000 + j : j * 1000 + i; }
+
+function solvePair(a, b, ia, ib, doVel) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const minD = a.r + b.r;
+  const d2 = dx * dx + dy * dy;
+  if (d2 >= minD * minD || d2 < 1e-9) return;
+  const d = Math.sqrt(d2);
+  const nx = dx / d, ny = dy / d;
+  const overlap = minD - d;
+  const ima = a.grab ? a.im * 0.2 : a.im;
+  const imb = b.grab ? b.im * 0.2 : b.im;
+  const wsum = ima + imb;
+  const wa = ima / wsum, wb = imb / wsum;
+  a.x -= nx * overlap * wa; a.y -= ny * overlap * wa;
+  b.x += nx * overlap * wb; b.y += ny * overlap * wb;
+  if (overlap > 0.08) { a.sleepN = 0; b.sleepN = 0; }
+  if (!doVel) return;
+  const vax = a.x - a.px, vay = a.y - a.py;
+  const vbx = b.x - b.px, vby = b.y - b.py;
+  const rvx = vax - vbx, rvy = vay - vby;
+  const vn = rvx * nx + rvy * ny;
+  if (vn >= 0) return;
+  // impact clack (throttled per pair, volume ~ speed)
+  const spd = -vn / FDT;
+  if (spd > H * 0.22) {
+    const k = pairKey(ia, ib);
+    const last = pairClack.get(k);
+    if (last === undefined || simT - last > 0.06) {
+      pairClack.set(k, simT);
+      sClack((spd / H - 0.22) * 1.1);
+    }
+  }
+  const e = 0.15;
+  const jn = -(1 + e) * vn / wsum;
+  let ix = nx * jn, iy = ny * jn;
+  // tangential friction: kill 10% of relative tangential motion
+  const vtx = rvx - vn * nx, vty = rvy - vn * ny;
+  ix += -vtx * 0.1 / wsum;
+  iy += -vty * 0.1 / wsum;
+  a.px -= ix * ima; a.py -= iy * ima;
+  b.px += ix * imb; b.py += iy * imb;
+}
+
+const grid = new Map();
+function physStep() {
+  stepCount++;
+  simT += FDT;
+  spawnClock += FDT;
+  if (timerOn && !cleared) elapsed += FDT;
+  if (firstSortDone && hintA > 0) hintA = Math.max(0, hintA - FDT * 1.5);
+  for (const t of trays) {
+    if (t.flash > 0) t.flash = Math.max(0, t.flash - FDT * 3);
+    if (t.shake > 0) t.shake = Math.max(0, t.shake - FDT * 2.6);
+    if (t.squash > 0) t.squash = Math.max(0, t.squash - FDT * 3.5);
+    if (t.wobble > 0) t.wobble = Math.max(0, t.wobble - FDT * 2.2);
+  }
+  // particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.age += FDT;
+    if (p.age >= p.life) { particles.splice(i, 1); continue; }
+    p.vy += G * 0.7 * FDT;
+    p.vx *= 0.99; p.vy *= 0.99;
+    p.x += p.vx * FDT; p.y += p.vy * FDT;
+    p.rot += p.vr * FDT;
+  }
+  // integrate
+  for (const it of items) {
+    if (it.state === 2) { if (spawnClock >= it.spawnT) it.state = 0; else continue; }
+    if (it.state !== 0) continue;
+    let vx = (it.x - it.px) * 0.999;
+    let vy = (it.y - it.py) * 0.999;
+    let ax = 0, ay = G;
+    if (it.grab) {
+      ax += K_SPRING * (ptr.x - it.x);
+      ay += K_SPRING * (ptr.y - it.y);
+      vx *= 0.72; vy *= 0.72;
+      it.sleepN = 0;
+    }
+    it.px = it.x; it.py = it.y;
+    it.x += vx + ax * FDT * FDT;
+    it.y += vy + ay * FDT * FDT;
+    const s2 = vx * vx + vy * vy;
+    const thr = BASE * 0.0006;
+    if (s2 < thr * thr) it.sleepN++; else it.sleepN = 0;
+  }
+  // spatial hash
+  grid.clear();
+  const cs = cellSize;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    if (it.state !== 0) continue;
+    const key = Math.floor(it.x / cs) + Math.floor(it.y / cs) * 4096;
+    const arr = grid.get(key);
+    if (arr) arr.push(i); else grid.set(key, [i]);
+  }
+  // relaxation iterations
+  for (let iter = 0; iter < 3; iter++) {
+    const doVel = iter === 0;
+    for (let i = 0; i < items.length; i++) {
+      const a = items[i];
+      if (a.state !== 0) continue;
+      const asleep = a.sleepN > 20;
+      const cx = Math.floor(a.x / cs), cy = Math.floor(a.y / cs);
+      for (let gy = cy - 1; gy <= cy + 1; gy++) {
+        for (let gx = cx - 1; gx <= cx + 1; gx++) {
+          const arr = grid.get(gx + gy * 4096);
+          if (!arr) continue;
+          for (let k = 0; k < arr.length; k++) {
+            const j = arr[k];
+            if (j <= i) continue;
+            const b = items[j];
+            if (b.state !== 0) continue;
+            if (asleep && b.sleepN > 20 && (stepCount & 1)) continue;
+            solvePair(a, b, i, j, doVel);
+          }
+        }
+      }
+    }
+    // walls + bounds each iteration keeps the pile from tunneling
+    for (const it of items) {
+      if (it.state !== 0 || it.y < -it.r * 3) continue;
+      for (const s of walls) segCollide(it, s);
+      // screen bounds
+      const e = 0.15;
+      if (it.x < it.r) { const vx = it.x - it.px; it.x = it.r; it.px = it.x + vx * e; }
+      else if (it.x > W - it.r) { const vx = it.x - it.px; it.x = W - it.r; it.px = it.x + vx * e; }
+      if (it.y > H - it.r) {
+        const vy = it.y - it.py;
+        it.y = H - it.r;
+        it.py = it.y + vy * e;
+        const vx = (it.x - it.px) * 0.90;   // floor friction
+        it.px = it.x - vx;
+      }
+      // trays: wrong color = solid, right color = permeable catch
+      if (!it.grab) {
+        for (const t of trays) {
+          if (it.c === t.c) {
+            if (iter === 0 &&
+                Math.abs(it.x - t.cx) < t.mr * 0.92 &&
+                it.y > t.mouthY - it.r * 0.8 &&
+                (it.y - it.py) > -BASE * 0.0012) {
+              catchItem(it, t);
+              break;
+            }
+          } else {
+            trayRectCollide(it, t);
+          }
+        }
+      }
+    }
+  }
+  if (cleared && simT - clearT > 2.4) startLevel(level + 1);
+}
+
+// =========================== DRAW ===========================
+function fmtTime(s) {
+  const m = Math.floor(s / 60), ss = Math.floor(s % 60);
+  return m + ':' + (ss < 10 ? '0' : '') + ss;
+}
+function rrect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function drawPebble(it, scale) {
+  const r = it.r * (scale || 1);
+  const col = PALETTE[it.c];
+  ctx.beginPath();
+  ctx.arc(it.dx, it.dy, r, 0, 6.2832);
+  ctx.fillStyle = col.b;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(it.dx, it.dy, r - r * 0.10, 0, 6.2832);
+  ctx.lineWidth = r * 0.20;
+  ctx.strokeStyle = col.d;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(it.dx - r * 0.34, it.dy - r * 0.38, r * 0.18, 0, 6.2832);
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fill();
+}
+
+function qbez(u, x0, cp, x1) {
+  const v = 1 - u;
+  return v * v * x0 + 2 * v * u * cp + u * u * x1;
+}
+
+// dotted guide arc: grabbed pebble -> its matching bowl (until 3 sorts learned)
+function drawGuide() {
+  if (!grabbed || learned >= 3) return;
+  const t = trays[grabbed.c];
+  if (!t) return;
+  const x0 = grabbed.x, y0 = grabbed.y;
+  const x1 = t.cx, y1 = t.mouthY - t.mry;
+  const cpx = (x0 + x1) / 2;
+  const cpy = Math.min(y0, y1) - BASE * 0.16;
+  let len = 0, px = x0, py = y0;
+  for (let i = 1; i <= 16; i++) {
+    const qx = qbez(i / 16, x0, cpx, x1), qy = qbez(i / 16, y0, cpy, y1);
+    len += Math.hypot(qx - px, qy - py);
+    px = qx; py = qy;
+  }
+  const nDots = Math.max(3, Math.min(160, Math.round(len / 8)));
+  const dr = Math.max(1.6, BASE * 0.006);
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = PALETTE[grabbed.c].b;
+  for (let i = 1; i <= nDots; i++) {
+    const u = i / (nDots + 1);
+    ctx.beginPath();
+    ctx.arc(qbez(u, x0, cpx, x1), qbez(u, y0, cpy, y1), dr, 0, 6.2832);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// attract-mode demo (draw-only): ghost of the topmost pebble drags into its bowl
+function updateDemo() {
+  if (demoKilled || cleared || simT < demoNext) return;
+  let best = null;
+  for (const it of items) {
+    if (it.state !== 0) continue;
+    if (it.y < H * 0.15 || it.y > H * 0.62) continue;
+    if (trays[it.c] && trays[it.c].done) continue;
+    if (!best || it.y < best.y) best = it;
+  }
+  if (best) {
+    demoSrc = { x: best.x, y: best.y, r: best.r, c: best.c };
+    demoStart = simT;
+    demoNext = simT + 2.8;
+  } else {
+    demoNext = simT + 0.5;
+  }
+}
+
+function drawDemo() {
+  if (demoKilled || cleared || demoStart < 0 || !demoSrc) return;
+  const t = trays[demoSrc.c];
+  if (!t) return;
+  const ph = simT - demoStart;
+  if (ph > 1.35) return;
+  const x0 = demoSrc.x, y0 = demoSrc.y;
+  const x1 = t.cx, y1 = t.mouthY;
+  const cpx = (x0 + x1) / 2, cpy = Math.min(y0, y1) - BASE * 0.20;
+  const p = Math.min(1, ph / 0.9);
+  const e = p * p * (3 - 2 * p);
+  const gx = qbez(e, x0, cpx, x1), gy = qbez(e, y0, cpy, y1);
+  let a = Math.min(1, ph / 0.15) * 0.55;
+  if (ph > 0.9) a *= Math.max(0, 1 - (ph - 0.9) / 0.45);
+  if (a <= 0.01) return;
+  const r = demoSrc.r * (1 + 0.15 * Math.min(1, ph / 0.15));
+  const col = PALETTE[demoSrc.c];
+  ctx.globalAlpha = a;
+  ctx.beginPath();
+  ctx.arc(gx, gy, r, 0, 6.2832);
+  ctx.fillStyle = col.b;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(gx, gy, r * 0.90, 0, 6.2832);
+  ctx.lineWidth = r * 0.20;
+  ctx.strokeStyle = col.d;
+  ctx.stroke();
+  // finger riding the pebble so it reads as a hand dragging
+  ctx.beginPath();
+  ctx.arc(gx + r * 0.45, gy + r * 0.55, r * 0.5, 0, 6.2832);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  // background
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0b0d12');
+  bg.addColorStop(1, '#101420');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+  // bin back panel
+  const [wl, wb, wr] = walls;
+  ctx.beginPath();
+  ctx.moveTo(wl.ax, wl.ay);
+  ctx.lineTo(wl.bx, wl.by);
+  ctx.lineTo(wr.bx, wr.by);
+  ctx.lineTo(wr.ax, wr.ay);
+  ctx.closePath();
+  ctx.fillStyle = '#131824';
+  ctx.fill();
+  // shelf + bowls (under items so pebbles pop "into" them)
+  updateDemo();
+  const fs = Math.max(10, BASE * 0.042);
+  if (trays.length) {
+    const shelfY = trays[0].baseY + 1;
+    ctx.beginPath();
+    ctx.moveTo(W * 0.02, shelfY);
+    ctx.lineTo(W * 0.98, shelfY);
+    ctx.lineWidth = Math.max(2, BASE * 0.008);
+    ctx.strokeStyle = '#2a3142';
+    ctx.stroke();
+  }
+  for (const t of trays) {
+    const col = PALETTE[t.c];
+    const shakeX = t.shake > 0 ? Math.sin(simT * 70) * t.shake * BASE * 0.02 : 0;
+    // pulse: breathing while its pebble is held (until learned), or demo arrival
+    let pulse = 0;
+    if (grabbed && learned < 3 && grabbed.c === t.c) pulse = 0.5 - 0.5 * Math.cos(simT * 6);
+    if (!demoKilled && demoStart >= 0 && demoSrc && demoSrc.c === t.c) {
+      const dph = simT - demoStart;
+      if (dph >= 0.88 && dph < 1.35) pulse = Math.max(pulse, 1 - (dph - 0.88) / 0.47);
+    }
+    const cyMid = (t.mouthY + t.baseY) / 2;
+    const sc = 1 + 0.12 * pulse + t.squash * 0.06;
+    ctx.save();
+    ctx.translate(t.cx + shakeX, cyMid);
+    ctx.scale(sc, sc);
+    if (t.wobble > 0) ctx.rotate(Math.sin(simT * 18) * t.wobble * 0.09);
+    ctx.translate(-t.cx, -cyMid);
+    // bowl body
+    ctx.beginPath();
+    ctx.moveTo(t.cx - t.mr, t.mouthY);
+    ctx.quadraticCurveTo(t.cx - t.mr * 0.98, t.baseY, t.cx - t.mr * 0.48, t.baseY);
+    ctx.lineTo(t.cx + t.mr * 0.48, t.baseY);
+    ctx.quadraticCurveTo(t.cx + t.mr * 0.98, t.baseY, t.cx + t.mr, t.mouthY);
+    ctx.closePath();
+    ctx.fillStyle = col.b + '30';
+    ctx.fill();
+    ctx.lineWidth = Math.max(2, BASE * 0.007);
+    ctx.strokeStyle = col.b + '90';
+    ctx.stroke();
+    // mouth opening (slight 3D)
+    ctx.beginPath();
+    ctx.ellipse(t.cx, t.mouthY, t.mr, t.mry, 0, 0, 6.2832);
+    ctx.fillStyle = '#0d1017';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(t.cx, t.mouthY, t.mr, t.mry, 0, 0, 6.2832);
+    ctx.fillStyle = col.d + '3a';
+    ctx.fill();
+    if (t.flash > 0) {
+      ctx.beginPath();
+      ctx.ellipse(t.cx, t.mouthY, t.mr, t.mry, 0, 0, 6.2832);
+      ctx.fillStyle = 'rgba(255,255,255,' + (t.flash * 0.6).toFixed(3) + ')';
+      ctx.fill();
+    }
+    // thick rim in the item color
+    ctx.beginPath();
+    ctx.ellipse(t.cx, t.mouthY, t.mr, t.mry, 0, 0, 6.2832);
+    ctx.lineWidth = Math.max(3, BASE * 0.013);
+    ctx.strokeStyle = col.b;
+    ctx.stroke();
+    // glowing pulse ring
+    if (pulse > 0.01) {
+      ctx.beginPath();
+      ctx.ellipse(t.cx, t.mouthY, t.mr * 1.22, t.mry * 1.7, 0, 0, 6.2832);
+      ctx.lineWidth = Math.max(4, BASE * 0.016);
+      ctx.globalAlpha = 0.15 + 0.35 * pulse;
+      ctx.strokeStyle = col.b;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    // big color dot at bowl center
+    const dotY = t.mouthY + (t.baseY - t.mouthY) * 0.40;
+    const dotR = Math.min(t.mr * 0.30, (t.baseY - t.mouthY) * 0.24);
+    ctx.beginPath();
+    ctx.arc(t.cx, dotY, dotR, 0, 6.2832);
+    ctx.fillStyle = col.b;
+    ctx.fill();
+    // count under the dot, or check mark when complete
+    const infoY = t.mouthY + (t.baseY - t.mouthY) * 0.80;
+    if (t.done) {
+      const cw = fs * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(t.cx - cw, infoY - cw * 0.1);
+      ctx.lineTo(t.cx - cw * 0.25, infoY + cw * 0.55);
+      ctx.lineTo(t.cx + cw, infoY - cw * 0.6);
+      ctx.lineWidth = Math.max(2.5, fs * 0.22);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#eafff2';
+      ctx.stroke();
+      // celebration ring burst
+      const age = simT - t.celebT;
+      if (age < 0.7) {
+        const k = age / 0.7;
+        ctx.beginPath();
+        ctx.ellipse(t.cx, t.mouthY, t.mr * (1 + k * 1.6), t.mry * (1 + k * 2.8), 0, 0, 6.2832);
+        ctx.lineWidth = Math.max(2, BASE * 0.010) * (1 - k) + 0.5;
+        ctx.globalAlpha = (1 - k) * 0.9;
+        ctx.strokeStyle = col.b;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    } else {
+      ctx.fillStyle = 'rgba(235,240,250,0.92)';
+      ctx.font = '700 ' + fs + 'px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(t.count + '/' + t.need, t.cx, infoY);
+    }
+    ctx.restore();
+  }
+  // items
+  for (const it of items) {
+    if (it.state === 2 || it === grabbed) continue;
+    if (it.state === 1) {
+      const p = (simT - it.caughtT) / 0.28;
+      if (p >= 1 || !it.tray) continue;
+      const ease = p * p * (3 - 2 * p);
+      const tx = it.tray.cx, ty = it.tray.mouthY;
+      it.dx = it.cx0 + (tx - it.cx0) * ease;
+      it.dy = it.cy0 + (ty - it.cy0) * ease;
+      drawPebble(it, 1 - ease);
+      continue;
+    }
+    it.dx = it.x; it.dy = it.y;
+    drawPebble(it, 1);
+  }
+  // walls over items
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(wl.ax, wl.ay); ctx.lineTo(wl.bx, wl.by);
+  ctx.lineTo(wr.bx, wr.by); ctx.lineTo(wr.ax, wr.ay);
+  ctx.lineWidth = wallHalf * 2;
+  ctx.strokeStyle = '#4a3826';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(wl.ax, wl.ay); ctx.lineTo(wl.bx, wl.by);
+  ctx.lineTo(wr.bx, wr.by); ctx.lineTo(wr.ax, wr.ay);
+  ctx.lineWidth = wallHalf * 0.8;
+  ctx.strokeStyle = '#6b5438';
+  ctx.stroke();
+  // grabbed item last, enlarged + ring
+  if (grabbed) {
+    const it = grabbed;
+    it.dx = it.x; it.dy = it.y;
+    drawPebble(it, 1.12);
+    ctx.beginPath();
+    ctx.arc(it.x, it.y, it.r * 1.34, 0, 6.2832);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(it.x, it.y, it.r * 1.5, 0, 6.2832);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.stroke();
+  }
+  drawGuide();
+  drawDemo();
+  // particles
+  for (const p of particles) {
+    const a = 1 - p.age / p.life;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.col;
+    if (p.type === 0) {
+      ctx.fillRect(-p.size, -p.size * 0.6, p.size * 2, p.size * 1.2);
+    } else {
+      ctx.beginPath();
+      for (let k = 0; k < 8; k++) {
+        const rr = (k & 1) ? p.size * 0.45 : p.size;
+        const an = k * Math.PI / 4;
+        if (k === 0) ctx.moveTo(Math.cos(an) * rr, Math.sin(an) * rr);
+        else ctx.lineTo(Math.cos(an) * rr, Math.sin(an) * rr);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+  // HUD
+  const hudFs = Math.max(12, BASE * 0.05);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '700 ' + hudFs + 'px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = 'rgba(235,240,250,0.92)';
+  ctx.fillText('LEVEL ' + level, 14, 14 + hudFs * 0.8);
+  ctx.font = '500 ' + (hudFs * 0.5) + 'px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = 'rgba(235,240,250,0.35)';
+  ctx.fillText(fmtTime(elapsed), 14, 14 + hudFs * 1.6);
+  // restart button
+  const bx = W - 30, by = 30;
+  ctx.beginPath();
+  ctx.arc(bx, by, 18, 0, 6.2832);
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(bx, by, 9, -0.4, 4.2);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(235,240,250,0.75)';
+  ctx.stroke();
+  ctx.beginPath();
+  const aEnd = -0.4;
+  const hx = bx + Math.cos(aEnd) * 9, hy = by + Math.sin(aEnd) * 9;
+  ctx.moveTo(hx + 4, hy - 4.5);
+  ctx.lineTo(hx + 4.5, hy + 3);
+  ctx.lineTo(hx - 3.5, hy + 1);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(235,240,250,0.75)';
+  ctx.fill();
+  // hint pill
+  if (hintA > 0.01) {
+    const txt = 'drag to the matching bowl';
+    const pf = Math.max(11, BASE * 0.042);
+    ctx.font = '600 ' + pf + 'px system-ui, -apple-system, sans-serif';
+    const tw = ctx.measureText(txt).width;
+    const pw = tw + pf * 1.8, ph = pf * 1.9;
+    const pxx = W / 2 - pw / 2, pyy = H - ph - 6;
+    ctx.globalAlpha = hintA;
+    rrect(pxx, pyy, pw, ph, ph / 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fill();
+    ctx.fillStyle = 'rgba(235,240,250,0.85)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(txt, W / 2, pyy + ph / 2 + 0.5);
+    ctx.globalAlpha = 1;
+  }
+  // level clear overlay
+  if (cleared) {
+    const p = Math.min(1, (simT - clearT) / 0.3);
+    ctx.fillStyle = 'rgba(11,13,18,' + (p * 0.55).toFixed(3) + ')';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = p;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const big = Math.max(20, BASE * 0.09);
+    ctx.font = '800 ' + big + 'px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#ffce6b';
+    ctx.fillText('LEVEL ' + level + ' CLEAR', W / 2, H * 0.40);
+    ctx.font = '600 ' + (big * 0.5) + 'px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = 'rgba(235,240,250,0.9)';
+    ctx.fillText('time ' + fmtTime(clearElapsed) + '  ·  best ' + fmtTime(clearBest), W / 2, H * 0.40 + big);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// =========================== INPUT ===========================
+function tryGrab(x, y) {
+  let best = null;
+  const slop = BASE * 0.02;
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    if (it.state !== 0) continue;
+    const dx = it.x - x, dy = it.y - y;
+    if (dx * dx + dy * dy <= (it.r + slop) * (it.r + slop)) { best = it; break; }
+  }
+  if (!best) return null;
+  demoKilled = true;
+  grabbed = best;
+  best.grab = true;
+  best.flicked = false;
+  best.sleepN = 0;
+  ptr.x = x; ptr.y = y;
+  wakeAround(best.x, best.y, best.r * 3);
+  if (!timerOn) timerOn = true;
+  sGrab();
+  return PALETTE[best.c].b;
+}
+
+function doRelease(vx, vy) {
+  const it = grabbed;
+  if (!it) return;
+  grabbed = null;
+  it.grab = false;
+  const spd = Math.hypot(vx, vy);
+  if (spd > 40) {
+    it.px = it.x - vx * FDT;
+    it.py = it.y - vy * FDT;
+  }
+  // magnetic catch: generous snap to the MATCHING bowl
+  const mb = trays[it.c];
+  if (mb) {
+    const mdx = it.x - mb.cx, mdy = it.y - mb.mouthY;
+    const mrad = mb.mr * 1.6;
+    if (mdx * mdx + mdy * mdy < mrad * mrad) { it.flicked = false; catchItem(it, mb); return; }
+  }
+  const t = trayAt(it.x, it.y, it.r * 1.5);
+  if (t) {
+    if (t.c === it.c) { it.flicked = false; catchItem(it, t); }
+    else wrongDrop(it, t);
+  } else {
+    it.flicked = spd > H * 0.9;
+  }
+}
+
+function ptrVel() {
+  const now = performance.now();
+  const s = ptrSamples;
+  if (s.length < 2) return { vx: 0, vy: 0 };
+  const last = s[s.length - 1];
+  let old = s[0];
+  for (let i = s.length - 2; i >= 0; i--) {
+    if (now - s[i].t >= 40) { old = s[i]; break; }
+  }
+  const dt = (last.t - old.t) / 1000;
+  if (dt <= 0.001 || now - last.t > 130) return { vx: 0, vy: 0 };
+  return { vx: (last.x - old.x) / dt, vy: (last.y - old.y) / dt };
+}
+
+cvs.addEventListener('pointerdown', (ev) => {
+  ev.preventDefault();
+  initAudio();
+  if (AC && AC.state === 'suspended') AC.resume();
+  demoKilled = true;                    // attract mode ends on first input, forever
+  const x = ev.clientX, y = ev.clientY;
+  // restart button
+  const dx = x - (W - 30), dy = y - 30;
+  if (dx * dx + dy * dy < 24 * 24) { startLevel(level); return; }
+  if (cleared) return;
+  cvs.setPointerCapture(ev.pointerId);
+  ptrSamples = [{ t: performance.now(), x, y }];
+  tryGrab(x, y);
+});
+cvs.addEventListener('pointermove', (ev) => {
+  ev.preventDefault();
+  if (!grabbed) return;
+  ptr.x = ev.clientX; ptr.y = ev.clientY;
+  ptrSamples.push({ t: performance.now(), x: ptr.x, y: ptr.y });
+  if (ptrSamples.length > 8) ptrSamples.shift();
+});
+function onUp(ev) {
+  ev.preventDefault();
+  if (!grabbed) return;
+  const v = ptrVel();
+  doRelease(v.vx, v.vy);
+}
+cvs.addEventListener('pointerup', onUp);
+cvs.addEventListener('pointercancel', onUp);
+cvs.addEventListener('contextmenu', (ev) => ev.preventDefault());
+
+// =========================== LOOP ===========================
+let lastT = 0, acc = 0;
+function frame(t) {
+  requestAnimationFrame(frame);
+  if (!lastT) { lastT = t; return; }
+  let dt = (t - lastT) / 1000;
+  lastT = t;
+  if (dt > 0.05) dt = 0.05;
+  acc += dt;
+  if (acc > 0.1) acc = 0.1;
+  while (acc >= FDT) {
+    physStep();
+    acc -= FDT;
+  }
+  draw();
+}
+
+// =========================== TEST API ===========================
+window.__game = {
+  state: () => ({ level: level, remaining: remaining, sorted: sorted, elapsed: elapsed,
+                  demo: !demoKilled, learned: learned }),
+  stepN: (n) => {
+    for (let i = 0; i < n; i++) physStep();
+    draw();
+  },
+  grabAt: (x, y) => tryGrab(x, y),
+  dropAt: (x, y) => {
+    if (!grabbed) return;
+    const it = grabbed;
+    it.x = x; it.y = y; it.px = x; it.py = y;
+    doRelease(0, 0);
+  },
+};
+
+// =========================== BOOT ===========================
+resize();
+startLevel(1);
+draw();
+requestAnimationFrame(frame);
+
+</script>
+</body>
+</html>

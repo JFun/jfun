@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>POUR</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0b0d12;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-user-select:none;user-select:none;}
+  #c{position:fixed;inset:0;display:block;touch-action:none;}
+  #lvl{position:fixed;top:12px;left:14px;color:rgba(255,255,255,0.78);
+    font-size:13px;font-weight:700;letter-spacing:2.5px;pointer-events:none;}
+  #spill{position:fixed;top:34px;left:14px;color:rgba(255,140,130,0.75);
+    font-size:11px;font-weight:600;letter-spacing:1px;pointer-events:none;}
+  #restart{position:fixed;top:8px;right:8px;width:40px;height:40px;border-radius:50%;
+    border:1px solid rgba(255,255,255,0.22);background:rgba(255,255,255,0.06);
+    color:rgba(255,255,255,0.85);font-size:20px;line-height:1;cursor:pointer;
+    touch-action:manipulation;padding:0;}
+  #restart:active{background:rgba(255,255,255,0.18);}
+  #hint{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));
+    transform:translateX(-50%);padding:8px 18px;border-radius:999px;
+    background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.10);
+    color:rgba(255,255,255,0.82);font-size:13px;letter-spacing:0.5px;white-space:nowrap;
+    pointer-events:none;transition:opacity 0.8s ease;opacity:1;}
+  #hint.hide{opacity:0;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="lvl">LEVEL 1</div>
+<div id="spill"></div>
+<button id="restart" aria-label="restart level">&#8635;</button>
+<div id="hint">grab a glass &middot; pour</div>
+<script>
+'use strict';
+/* ============================== POUR — real granular sand color-sort =============================== */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const lvlEl = document.getElementById('lvl');
+const spillEl = document.getElementById('spill');
+const hintEl = document.getElementById('hint');
+const restartBtn = document.getElementById('restart');
+
+const TAU = Math.PI * 2;
+const STEP = 1 / 120;                 // fixed physics timestep
+const TIP = 1.745;                    // ~100 degrees full pour angle
+const PALETTE = ['#ffce6b', '#6ea8ff', '#ff6b6b', '#4bd48a', '#9d7bff'];
+
+let W = 0, H = 0, DPR = 1;
+let R = 3, R2 = 9;                    // grain radius
+let GRAV = 1200;                      // px/s^2 (H * 2.2)
+let shelfY = 0;
+
+let level = 1, spilled = 0;
+let clearing = false, clearTimer = 0, perfect = false;
+let glasses = [], grains = [], confetti = [];
+let stepCount = 0, prerolling = false, pouredOnce = false;
+let airborne = 0;
+let heldGlass = null;
+const pointer = { x: 0, y: 0, id: null };
+
+let cell = 8, gridW = 1, gridH = 1;
+let gridHead = new Int32Array(1), gridNext = new Int32Array(512);
+let bgGrad = null;
+
+/* ---------------------------------------- utils ---------------------------------------- */
+function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+function clampi(v, a, b) { return v < a ? a : (v > b ? b : v); }
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function shuffle(arr, rng) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = (rng() * (i + 1)) | 0;
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+}
+function hexRGB(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+function shade(h, f) {
+  const c = hexRGB(h);
+  return 'rgb(' + Math.min(255, c[0] * f | 0) + ',' + Math.min(255, c[1] * f | 0) + ',' + Math.min(255, c[2] * f | 0) + ')';
+}
+function hexA(h, a) {
+  const c = hexRGB(h);
+  return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')';
+}
+
+/* ---------------------------------------- audio ---------------------------------------- */
+let AC = null, hissG = null;
+function initAudio() {
+  if (AC) return;
+  try {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    const len = AC.sampleRate | 0;
+    const buf = AC.createBuffer(1, len, AC.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = AC.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    const bp = AC.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 2600; bp.Q.value = 0.7;
+    hissG = AC.createGain(); hissG.gain.value = 0;
+    src.connect(bp); bp.connect(hissG); hissG.connect(AC.destination);
+    src.start();
+  } catch (e) { AC = null; }
+}
+function tone(freq, when, dur, vol, type) {
+  if (!AC) return;
+  const t = AC.currentTime + (when || 0);
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(AC.destination);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+function sndTick() {
+  if (!AC) return;
+  const t = AC.currentTime;
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(1900, t);
+  o.frequency.exponentialRampToValueAtTime(1150, t + 0.05);
+  g.gain.setValueAtTime(0.12, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+  o.connect(g); g.connect(AC.destination);
+  o.start(t); o.stop(t + 0.09);
+}
+function sndChime(f) { tone(f, 0, 0.5, 0.09); tone(f * 1.5, 0.02, 0.45, 0.05); }
+function sndSparkle() {
+  for (let i = 0; i < 4; i++) tone(1600 + Math.random() * 1600, 0.05 + i * 0.06, 0.18, 0.035);
+}
+function sndClear() {
+  tone(523, 0, 0.5, 0.10); tone(659, 0.09, 0.5, 0.10); tone(784, 0.18, 0.7, 0.11);
+  tone(1046, 0.28, 0.8, 0.07);
+  sndSparkle();
+}
+
+/* ---------------------------------------- level build ---------------------------------------- */
+function levelCfg(l) {
+  if (l <= 1) return { n: 3, colors: 2, layers: 2 };
+  if (l === 2) return { n: 4, colors: 3, layers: 2 };
+  if (l === 3) return { n: 5, colors: 3, layers: 3 };
+  return { n: 5, colors: 4, layers: 3 };
+}
+
+function buildLevel(l) {
+  level = l; spilled = 0;
+  clearing = false; clearTimer = 0; perfect = false;
+  grains = []; confetti = []; heldGlass = null; pointer.id = null;
+  lvlEl.textContent = 'LEVEL ' + level;
+  spillEl.textContent = '';
+
+  const cfg = levelCfg(l);
+  const rng = mulberry32(l * 7919 + 13);
+
+  R = clamp(Math.min(W, H * 0.62) / 90, 2.5, 7);
+  R2 = R * R;
+  GRAV = H * 2.2;
+  shelfY = H * 0.80;
+
+  cell = R * 2;
+  gridW = Math.ceil(W / cell) + 2;
+  gridH = Math.ceil(H / cell) + 2;
+  gridHead = new Int32Array(gridW * gridH);
+  gridNext = new Int32Array(512);
+
+  const n = cfg.n;
+  const margin = W * 0.045, gap = Math.max(6, W * 0.02);
+  const gw = Math.min((W - margin * 2 - gap * (n - 1)) / n, H * 0.16);
+  const gh = Math.min(H * 0.30, gw * 2.4);
+  const totalW = n * gw + (n - 1) * gap;
+  const sx = (W - totalW) / 2 + gw / 2;
+
+  glasses = [];
+  for (let i = 0; i < n; i++) {
+    const cx = sx + i * (gw + gap), cy = shelfY - gh / 2;
+    const wall = Math.max(2, R * 0.6);
+    const boundR = Math.hypot(gw / 2, gh / 2) + R * 2;
+    glasses.push({
+      i: i, hw: gw / 2, hh: gh / 2, wall: wall,
+      iw: gw / 2 - wall, ib: gh / 2 - wall,
+      x: cx, y: cy, homeX: cx, homeY: cy,
+      px: cx, py: cy, a: 0, pa: 0, ca: 1, sa: 0,
+      held: false, lift: 0, complete: false, glow: 0,
+      hoverT: 0, lastT: null, tipDir: 0,
+      pureColor: null, lastChime: -100000, moved: false,
+      boundR: boundR, boundR2: boundR * boundR,
+      segs: new Float64Array(12)
+    });
+    refreshSegs(glasses[i]);
+  }
+
+  // choose colors + layer layout
+  const pal = PALETTE.slice();
+  shuffle(pal, rng);
+  const colors = pal.slice(0, cfg.colors);
+  const filled = n - 1;
+  const emptyIdx = (rng() * n) | 0;
+
+  const slots = [];
+  for (let s = 0; s < filled * cfg.layers; s++) slots.push(s % cfg.colors);
+  shuffle(slots, rng);
+  // no glass may start already pure
+  for (let gi = 0; gi < filled; gi++) {
+    const base = gi * cfg.layers;
+    let pure = true;
+    for (let k = 1; k < cfg.layers; k++) if (slots[base + k] !== slots[base]) pure = false;
+    if (pure) {
+      outer:
+      for (let gj = 0; gj < filled; gj++) {
+        if (gj === gi) continue;
+        const bj = gj * cfg.layers;
+        for (let k = 0; k < cfg.layers; k++) {
+          if (slots[bj + k] !== slots[base]) {
+            const t = slots[bj + k]; slots[bj + k] = slots[base]; slots[base] = t;
+            break outer;
+          }
+        }
+      }
+    }
+  }
+
+  // grain capacity
+  const g0 = glasses[0];
+  const usable = (g0.iw - R) * 2;
+  const nCols = Math.max(3, Math.floor(usable / (R * 2.05)) + 1);
+  const stepX = nCols > 1 ? usable / (nCols - 1) : 0;
+  const rowH = R * 2 * 0.88;
+  const maxRows = Math.floor((g0.hh * 2 * 0.62) / rowH);
+  let perGlass = Math.min(90, Math.floor(340 / filled), nCols * maxRows);
+  perGlass -= perGlass % cfg.layers;
+  const perLayer = perGlass / cfg.layers;
+
+  // spawn settled lattice, layered bottom-up
+  let fi = 0;
+  for (let i = 0; i < n; i++) {
+    if (i === emptyIdx) continue;
+    const g = glasses[i];
+    const base = fi * cfg.layers;
+    const leftX = g.x - g.iw + R;
+    let row = 0, col = 0;
+    for (let L = 0; L < cfg.layers; L++) {
+      const cHex = colors[slots[base + L]];
+      for (let k = 0; k < perLayer; k++) {
+        let x = leftX + col * stepX + (row % 2 ? stepX * 0.5 : 0) + (rng() - 0.5) * R * 0.35;
+        x = clamp(x, g.x - g.iw + R, g.x + g.iw - R);
+        const y = shelfY - g.wall - R - row * rowH;
+        grains.push({
+          x: x, y: y, px: x, py: y,
+          c: cHex, style: shade(cHex, 0.82 + rng() * 0.33),
+          home: i, sleepy: 0, sleep: false,
+          contact: false, supported: false,
+          squash: 0, spill: 0
+        });
+        col++;
+        if (col >= nCols) { col = 0; row++; }
+      }
+    }
+    fi++;
+  }
+
+  // pre-roll so piles are settled before reveal
+  prerolling = true;
+  for (let i = 0; i < 120; i++) physStep();
+  prerolling = false;
+}
+
+/* ---------------------------------------- glasses ---------------------------------------- */
+function refreshSegs(g) {
+  const iw = g.iw, ib = g.ib, top = -g.hh;
+  // left wall, bottom, right wall (open top)
+  const pts = [-iw, top, -iw, ib, -iw, ib, iw, ib, iw, top, iw, ib];
+  const s = g.segs;
+  for (let k = 0; k < 12; k += 2) {
+    const lx = pts[k], ly = pts[k + 1];
+    s[k] = g.x + lx * g.ca - ly * g.sa;
+    s[k + 1] = g.y + lx * g.sa + ly * g.ca;
+  }
+}
+
+function findPourTarget(g) {
+  // target = the glass the FINGER hovers above (not the held glass's drifting center)
+  let best = null, bd = 1e9;
+  for (const o of glasses) {
+    if (o === g) continue;
+    const dx = Math.abs(pointer.x - o.x);
+    if (dx < o.hw + g.hw * 0.5 && pointer.y < o.y - o.hh * 0.2) {
+      if (dx < bd) { bd = dx; best = o; }
+    }
+  }
+  return best;
+}
+
+function wakeNear(g) {
+  const r = g.boundR + R * 2;
+  for (const p of grains) {
+    if (Math.abs(p.x - g.x) < r && Math.abs(p.y - g.y) < r) {
+      p.sleepy = 0; p.sleep = false;
+    }
+  }
+}
+
+function updateGlass(g) {
+  g.px = g.x; g.py = g.y; g.pa = g.a;
+  const maxMove = R * 0.8;
+  let tx, ty, ta = 0;
+  if (g.held && !clearing) {
+    g.lift = Math.min(1, g.lift + STEP * 5);
+    const le = 1 - Math.pow(1 - g.lift, 3);      // ease-out cubic rise
+    const ax = pointer.x, ay = pointer.y - H * 0.15 * le;   // carry anchor above the finger
+    const t = findPourTarget(g);
+    // linger 0.3s over a target before tipping, so carrying past glasses doesn't dribble
+    if (t && t === g.lastT) g.hoverT += STEP; else { g.hoverT = 0; g.lastT = t; }
+    const tipped = Math.abs(g.a) > 0.1;
+    if (t && (g.hoverT > 0.3 || tipped)) {
+      if (!g.tipDir) g.tipDir = (t.x >= g.homeX ? 1 : -1);  // lock direction for the whole tip
+      ta = g.tipDir * TIP;
+    } else if (!t && !tipped) g.tipDir = 0;
+    tx = ax; ty = ay;
+    if (tipped) {
+      // anchor the pouring LIP to the finger — the stream lands where you point
+      const lipX = (g.a >= 0 ? 1 : -1) * g.iw, lipY = -g.hh;
+      const wx = lipX * g.ca - lipY * g.sa, wy = lipX * g.sa + lipY * g.ca;
+      tx = ax - wx; ty = ay - wy;
+    }
+    tx = clamp(tx, -g.hh, W + g.hh);
+    ty = clamp(ty, H * 0.04, shelfY - g.hw * 0.8);
+  } else {
+    g.lift = Math.max(0, g.lift - STEP * 4);
+    g.hoverT = 0; g.lastT = null;
+    if (Math.abs(g.a) < 0.1) g.tipDir = 0;
+    tx = g.homeX; ty = g.homeY;
+  }
+  let dx = (tx - g.x) * 0.15, dy = (ty - g.y) * 0.15;
+  const dl = Math.hypot(dx, dy);
+  if (dl > maxMove) { dx *= maxMove / dl; dy *= maxMove / dl; }
+  g.x += dx; g.y += dy;
+
+  // slow continuous tip toward target (~1.4s to full), faster ease back upright
+  const tippingOut = Math.abs(ta) > Math.abs(g.a) + 1e-4;
+  const rate = tippingOut ? TIP / 1.4 * STEP : 2.5 * STEP;
+  const da = clamp(ta - g.a, -rate, rate);
+  g.a += da;
+  g.ca = Math.cos(g.a); g.sa = Math.sin(g.a);
+  refreshSegs(g);
+
+  const movedAmt = Math.abs(dx) + Math.abs(dy) + Math.abs(da) * g.hh;
+  g.moved = movedAmt > 0.02;
+  if (g.moved) wakeNear(g);
+}
+
+function containingGlass(x, y) {
+  for (let i = 0; i < glasses.length; i++) {
+    const g = glasses[i];
+    const dx = x - g.x, dy = y - g.y;
+    if (dx * dx + dy * dy > g.boundR2) continue;
+    const lx = dx * g.ca + dy * g.sa;
+    const ly = -dx * g.sa + dy * g.ca;
+    if (lx > -g.iw && lx < g.iw && ly > -g.hh && ly < g.ib + R) return i;
+  }
+  return -1;
+}
+
+/* ---------------------------------------- physics ---------------------------------------- */
+function hashInsert() {
+  gridHead.fill(-1);
+  for (let i = 0; i < grains.length; i++) {
+    const p = grains[i];
+    if (p.spill > 0) { gridNext[i] = -1; continue; }
+    const cx = clampi((p.x / cell) | 0, 0, gridW - 1);
+    const cy = clampi((p.y / cell) | 0, 0, gridH - 1);
+    const k = cy * gridW + cx;
+    gridNext[i] = gridHead[k];
+    gridHead[k] = i;
+  }
+}
+
+function pairPass() {
+  const D = R * 2, D2 = D * D;
+  const n = grains.length;
+  for (let i = 0; i < n; i++) {
+    const p = grains[i];
+    if (p.spill > 0) continue;
+    if (p.sleep && (stepCount & 1)) continue;   // sleepy grains skip pair checks every other step
+    const cx = clampi((p.x / cell) | 0, 0, gridW - 1);
+    const cy = clampi((p.y / cell) | 0, 0, gridH - 1);
+    for (let yy = cy - 1; yy <= cy + 1; yy++) {
+      if (yy < 0 || yy >= gridH) continue;
+      const rowBase = yy * gridW;
+      for (let xx = cx - 1; xx <= cx + 1; xx++) {
+        if (xx < 0 || xx >= gridW) continue;
+        for (let j = gridHead[rowBase + xx]; j !== -1; j = gridNext[j]) {
+          if (j === i) continue;
+          const q = grains[j];
+          let dx = q.x - p.x, dy = q.y - p.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < D2) {
+            let d = Math.sqrt(d2);
+            if (d < 1e-4) { dx = 0.01; dy = 0; d = 0.01; }
+            const half = (D - d) * 0.5, inv = 1 / d;
+            const nx = dx * inv, ny = dy * inv;
+            p.x -= nx * half; p.y -= ny * half;
+            q.x += nx * half; q.y += ny * half;
+            if (half > 0.05) { p.sleepy = 0; q.sleepy = 0; p.sleep = false; q.sleep = false; }
+            if (ny > 0.5) p.supported = true;
+            else if (ny < -0.5) q.supported = true;
+          }
+        }
+      }
+    }
+  }
+}
+
+function collideSeg(p, ax, ay, bx, by, g) {
+  const abx = bx - ax, aby = by - ay;
+  const l2 = abx * abx + aby * aby;
+  let t = ((p.x - ax) * abx + (p.y - ay) * aby) / l2;
+  if (t < 0) t = 0; else if (t > 1) t = 1;
+  const cx = ax + abx * t, cy = ay + aby * t;
+  const dx = p.x - cx, dy = p.y - cy;
+  const d2 = dx * dx + dy * dy;
+  if (d2 >= R2 || d2 === 0) return;
+  const d = Math.sqrt(d2), inv = 1 / d;
+  const nx = dx * inv, ny = dy * inv;
+  p.x = cx + nx * R; p.y = cy + ny * R;
+  // wall point displacement this step (glass motion carries the sand)
+  let wvx = 0, wvy = 0;
+  if (g) {
+    const da = g.a - g.pa;
+    wvx = (g.x - g.px) - (cy - g.y) * da;
+    wvy = (g.y - g.py) + (cx - g.x) * da;
+  }
+  let vx = p.x - p.px, vy = p.y - p.py;
+  const rvx = vx - wvx, rvy = vy - wvy;
+  const vn = rvx * nx + rvy * ny;
+  const tx = -ny, ty = nx;
+  const vt = rvx * tx + rvy * ty;
+  const nvn = vn < 0 ? -vn * 0.12 : vn;
+  const nvt = vt * 0.85;                        // tangential friction
+  vx = wvx + nx * nvn + tx * nvt;
+  vy = wvy + ny * nvn + ty * nvt;
+  p.px = p.x - vx; p.py = p.y - vy;
+  p.contact = true;
+  if (-vn > R * 0.6) p.squash = Math.min(1, (-vn) / (R * 1.5));
+}
+
+function floorCollide(p) {
+  if (p.y <= shelfY - R) return;
+  const vy = p.y - p.py;
+  const vx = (p.x - p.px) * 0.8;
+  const nvy = vy > 0 ? -vy * 0.12 : vy;
+  if (vy > R * 0.5) p.squash = Math.min(1, vy / (R * 1.5));
+  p.y = shelfY - R;
+  p.px = p.x - vx; p.py = p.y - nvy;
+  p.contact = true;
+}
+
+function segPass() {
+  const n = grains.length;
+  for (let i = 0; i < n; i++) {
+    const p = grains[i];
+    if (p.spill > 0) { floorCollide(p); continue; }
+    for (let gi = 0; gi < glasses.length; gi++) {
+      const g = glasses[gi];
+      const dx = p.x - g.x, dy = p.y - g.y;
+      if (dx * dx + dy * dy > g.boundR2) continue;
+      const s = g.segs;
+      collideSeg(p, s[0], s[1], s[2], s[3], g);
+      collideSeg(p, s[4], s[5], s[6], s[7], g);
+      collideSeg(p, s[8], s[9], s[10], s[11], g);
+    }
+    if (p.y > shelfY - R * 2) floorCollide(p);
+    if (p.x < R) { p.x = R; p.px = p.x; }
+    else if (p.x > W - R) { p.x = W - R; p.px = p.x; }
+    if (p.y < R) { p.y = R; p.py = p.y; }
+  }
+}
+
+/* ---------------------------------------- spill / win checks ---------------------------------------- */
+function spillMark(p) {
+  if (p.spill > 0) return;
+  p.spill = 0.001;
+  if (!prerolling) {
+    spilled++;
+    spillEl.textContent = 'spilled ' + spilled;
+  }
+}
+
+function runCheck() {
+  if (prerolling || clearing) return;
+  const sets = glasses.map(() => ({ set: new Set(), count: 0 }));
+  for (const p of grains) {
+    if (p.spill > 0) continue;
+    const gi = containingGlass(p.x, p.y);
+    if (gi >= 0) {
+      sets[gi].set.add(p.c); sets[gi].count++;
+      if (!pouredOnce && gi !== p.home) { pouredOnce = true; hintEl.classList.add('hide'); }
+    } else if (p.y > shelfY - R * 2.5 && (p.contact || p.supported)) {
+      spillMark(p);            // landed on the shelf outside every glass
+    }
+  }
+  let all = true, any = false;
+  for (const g of glasses) {
+    const s = sets[g.i];
+    const pure = s.count > 0 && s.set.size === 1;
+    if (pure) {
+      g.pureColor = s.set.values().next().value;
+      any = true;
+      if (!g.complete && stepCount - g.lastChime > 240) {
+        g.lastChime = stepCount;
+        sndChime(1046); sndSparkle();
+      }
+    }
+    g.complete = pure;
+    if (s.count > 0 && !pure) all = false;
+  }
+  if (all && any && !heldGlass && airborne < 3) {
+    let upright = true;
+    for (const g of glasses) if (Math.abs(g.a) > 0.06) upright = false;
+    if (upright) levelClear();
+  }
+}
+
+function levelClear() {
+  clearing = true;
+  clearTimer = 1.2;
+  perfect = spilled === 0;
+  if (heldGlass) { heldGlass.held = false; heldGlass = null; }
+  confettiBurst();
+  sndClear();
+}
+
+function confettiBurst() {
+  for (let i = 0; i < 48; i++) {
+    const g = glasses[i % glasses.length];
+    confetti.push({
+      x: g.x + (Math.random() - 0.5) * g.hw * 1.6,
+      y: g.y - g.hh,
+      vx: (Math.random() - 0.5) * W * 0.7,
+      vy: -(0.4 + Math.random() * 0.55) * H * 0.9,
+      c: PALETTE[i % PALETTE.length],
+      life: 1
+    });
+  }
+}
+
+/* ---------------------------------------- fixed physics step ---------------------------------------- */
+function physStep() {
+  stepCount++;
+  for (const g of glasses) updateGlass(g);
+
+  // integrate (verlet)
+  const g2 = GRAV * STEP * STEP;
+  const damp = 0.9995;
+  const maxV = R * 0.9;
+  for (const p of grains) {
+    p.contact = false; p.supported = false;
+    let vx = (p.x - p.px) * damp;
+    let vy = (p.y - p.py) * damp + g2;
+    const sp = Math.hypot(vx, vy);
+    if (sp > maxV) { vx *= maxV / sp; vy *= maxV / sp; }
+    p.px = p.x; p.py = p.y;
+    p.x += vx; p.y += vy;
+  }
+
+  hashInsert();
+  for (let iter = 0; iter < 2; iter++) {   // 2 relaxation iterations
+    pairPass();
+    segPass();
+  }
+
+  // bookkeeping: sleep, airborne count, squash decay, spill fades
+  airborne = 0;
+  let dead = false;
+  for (const p of grains) {
+    const sp = Math.abs(p.x - p.px) + Math.abs(p.y - p.py);
+    if ((p.contact || p.supported) && sp < 0.06) p.sleepy++; else p.sleepy = 0;
+    p.sleep = p.sleepy > 40;
+    if (!p.contact && !p.supported && sp > R * 0.22 && p.spill === 0) airborne++;
+    if (p.squash > 0.02) p.squash *= 0.93;
+    if (p.spill > 0) { p.spill += STEP * 0.5; if (p.spill >= 1) dead = true; }
+  }
+  if (dead) grains = grains.filter(p => p.spill < 1);
+
+  for (const g of glasses) g.glow += ((g.complete ? 1 : 0) - g.glow) * 0.04;
+
+  // confetti (draw-only particles, no collision)
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    const c = confetti[i];
+    c.vy += GRAV * STEP * 0.6;
+    c.x += c.vx * STEP; c.y += c.vy * STEP;
+    c.life -= STEP * 0.9;
+    if (c.life <= 0) confetti.splice(i, 1);
+  }
+
+  if (stepCount % 30 === 0) runCheck();     // purity check ~4x/s
+
+  if (clearing) {
+    clearTimer -= STEP;
+    if (clearTimer <= 0) { buildLevel(level + 1); return; }
+  }
+}
+
+/* ---------------------------------------- drawing ---------------------------------------- */
+function drawGlassBack(g) {
+  ctx.save();
+  ctx.translate(g.x, g.y);
+  ctx.rotate(g.a);
+  ctx.fillStyle = 'rgba(150,190,255,0.05)';
+  ctx.fillRect(-g.hw, -g.hh, g.hw * 2, g.hh * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.045)';
+  ctx.fillRect(-g.hw * 0.62, -g.hh * 0.85, g.hw * 0.18, g.hh * 1.7);
+  ctx.restore();
+}
+
+function wallPath(hw, hh) {
+  ctx.beginPath();
+  ctx.moveTo(-hw, -hh);
+  ctx.lineTo(-hw, hh);
+  ctx.lineTo(hw, hh);
+  ctx.lineTo(hw, -hh);
+}
+
+function drawGlassFront(g, t) {
+  ctx.save();
+  ctx.translate(g.x, g.y);
+  ctx.rotate(g.a);
+  if (g.glow > 0.02 && g.pureColor) {
+    const pulse = 0.75 + 0.25 * Math.sin(t * 5 + g.i * 1.7);
+    ctx.shadowColor = g.pureColor;
+    ctx.shadowBlur = 22 * g.glow * pulse;
+    ctx.strokeStyle = hexA(g.pureColor, (0.85 * g.glow * pulse).toFixed(3));
+    ctx.lineWidth = g.wall + 1.5;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    wallPath(g.hw, g.hh);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  ctx.strokeStyle = g.held ? 'rgba(235,245,255,0.6)' : 'rgba(205,228,255,0.38)';
+  ctx.lineWidth = g.wall;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  wallPath(g.hw, g.hh);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function draw() {
+  const t = performance.now() / 1000;
+  ctx.fillStyle = bgGrad || '#0b0d12';
+  ctx.fillRect(0, 0, W, H);
+
+  // shelf
+  ctx.fillStyle = 'rgba(255,255,255,0.045)';
+  ctx.fillRect(0, shelfY, W, H - shelfY);
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, shelfY);
+  ctx.lineTo(W, shelfY);
+  ctx.stroke();
+
+  for (const g of glasses) drawGlassBack(g);
+
+  // grains
+  for (const p of grains) {
+    const a = p.spill > 0 ? Math.max(0, 1 - p.spill) : 1;
+    if (a <= 0) continue;
+    if (a < 1) ctx.globalAlpha = a * 0.9;
+    ctx.fillStyle = p.style;
+    ctx.beginPath();
+    if (p.squash > 0.04) {
+      ctx.ellipse(p.x, p.y, R * (1 + 0.35 * p.squash), R * (1 - 0.35 * p.squash), 0, 0, TAU);
+    } else {
+      ctx.arc(p.x, p.y, R, 0, TAU);
+    }
+    ctx.fill();
+    if (a < 1) ctx.globalAlpha = 1;
+  }
+
+  for (const g of glasses) drawGlassFront(g, t);
+
+  // confetti
+  for (const c of confetti) {
+    ctx.globalAlpha = Math.max(0, Math.min(1, c.life));
+    ctx.fillStyle = c.c;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, R * (0.55 + 0.45 * c.life), 0, TAU);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // level-clear text
+  if (clearing) {
+    const pr = 1 - clearTimer / 1.2;
+    const inA = Math.min(1, pr * 4);
+    const outA = clearTimer < 0.25 ? clearTimer / 0.25 : 1;
+    const a = inA * outA;
+    const scale = 1 + 0.18 * (1 - Math.min(1, pr * 3));
+    const msg = perfect ? 'PERFECT POUR' : 'LEVEL CLEAR';
+    ctx.save();
+    ctx.translate(W / 2, H * 0.34);
+    ctx.scale(scale, scale);
+    ctx.globalAlpha = a;
+    ctx.font = '800 ' + Math.round(Math.min(W * 0.085, 44)) + 'px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = perfect ? '#ffce6b' : '#6ea8ff';
+    ctx.shadowBlur = 24;
+    ctx.fillStyle = perfect ? '#ffe9b8' : '#dceaff';
+    ctx.fillText(msg, 0, 0);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  // pour hiss follows airborne grain count
+  if (AC && hissG) {
+    const target = Math.min(0.2, airborne / 70 * 0.28);
+    hissG.gain.setTargetAtTime(target, AC.currentTime, 0.08);
+  }
+}
+
+/* ---------------------------------------- input ---------------------------------------- */
+function pickGlass(x, y) {
+  let best = null, bd = 1e9;
+  for (const g of glasses) {
+    const dx = x - g.x, dy = y - g.y;
+    const lx = dx * g.ca + dy * g.sa;
+    const ly = -dx * g.sa + dy * g.ca;
+    if (Math.abs(lx) < g.hw + R * 3 && ly > -g.hh - H * 0.03 && ly < g.hh + R * 3) {
+      const d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = g; }
+    }
+  }
+  return best;
+}
+
+canvas.addEventListener('pointerdown', e => {
+  initAudio();
+  if (AC && AC.state === 'suspended') AC.resume();
+  if (clearing || pointer.id !== null) return;
+  pointer.x = e.clientX; pointer.y = e.clientY;
+  const g = pickGlass(e.clientX, e.clientY);
+  if (g) {
+    heldGlass = g;
+    g.held = true;
+    g.lift = 0;
+    pointer.id = e.pointerId;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    sndTick();
+  }
+  e.preventDefault();
+});
+canvas.addEventListener('pointermove', e => {
+  if (pointer.id !== null && e.pointerId === pointer.id) {
+    pointer.x = e.clientX; pointer.y = e.clientY;
+  }
+});
+function releasePointer(e) {
+  if (pointer.id !== null && e.pointerId === pointer.id) {
+    if (heldGlass) { heldGlass.held = false; heldGlass = null; }
+    pointer.id = null;
+  }
+}
+canvas.addEventListener('pointerup', releasePointer);
+canvas.addEventListener('pointercancel', releasePointer);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+restartBtn.addEventListener('click', () => {
+  initAudio();
+  buildLevel(level);
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && AC) AC.resume();
+});
+
+/* ---------------------------------------- resize / main loop ---------------------------------------- */
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  DPR = Math.min(window.devicePixelRatio || 1, 3);
+  canvas.width = Math.round(w * DPR);
+  canvas.height = Math.round(h * DPR);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (w !== W || h !== H) {
+    W = w; H = h;
+    bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, '#0b0d12');
+    bgGrad.addColorStop(1, '#12151d');
+    buildLevel(level);
+  }
+}
+window.addEventListener('resize', resize);
+resize();
+
+let last = performance.now(), acc = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  let dt = now - last;
+  last = now;
+  if (dt > 50) dt = 50;      // clamp frame dt
+  if (dt < 0) dt = 0;
+  acc += dt / 1000;
+  while (acc >= STEP) { physStep(); acc -= STEP; }
+  draw();
+}
+requestAnimationFrame(frame);
+
+/* ---------------------------------------- verification hook ---------------------------------------- */
+window.__game = {
+  state: () => ({
+    level: level,
+    spilled: spilled,
+    done: clearing,
+    glasses: glasses.map(g => {
+      const set = new Set();
+      let count = 0;
+      for (const p of grains) {
+        if (p.spill > 0) continue;
+        if (containingGlass(p.x, p.y) === g.i) { set.add(p.c); count++; }
+      }
+      return { colors: Array.from(set), count: count };
+    })
+  }),
+  stepN: n => {
+    for (let i = 0; i < n; i++) physStep();
+    draw();
+  }
+};
+</script>
+</body>
+</html>

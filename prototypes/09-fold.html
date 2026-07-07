@@ -938,13 +938,15 @@ function boot(){
     const s=loadStore();
     const res=s.results && s.results[G.dayNum];
     if(res){
-      // daily already played: rebuild the ended board and show results
-      G.result=res; G.over=true; G.won=res.won; G.tilts=res.tilts;
-      G.glyphs=res.glyphs.slice(); G.perfectGone=!res.won;
-      if(res.dirs){ const rb=rebuildHistory(res.dirs); G.history=rb.hist; G.st=rb.st; }
-      updateHUD();
-      setMsg(res.won?'Tonight’s flock is home. New pasture at midnight.':'Dawn already broke tonight. Practice awaits.','');
-      showPanel();
+      // daily already played — never boot into a locked results wall: start a
+      // playable practice pasture instead (the result + streak stay stored;
+      // the panel returns when the next daily is played). try/catch so a
+      // corrupt store can never strand a half-initialized, unplayable board.
+      try{
+        newGame(true);
+        setMsg(res.won?'Tonight’s flock is already home — practice pasture, same wind.'
+                      :'Dawn already broke tonight — practice pasture, same wind.','');
+      }catch(e){ newGame(true); }
     }
     const q=new URLSearchParams(location.search);
     if(q.has('selftest')) setTimeout(()=>foldSelfTest(parseInt(q.get('selftest'))||7), 400);
