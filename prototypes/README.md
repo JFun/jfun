@@ -1,50 +1,51 @@
-# Prototypes — early concepts round
+# Prototypes — round 3
 
-Ten playable web sketches to pick a direction from. This batch is tuned for **a little deeper, still easy to start**. Open `index.html` for the gallery, or jump straight into any file below. The three carried over from the last round are marked **★ kept**.
+Eleven playable web sketches. Last round's cuts (Mosaic, Prism, Pan, Contour, Sway, Dowse) all failed the same test: **the goal wasn't obvious in one glance**. The six new builds fix that at the root — each is a decades-proven verb with **real simulated physics** as the differentiator, because feel is the one moat clone farms consistently fail to copy. One (Drop) expands scope into run-based roguelite depth while keeping a dead-simple verb.
+
+Open `index.html` for the review board (plays inline, with market notes per card), or open any file directly. ★ kept = carried over from an earlier round.
 
 ## How to run
 
 Open `prototypes/index.html` in any browser (double-click works — it's all `file://`-safe), then tap a card.
-Each prototype is a single self-contained `.html` file, so you can also open one directly; works on phone and desktop.
+Each prototype is a single self-contained `.html` file; works on phone and desktop.
 
 ## The prototypes
 
-01. **Excavate** — `01-excavate.html`
-    Spend a scarce budget of digs to uncover a buried photo, reading hot-and-cold hints to triangulate the subject and name it in as few moves as possible.
-    *Depth + hook:* deduction under a move budget; daily subject with a fewest-digs score to chase and share.
+01. **Excavate** — `01-excavate.html` · shipped
+    Spend a scarce budget of digs to uncover a buried photo, reading hot-and-cold hints, and name it in as few moves as possible.
 
-02. **Mosaic** — `02-mosaic.html`
-    Pack the day's stained-glass shards edge-to-edge with no gaps and watch a hidden picture light up.
-    *Depth + hook:* spatial packing toward one reveal; daily puzzle with streaks, a solved-wall, and share.
+02. **Pour** — `02-pour.html` · new
+    Grab a glass and tip it — real sand streams grain by grain. Pour until every glass holds one pure color; partial pours are the skill.
+    *Why:* sort is the fastest-growing puzzle subgenre and every incumbent fakes the pour; true granular physics is unclaimed.
 
-03. **Prism** — `03-prism.html`
-    Rotate mirrors and prisms to bend a beam of light onto every target — split white into color and route each hue home in a new daily puzzle.
-    *Depth + hook:* multi-target optical routing; a fresh daily layout with streak and completion share.
+03. **Pluck** — `03-pluck.html` · new
+    Dig glossy pebbles out of a real heap that shifts and clacks, and drop them into the matching bowl — grab one and its bowl lights the way.
+    *Why:* Sheep-a-Sheep proved the appetite (60M players) on fake piles; physical extraction is the unexploited upgrade.
 
 04. **Unblur** — `04-unblur.html` · ★ kept
-    Tap where the photo looks clearest, sharpen it region-by-region, and guess what it is in the fewest focuses.
-    *Depth + hook:* read-the-image guessing under a focus budget; daily photo with a fewest-focuses score and share.
+    Tap where the photo looks clearest, sharpen region by region, guess it in the fewest focuses.
 
 05. **Restore** — `05-restore.html` · ★ kept
-    Drag torn fragments back into a cracked masterpiece — seams heal, colour floods back, the piece joins your museum.
-    *Depth + hook:* tactile fragment-fitting to a full reveal; a growing personal museum of restored pieces.
+    Drag torn fragments back into a cracked masterpiece — seams heal and colour floods back.
 
-06. **Pan** — `06-pan.html` · ★ kept
-    Pan and zoom around a tight daily crop and name the picture it was lifted from.
-    *Depth + hook:* recognition from a constrained viewport; one daily crop with a guess-count score and share.
+06. **Sling** — `06-sling.html` · new
+    Endless one-thumb flick-golf over moonlit dunes: pull back, release, ride real gravity and roll-out into the flag's pocket.
+    *Why:* the most proven verb in touch history; the Desert Golfing lane has no current owner.
 
-07. **Cascade** — `07-cascade.html`
-    Place slope tiles to thread a pouring stream through every glowing basin before it runs off the edge — a daily one-puzzle flow with streaks and a fountain collection.
-    *Depth + hook:* routing a flow through all basins; daily puzzle with streaks and a fountain collection.
+07. **Cascade** — `07-cascade.html` · ★ kept
+    Place slope tiles to thread a pouring stream through every glowing basin before it runs off the edge.
 
-08. **Terrace** — `08-terrace.html`
-    Drop land onto an isometric plot and watch equal-height tiles fuse and rise — shape the contour to chain sweeping plateau cascades in a new solvable puzzle every day.
-    *Depth + hook:* contour-shaping for chain cascades; a fresh solvable daily plot with cascade scoring.
+08. **Topple** — `08-topple.html` · new · on probation
+    Knock every can off the plinths — without waking the cat sleeping among them. Hard hits and falls wake it; soft nudges make it stir.
+    *Why:* plain knockdown read as a smash fest; the protected-cat constraint (Fruit-Ninja-bomb pattern) is the differentiation attempt. If it still feels generic in the hands, cut it.
 
-09. **Tilt** — `09-tilt.html`
-    Tilt the whole tray to roll every marble at once, snapping them into a pegboard to reveal today's pixel creature.
-    *Depth + hook:* whole-board momentum control; a daily pixel creature to collect and share.
+09. **Fold** — `09-fold.html` · ★ kept
+    You are the wind: every swipe slides the whole flock AND the wolf; pen every sheep before dawn.
 
-10. **Acreage** — `10-acreage.html`
-    Match terrain edges from today's tile bag — rivers to rivers, fields to fields — and grow the prettiest, highest-scoring little world.
-    *Depth + hook:* edge-matching tile placement for score; daily tile bag with a high score to beat and share.
+10. **Cut** — `10-cut.html` · new
+    Your swipe is a blade: sever real ropes so the crate swings, tips and drops into the basket — 8 puzzles of cut order and timing.
+    *Why:* Cut the Rope's lane has been vacant for a decade; modern rope sim is a solo-dev superpower.
+
+11. **Drop** — `11-drop.html` · new · expanded scope
+    Build your own pachinko machine: drop a ball, pegs pay, meet the quota — then draft a part and place it yourself. By round ten the board is a contraption you designed.
+    *Why:* the push-and-release pachinko verb has a popular incumbent — board AUTHORSHIP (you place every part) is the differentiation, on top of the "dumb verb, smart run" roguelite shape.
