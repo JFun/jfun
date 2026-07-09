@@ -1,0 +1,9 @@
+{
+  "appId": "com.jfun.cut",
+  "appName": "Cut",
+  "webDir": "web",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#090b11"
+  }
+}

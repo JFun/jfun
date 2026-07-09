@@ -1,0 +1,89 @@
+/* CUT — Night Rig. Ported from the design handoff reference build (source of
+   truth for every token). Space Grotesk is bundled locally (fonts/) — no CDN. */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url(fonts/space-grotesk.woff2) format('woff2');
+}
+
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#090b11;
+  font-family:'Space Grotesk',-apple-system,system-ui,Segoe UI,Roboto,sans-serif;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#cv{position:fixed;inset:0;display:block;touch-action:none}
+#lvl{position:fixed;top:calc(max(env(safe-area-inset-top,0px),var(--sat,0px)) + 14px);left:15px;color:#e4ebf7;
+  font-size:13.5px;font-weight:600;letter-spacing:2px;pointer-events:none;z-index:5;
+  background:rgba(14,18,28,.58);border:1px solid rgba(255,255,255,.12);
+  border-radius:999px;padding:9px 17px 8px;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#setBtn{position:fixed;top:calc(max(env(safe-area-inset-top,0px),var(--sat,0px)) + 10px);right:13px;
+  width:47px;height:47px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#e8eefb;
+  display:flex;align-items:center;justify-content:center;z-index:5;cursor:pointer;padding:0;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#setBtn:active{background:rgba(255,255,255,.18)}
+#hint{position:fixed;bottom:calc(max(env(safe-area-inset-bottom,0px),var(--sab,0px)) + 46px);left:50%;transform:translateX(-50%);
+  background:rgba(14,18,28,.72);border:1px solid rgba(255,255,255,.12);color:#ffd9a0;
+  font-size:14px;font-weight:600;letter-spacing:2px;text-transform:uppercase;
+  padding:10px 20px 9px;border-radius:999px;z-index:5;
+  pointer-events:none;transition:opacity .6s;white-space:nowrap;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#hint.hide{opacity:0}
+#endcard{position:fixed;top:24%;left:0;right:0;text-align:center;z-index:6;pointer-events:none}
+#endcard>div{opacity:0;transform:translateY(12px);transition:opacity 1.3s ease,transform 1.3s ease}
+#endcard.show>div{opacity:1;transform:none}
+#endcard.show #endSub1{transition-delay:.8s}
+#endcard.show #endSub2{transition-delay:1.7s}
+#endcard.show #endTap{transition-delay:4.5s}
+#endTitle{font:700 27px 'Space Grotesk',sans-serif;letter-spacing:7px;color:#ffd9a0;
+  text-shadow:0 0 24px rgba(255,179,71,.55),0 2px 4px rgba(0,0,0,.6)}
+#endSub1{margin-top:14px;font:600 13px 'Space Grotesk',sans-serif;letter-spacing:3px;
+  text-transform:uppercase;color:#dbe4f5}
+#endSub2{margin-top:9px;font:600 12px 'Space Grotesk',sans-serif;letter-spacing:2.5px;
+  text-transform:uppercase;color:#cfa76a}
+#endTap{margin-top:26px;font:600 10.5px 'Space Grotesk',sans-serif;letter-spacing:2.5px;
+  text-transform:uppercase;color:#6f7699}
+#howto{position:fixed;inset:0;z-index:15;pointer-events:none}
+#howto.hidden{display:none}
+#howtoTitle{position:fixed;top:calc(max(env(safe-area-inset-top,0px),var(--sat,0px)) + 24px);left:0;right:0;text-align:center;
+  font:600 15px 'Space Grotesk',sans-serif;letter-spacing:4px;text-transform:uppercase;color:#e8eefb}
+#howtoClose{position:fixed;top:calc(max(env(safe-area-inset-top,0px),var(--sat,0px)) + 10px);right:13px;
+  width:47px;height:47px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#e8eefb;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;pointer-events:auto;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#howtoClose:active{background:rgba(255,255,255,.18)}
+#howtoCap{position:fixed;bottom:calc(max(env(safe-area-inset-bottom,0px),var(--sab,0px)) + 118px);left:50%;transform:translateX(-50%);
+  background:rgba(14,18,28,.72);border:1px solid rgba(255,255,255,.12);color:#ffd9a0;
+  font-size:13px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;
+  padding:10px 18px 9px;border-radius:999px;white-space:nowrap;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#howtoDots{position:fixed;bottom:calc(max(env(safe-area-inset-bottom,0px),var(--sab,0px)) + 94px);left:0;right:0;
+  display:flex;justify-content:center;gap:8px}
+#howtoDots span{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.18)}
+#howtoDots span.on{background:#ffb347}
+#howtoNext{position:fixed;bottom:calc(max(env(safe-area-inset-bottom,0px),var(--sab,0px)) + 58px);left:0;right:0;text-align:center;
+  font:600 10.5px 'Space Grotesk',sans-serif;letter-spacing:2.5px;text-transform:uppercase;color:#6f7699}
+body.howto-open #lvl,body.howto-open #setBtn,body.howto-open #hint,body.howto-open #endcard{visibility:hidden}
+#settings{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .24s ease}
+#settings.show{opacity:1}
+#settings.hidden{display:none}
+#setScrim{position:absolute;inset:0;background:rgba(6,9,16,.62);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+#setCard{position:relative;width:296px;max-width:86vw;box-sizing:border-box;padding:22px 22px 18px;border-radius:26px;background:linear-gradient(180deg,rgba(26,34,54,.98),rgba(15,20,33,.98));border:1px solid rgba(255,255,255,.1);box-shadow:0 30px 70px -20px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.06);transform:translateY(10px) scale(.98);transition:transform .24s cubic-bezier(.2,.9,.3,1)}
+#settings.show #setCard{transform:none}
+#setTitle{font-size:15px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:#e8eefb;text-align:center;margin:2px 0 16px}
+.setRow{display:flex;align-items:center;gap:13px;padding:12px 4px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06)}
+.setRow:last-of-type{border-bottom:none}
+.setIco{width:26px;height:26px;display:grid;place-items:center;color:#9fb0cf;flex:none}
+.setLbl{flex:1;font-size:16px;font-weight:500;color:#dbe4f5;font-family:-apple-system,system-ui,sans-serif}
+.sw{width:46px;height:28px;border-radius:999px;background:rgba(255,255,255,.14);position:relative;flex:none;transition:background .2s}
+.sw .knob{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#f2f5fb;box-shadow:0 1px 3px rgba(0,0,0,.4);transition:transform .2s cubic-bezier(.2,.9,.3,1)}
+.sw.on{background:#ffb347}
+.sw.on .knob{transform:translateX(18px)}
+#setRestart{width:100%;margin-top:16px;padding:12px;border-radius:13px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#cfd8ea;font:600 14.5px 'Space Grotesk',sans-serif;letter-spacing:.5px;cursor:pointer}
+#setRestart:active{background:rgba(255,255,255,.1)}
+#setHow{width:100%;margin-top:9px;padding:12px;border-radius:13px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#cfd8ea;font:600 14.5px 'Space Grotesk',sans-serif;letter-spacing:.5px;cursor:pointer}
+#setHow:active{background:rgba(255,255,255,.1)}
+#setClose{width:100%;margin-top:9px;padding:13px;border-radius:13px;border:none;background:#ffb347;color:#241505;font:700 15.5px 'Space Grotesk',sans-serif;letter-spacing:.5px;cursor:pointer}
+#setClose:active{background:#ffc266}

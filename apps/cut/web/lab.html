@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Cut Lab</title>
+<link rel="stylesheet" href="style.css">
+<script>
+  /* safe-area override for mocked device frames (?sat=&sab=) — see design handoff */
+  (function(){var q=new URLSearchParams(location.search);
+    var t=q.get('sat'),b=q.get('sab');
+    if(t!=null) document.documentElement.style.setProperty('--sat',t+'px');
+    if(b!=null) document.documentElement.style.setProperty('--sab',b+'px');
+  })();
+</script>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="lvl">LEVEL 1</div>
+<button id="setBtn" aria-label="settings"><svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+<div id="hint" class="hide">swipe to cut the rope</div>
+<div id="dots"></div>
+<div id="settings" class="hidden">
+  <div id="setScrim"></div>
+  <div id="setCard">
+    <div id="setTitle">Settings</div>
+    <div class="setRow" data-k="sfx">
+      <span class="setIco"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"></path><path d="M16.5 8.5a4 4 0 0 1 0 7"></path></svg></span>
+      <span class="setLbl">Sound effects</span>
+      <span class="sw"><span class="knob"></span></span>
+    </div>
+    <div class="setRow" data-k="music">
+      <span class="setIco"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17V5l10-2v12"></path><circle cx="6.5" cy="17" r="2.5"></circle><circle cx="16.5" cy="15" r="2.5"></circle></svg></span>
+      <span class="setLbl">Music</span>
+      <span class="sw"><span class="knob"></span></span>
+    </div>
+    <div class="setRow" data-k="vibration">
+      <span class="setIco"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="18" rx="1.8"></rect><path d="M4 9v6M20 9v6"></path></svg></span>
+      <span class="setLbl">Vibration</span>
+      <span class="sw"><span class="knob"></span></span>
+    </div>
+    <button id="setRestart">Restart level</button>
+    <button id="setClose">Done</button>
+  </div>
+</div>
+<script src="js/lab.js"></script>
+</body>
+</html>
