@@ -168,10 +168,22 @@ const DATA = [
     comp:["Plinko-style incumbents","Peglin","Ballionaire","Luck Be a Landlord"],
     growth:"Placement makes every run a build (drop skill + architecture skill); 'look at my round-12 machine' is a screenshot brag no drop-only game has. Upgrade pool grows content cheaply. Monetizes the Balatro way — free taste, one unlock, no ads.",
     score:null, verdict:"The expanded-scope bet, now differentiated on authorship: if placing your own parts doesn't feel meaningfully different from the incumbent's push-release, this gets cut too." },
+  { n:12, file:'12-slingshaft.html', title:'Slingshaft', badge:'new',
+    pitch:"CORE CHECK (longevity design C): pull back, release, and one flick sends a ball ricocheting through a walled arena into the goal cup. 5 hand-made levels layering peg → bumper → ice.",
+    diff:"The launch verb with a physics-arena of composable obstacles (peg/bumper/ice/wind/magnet…). Each obstacle is one collision rule the engine already has, so difficulty comes from geometry + constraint budget, never a second control. This is the 'element-ladder' longevity engine on a one-thumb core.",
+    comp:["Desert Golfing","Angry Birds","Peglin","OK Golf"],
+    growth:"Small discretizable action space (~aim×power) makes procedural levels solver-verifiable → ~500-800 levels for a solo dev. 3-star by shots + daily seeds. Verified in-browser: launch→arc→sink works, elements render.",
+    score:null, verdict:"Core is real and feels like a game in 10 seconds. The strongest content-per-effort NEW core — a launch engine whose variety is largely procedural + verifiable." },
+  { n:13, file:'13-sort.html', title:'Sort', badge:'new',
+    pitch:"CORE CHECK (longevity design B): tip a glass to pour granular sand between glasses until each holds one pure color, using an empty buffer. 3 hand-made sort levels. The scalable 'Water Sort you can feel' bet.",
+    diff:"Water-Sort/Ball-Sort ship THOUSANDS of procedural levels; this keeps a real granular-pour feel on top. BUT feel-test caveat: free-flowing sand jumbles at the interface, so clean 'pour the top color' is fuzzy — the scalable sort may want DISCRETE stackable units (beads — closer to our Pluck) than loose sand.",
+    comp:["Water Sort","Ball Sort","Zen Match","(our) Pluck"],
+    growth:"Tiny level spec {glasses,colors,layers,buffers} → nearly-free procedural content IF the sort reads cleanly. Ceiling 1,500-2,500 with a physics-faithful verifier. Rougher than Slingshaft today — your hands decide if granular sort feels good or wants beads.",
+    score:null, verdict:"WIP core: renders and pours, but the granular-vs-clean-layers tension is real. Feel it, then tell me — retune to discrete beads / clean layers, or evaluate Pluck as the sort core." },
 ];
 
 // per-prototype [differentiation, growth] scores (1-5), from the market-research pass
-const SCORES = {1:[3,2], 2:[4.5,4], 3:[4,3.5], 4:[2,2], 5:[2,2], 6:[3,3.5], 7:[3,2], 8:[4,3], 9:[4,4.5], 10:[4,3.5], 11:[4,4.5]};
+const SCORES = {1:[3,2], 2:[4.5,4], 3:[4,3.5], 4:[2,2], 5:[2,2], 6:[3,3.5], 7:[3,2], 8:[4,3], 9:[4,4.5], 10:[4,3.5], 11:[4,4.5], 12:[4,4], 13:[3.5,4]};
 
 const esc = s => String(s==null?'':s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const pad = n => String(n).padStart(2,'0');
