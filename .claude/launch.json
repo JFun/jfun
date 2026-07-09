@@ -42,6 +42,18 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8782", "--directory", "/Users/qili/git/jfun/apps/tilt/web"],
       "port": 8782
+    },
+    {
+      "name": "cut-web",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8783", "--directory", "/Users/qili/git/jfun/apps/cut/web"],
+      "port": 8783
+    },
+    {
+      "name": "cut-web-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8784", "--directory", "/Users/qili/git/jfun/apps/cut/web"],
+      "port": 8784
     }
   ]
 }

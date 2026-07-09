@@ -1,0 +1,21 @@
+{
+  "name": "cut",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cut — swipe to sever the ropes; gravity, swing, and momentum drop the crate into the basket. Eight handcrafted physics levels.",
+  "dependencies": {
+    "@jfun/analytics": "*",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.4.0"
+  },
+  "devDependencies": {
+    "chrome-remote-interface": "^0.34.0"
+  },
+  "scripts": {
+    "test": "bash scripts/dev/test.sh",
+    "serve": "python3 -m http.server 8783 --directory web",
+    "ios": "bash scripts/dev/deploy_ios.sh"
+  }
+}
