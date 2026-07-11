@@ -4,12 +4,103 @@ A vanilla-JS rope-cutting physics game in the `jfun` studio. **No build step** �
 `web/` runs with `python3 -m http.server` (or the `cut-web` preview on :8783).
 Ships to iOS via Capacitor (`com.jfun.cut`).
 
+**TRIMMED TO 53 STRONG LEVELS (2026-07-09, Qi-approved).** The overnight
+100-level fill hit its count by permuting — a 52-agent audit confirmed ~17
+near-clone families covering ~60 levels (some byte-identical with only invisible
+params changed). Per Qi: quality over count. Kept: L1-20 intact + 33 canonicals
+(one per family + true variants + the finale). LAST=52. The removed permutation
+slots come back later via the longevity doc's REAL multipliers (star budgets /
+objectives / constraint tiers), not layout clones. Trim script pattern:
+extract case blocks by regex, reorder+renumber, splice (see git history).
+Pin-sensitive indices preserved by construction: elastic intro case 20,
+magnet×gate case 34 (l35cap), trolley×star case 42 (l43miss).
+
+**The original 100-level build (2026-07-09, "build to 100, fine tune later"),
+for the record:** LAST was 99. The original 20 (handoff port +
+restructure) plus new element-ladder tiers, all past the handoff:
+- **T4 ELASTIC** (`makeElasticRope` — soft-spring bungee, teal coil): bounce &
+  fling. L21-23 + an elastic **How-to page** (`howtoElasticPage`).
+- **T5 ROTATING** (`makeRotor` orbiting anchor + `makeBlade` lethal spinning
+  sawblade): release-at-the-right-angle + hazard. ~L24-28.
+- **T6 FORCE** (`makeWind` rect force zone + `makeMagnet` normalized
+  inverse-square pull): move the crate without a rope. ~L29-35.
+- **STAR** objective (`makeStar` — collect-before-win routing constraint) +
+  gravity (set `G` per level), mirror, and geometry permutations fill to 100.
+That's ~8 mechanics (the doc's cap) × placement/gravity/objective variety.
+
+The enabling infra is the **fairness harness** `scripts/dev/fairness.cjs` — drives
+the real engine over a seeded cut sweep, **certifies EVERY level winnable** (in
+`test.sh`; the whole point — no more L5/L8-style shipped-unsolvable), tags a
+difficulty band, and `node fairness.cjs land <n>` prints where a launch lands
+(place baskets/gates by THAT, never preview evals — the preview browser serves
+stale cached game.js). Always fine grid (a coarse grid flickers tight levels).
+Plus a **dev-only level jump** (Settings grid on DEV_UNLOCK builds) to reach any
+level on device. `winNow()` is a test-only hook the ending smoke uses.
+
+**In-level CUES for the new mechanics ARE now in** (Qi 2026-07-09, on L33: "no
+idea what's this" re: the magnet) — `detectCue`/`drawCue` extended with wordless
+first-encounter demos for elastic (hand cuts cord → ghost flings to basket),
+rotor (release marker at orbit bottom → ghost drops in), sawblade (ghost touches
+it → shatters, like the spike cue), wind (ghost blown along the gale), MAGNET
+(chevrons converge INWARD + ghost curves toward it — the clearest "it pulls"),
+and star (ghost passes through → sparkle). detectCue now data-drives off a
+`present{}`/`order[]` table (new mechanics first). Cue shows until the level is
+won (`markSeen` in winLevel), then never again. Test with `?cues=always` +
+`?cue=<kind>`.
+
+**Teaching layer COMPLETE (Qi 2026-07-09 review: "can't really tell it's magnet…
+what's the star for… box doesn't seem to be iron"):**
+- **Magnet is a HORSESHOE** (`drawHorseshoe`, shared by world/cue/how-to) —
+  purple body + silver pole tips, iconic shape. The fiction: the crate's IRON
+  CORNER BRACES are what it grabs — made legible by `drawMagnetPull` (always-on:
+  field dashes stream crate→magnet + corner glints whenever in range) and the
+  How-to caption "magnets tug the crate's iron corners".
+- **Stars gate the win, visibly**: `drawStarBadges` — one dim outline star badge
+  per star floats above the basket rim, fills gold on collect (persistent
+  "basket needs these"); the star cue routes the ghost THROUGH the star INTO the
+  basket; How-to caption "grab every star, then land".
+- **How-to pages for ALL 13 mechanics** (`howtoRotorPage/BladePage/WindPage/
+  MagnetPage/StarPage` added; smoke pin expects 13 distinct captioned pages).
+- Elastic cue's hand now anchors to the live cord midpoint.
+
+**Fairness overhaul (2026-07-09, Qi: "is level 54 solvable?… are there dup
+levels?"):**
+- **PER-BOX WIND** (engine): per-particle wind torqued a box crossing a zone edge
+  (lower corners pushed first) into chaotic tumbling — outcome varied with the
+  invisible pre-cut bob phase = a lottery. Boxes now get a uniform push on all 4
+  corners once their CENTER is inside (`p.boxed` skips the per-particle branch).
+  freeTail followers are also exempt from wind AND magnets (draped decoration).
+- **GENTLE-CARRY RULE for wind levels**: soft gravity (G≈1.3-1.5H) + soft gale
+  (≈1.2-1.9H) + band that ends before the basket = readable arc, soft arrival.
+  HOT gales / fast falls arrive at ricochet speeds → the crate smashes the basket
+  wall and caroms off-field; direction flips on tiny phase differences.
+- **STATIC-LEVEL RULE**: a level with no timing element must win at EVERY cut
+  delay (the pre-cut bob phase is invisible — the player "just cuts"). Verify
+  with `fairness.cjs land <n>`: the whole delay column should read WIN.
+- **Harness: win-strategy ATTRIBUTION** — certify lines now show `by top/bottom/
+  pop/casc↓/casc↑/all` + an UNDISCOVERABLE-SOLVE failure class. A level "certified"
+  only via bottom-cuts/cascades that a player can't discover (cut height silently
+  deciding, e.g. via severed-tail curve changes) is NOT fair — L54/L58/L62/L63/
+  L78 all had this; all retuned to win `by top` at every delay.
+- **DE-DUP** (Qi spotted the clone family): the five "crate + full-width gate +
+  centered basket" clones are now distinct — L45 tip-order × narrow gate; L53
+  low-hang heavy-G snap drop; L74 staggered anti-phase half-gates; L81 DIAGONAL
+  pulse gate; L96 triple-gate gauntlet; L73 heavy-G pendulum × star (was a
+  star-drop clone of L36).
+
+**Still NOT done (Qi's "fine tune later"):** difficulty is NOT sawtooth-ordered
+(bands are all over — reorder by the harness's band output); remaining
+permutation levels could still use a feel pass. Authoring gotchas learned: combos (wind+magnet,
+rotor+gate, elastic+spike) are finicky — favor single-mechanic + gravity/mirror/
+star; stars must sit ON a deterministic path (drops, magnet curves) not narrow
+fling arcs; **case N = level N+1** (watch the off-by-one when fixing a failure).
+
 ## The game
 
 Ropes suspend a wooden **crate** over a **basket**; the player **swipes across a
 rope to sever it** and uses gravity, swing, and momentum to **land the crate in
-the basket**. **Twenty** handcrafted levels, paced per the classic mechanic-arc
-structure (each new element gets intro → develop → twist before the next; the
+the basket**. **100** levels (see the 100-LEVELS section below). The first 20 are
+paced per the classic mechanic-arc structure (each new element gets intro → develop → twist before the next; the
 design drop's 12 were restructured — its L9-12 were four intros back-to-back):
 - **L1-8 the verb campaign** — drop, tip-order, pendulum, offset-tip, bounce pad,
   3-rope order, swing-across, counterweight/pulley finale.
@@ -81,6 +172,52 @@ The studio layers added on top of the pure reference:
   like a toy music box. Lookahead scheduling on the audio clock (setTimeout alone
   jitters audibly). Same music bus/gain (0.16) and start/stop API. SFX
   (snip/creak/thump/wah/chime/whoosh) remain faithful to the handoff.
+- **iOS canvas recovery (render bug hit on device overnight)** — the crate
+  rendered as a smeared vertical "tower" with confetti trails on L1, but the SIM
+  was fine (crate at rest) and the preview rendered it perfectly → a device-only
+  RENDER bug. Cause: iOS WKWebView PURGES offscreen-canvas backing stores during
+  long backgrounding; `draw()` relied on `drawImage(bgCv,…)` (the cached bg) to
+  clear each frame, so a purged `bgCv` drew nothing → the frame never cleared →
+  every draw accumulated. Fix: (1) `draw()` ALWAYS `fillRect`s a solid bg before
+  `drawImage(bgCv)` (pixel-identical when bgCv is valid, since bgCv is opaque on
+  top; only shows through when purged — no accumulation regardless); (2)
+  `refreshRender()` on `visibilitychange`→visible + `pageshow` recreates the main
+  canvas backing (`cv.width=…`) and rebuilds `bgCv`/`vgCv` — NO level rebuild, so
+  progress is kept. The audio visibility handler's `if(!actx) return` must not
+  gate this — refreshRender runs first. NOT reproducible in the desktop preview;
+  verify by reasoning + `pageshow` dispatch.
+- **star-miss watchdog** (hit on device L43) — the crate settled INSIDE the
+  basket with the star uncollected: the win is star-gated so it never fired, and
+  the stall watchdog is `!all`-guarded so it couldn't fire → permanent 'play'.
+  `starMissT` in doChecks: settled in-basket (`all && sp2<0.05H`) with stars
+  missing for ≥90 steps → fail/retry (a resting crate can never collect). Pinned
+  `l43miss` (sweep cuts on L43, all outcomes terminal). THIRD dead-end class
+  (rim/ledge perch, magnet capture, star-miss): every objective/attractor
+  mechanic needs its own "this run is decided" detector.
+- **star "belongs there" guide** (the Tilt lesson) — each uncollected star draws
+  a faint dotted line MARCHING toward its badge slot above the basket
+  (`starBadgePos` shared by badges/guide/cue): wordless "collect this before you
+  land". Added after Qi: badge+cue alone still "not visually intuitive".
+- **magnet CAPTURE watchdog** (hit on device L35) — a magnet is an attractor, so
+  the crate can spiral into a slow decaying orbit / jitter against the core
+  forever: its speed never stays below the settle threshold (the magnet keeps
+  kicking it), so `crateSuspended()`/the stall watchdog can't latch, and it never
+  reaches the basket → dead-end. Fixed with a PROXIMITY+TIME check in doChecks:
+  `magnetHeldT` counts steps the crate center is within 0.15W of any magnet; ≥300
+  (and not in the basket) → soft-reset. A crate merely FALLING PAST a magnet
+  clears the radius in <300 steps, and every magnet level's basket is >0.15W below
+  its magnet, so wins never trip it (all still certify). Pinned `l35cap`.
+- **stall watchdog: `crateSuspended()` discriminator, not a height guard** — the
+  reference (and our first pass) only fired when the settled crate was LOW
+  (`c.y>0.6*H`), so a crate perched HIGH — on a solid ledge or balanced below the
+  pulley (L8, hit on device 2026-07-09) — dead-ended forever. Now: once the
+  player has cut this level (`cutThisLevel`), a settled crate that is NOT
+  suspended by a taut, uncut up-rope is stuck → fail/retry after 300 steps. A
+  genuine hang (pre-cut, or a settled intermediate hang between cuts) IS
+  suspended, so it never false-fires. A settled crate that still has a cuttable
+  rope (e.g. balanced below the pulley) is RECOVERABLE (cut it), not auto-failed.
+  Pinned: `l8stuck` sweeps cut combos on L8, asserts no HARD dead-end (settled
+  'play' with zero ropes left).
 - **stall watchdog threshold `0.05*H`** (reference: `0.02*H`) — the reference
   value sits BELOW the sim's contact-jitter noise floor (gravity re-injects
   `G*DT² = 0.0167*H` px/s per step), so a crate perched tilted on the basket rim
@@ -147,11 +284,18 @@ The studio layers added on top of the pure reference:
   run (l17 flaked to all-fail). All time-relative state (cutT/popT ages) is
   recreated in the same buildLevel, so zeroing is safe. The ending-smoke finale
   combo is now a fixed known-winner (cut tether t=0, pop +60 steps).
-- **campaign ending** — winning L20 starts `phase='end'`: rising paper-lantern
-  festival + confetti + staged `#endcard` — four lines on CSS
-  transition-delays: "ALL CRATES HOME" → "all 20 levels cleared" (.8s) → "new
-  levels on the way — stay tuned" (1.7s) → muted "tap to play again" (4.5s,
-  rebuilds L1). Pinned in sim-tests (ending smoke).
+- **campaign ending: CRATE HOMECOMING** — winning the last level starts
+  `phase='end'`: EXACTLY ONE CRATE PER LEVEL CLEARED (LAST+1 — Qi's touch: the
+  mound IS the campaign) drifts down from the night sky (parachute-slow, each
+  trailing its just-cut rope snippet) and stacks into a warehouse MOUND along
+  the ground (`endPlan`: greedy height+center-distance placement builds a
+  centered mound of exactly N for any campaign size; soft thumps + squash on
+  landing, hearth glow over the pile) + confetti + the staged
+  `#endcard` ("ALL CRATES HOME" → "all N levels cleared" (dynamic) → "new levels
+  on the way — stay tuned" → muted "tap to play again", rebuilds L1). The
+  original lantern festival was CUT — Qi: "balloon seems not closely related to
+  product"; the ending must celebrate in the game's OWN icons (crate, cut rope,
+  the haul). Pinned in sim-tests (ending smoke).
 - **Settings reworked + "How to play"** (Qi product call, 2026-07-07) — the
   demo-gated level grid and "Replay tutorials" are GONE; "Restart level" is
   "Restart"; an always-available **"How to play"** opens a paged tutorial
@@ -190,9 +334,15 @@ modules (unlike Tilt). Keep it one file.
 
 - **`bash scripts/dev/test.sh` after EVERY edit.** Syntax (`node --check`) + a
   headless-Chrome regression net (`scripts/dev/sim-tests.cjs`) that drives the
-  REAL ported game via `window.__game`: all 8 levels build and reach terminal
+  REAL ported game via `window.__game`: all levels build and reach terminal
   (or sane) states, level 1 is a deterministic win, the L2 wrong-order stall pin
-  holds, and **the L5 pad pin: cut at any height → trampoline → WIN**.
+  holds, and **the L5 pad pin: cut at any height → trampoline → WIN** — PLUS
+  `scripts/dev/fairness.cjs` which certifies every level winnable in a seeded cut
+  sweep (the L5/L8-shipped-unsolvable guard). Both run headless; `simN` (no-draw
+  stepping) keeps the fairness sweep fast. When authoring: `node fairness.cjs
+  <n>` certifies one level, `node fairness.cjs land <n>` prints where launches
+  land (place the basket there — trust this, NOT preview evals: the preview
+  browser caches game.js by URL and silently runs stale code).
   - The suite runs at a TRUE phone viewport via
     `Emulation.setDeviceMetricsOverride(390x844)` — `--window-size` alone is a
     TRAP: Chromium clamps window width to ~500px and the sim silently runs at a

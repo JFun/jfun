@@ -85,5 +85,14 @@ body.howto-open #lvl,body.howto-open #setBtn,body.howto-open #hint,body.howto-op
 #setRestart:active{background:rgba(255,255,255,.1)}
 #setHow{width:100%;margin-top:9px;padding:12px;border-radius:13px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#cfd8ea;font:600 14.5px 'Space Grotesk',sans-serif;letter-spacing:.5px;cursor:pointer}
 #setHow:active{background:rgba(255,255,255,.1)}
+/* dev-only jump grid — shown only on debug/localhost builds (DEV_UNLOCK), stripped from the shipping app */
+#devJump{margin-top:14px;padding-top:12px;border-top:1px dashed rgba(255,255,255,.14)}
+#devJump.hidden{display:none}
+#devJumpLbl{font:600 9.5px 'Space Grotesk',sans-serif;letter-spacing:2px;text-transform:uppercase;color:#7c86a0;margin:0 0 8px}
+#devLevels{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.lvlCell{height:34px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#cfd8ea;font:600 12.5px 'Space Grotesk',sans-serif;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.lvlCell:active{background:rgba(255,255,255,.12)}
+.lvlCell.cleared{background:rgba(255,179,71,.16);border-color:rgba(255,179,71,.4);color:#ffd9a0}
+.lvlCell.cur{box-shadow:0 0 0 2px #ffb347;border-color:#ffb347;color:#fff}
 #setClose{width:100%;margin-top:9px;padding:13px;border-radius:13px;border:none;background:#ffb347;color:#241505;font:700 15.5px 'Space Grotesk',sans-serif;letter-spacing:.5px;cursor:pointer}
 #setClose:active{background:#ffc266}

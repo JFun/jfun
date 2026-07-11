@@ -9,4 +9,6 @@ for f in web/js/*.js web/js/vendor/*.js scripts/dev/*.cjs; do node --check "$f";
 echo "ok"
 echo "— sim tests (headless Chrome: build + solvability + liveness) —"
 node scripts/dev/sim-tests.cjs
+echo "— fairness certify (headless Chrome: every level winnable in the seeded cut sweep) —"
+node scripts/dev/fairness.cjs
 echo "ALL TESTS PASSED"

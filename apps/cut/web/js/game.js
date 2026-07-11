@@ -36,8 +36,10 @@
        grid + "Replay tutorials" are gone — replaced by an always-available
        "How to play" paged tutorial overlay that loops a self-contained mini
        demo per mechanic in the cue system's visual language (see openHowto/
-       drawHowto); "Restart level" is now "Restart". Level jumping for dev/
-       tests: ?level=N and __game.setLevel only
+       drawHowto); "Restart level" is now "Restart". A DEV-ONLY jump grid
+       (#devJump, initDevJump) returns on DEV_UNLOCK builds for on-device
+       feel-testing — stripped from the shipping app. ?level=N/__game.setLevel
+       still work
      · FLOOR IS SURVIVABLE (thud → rest → crack after 48 steps); only SPIKES
        kill instantly — the reference's lethal-everywhere floor made spike
        placement fake stakes (Qi feedback; see collideBox/doChecks)
@@ -50,8 +52,24 @@
      · LEVEL-LOCAL CLOCK: buildLevel resets stepCount=0 so pulse gates start at a
        FIXED phase every load/retry (they read stepCount*DT) — otherwise the gate
        sat at a random phase of the global clock and the timing didn't repeat
-     · CAMPAIGN ENDING: winning the last level starts the lantern-festival
-       ending (phase 'end', #endcard, tap to replay; see startEnding)
+     · CAMPAIGN ENDING: winning the last level starts the CRATE-HOMECOMING
+       ending — crates drift down trailing cut-rope snippets and stack into a
+       warehouse pile (phase 'end', #endcard, tap to replay; see startEnding)
+     · iOS CANVAS RECOVERY: draw() ALWAYS clears with a fillRect before drawing
+       the offscreen bg cache (iOS WKWebView PURGES offscreen-canvas backing
+       during long backgrounding → drawImage(bgCv) paints nothing → the frame
+       accumulates into a smeared "tower" — hit on device overnight). On
+       visibility-resume + pageshow, refreshRender() recreates the canvas backing
+       + rebuilds bgCv/vgCv (no level rebuild, progress kept)
+     · EXTENDED TO 100 LEVELS (element ladder past the handoff, Qi-directed):
+       new mechanics — ELASTIC cord (T4, makeElasticRope), ROTATING anchor +
+       spinning SAWBLADE (T5, makeRotor/makeBlade), WIND zone + MAGNET (T6,
+       makeWind/makeMagnet), STAR pickup objective (makeStar) — plus gravity/
+       mirror/geometry permutations. EVERY level is certified winnable by the
+       seeded-cut fairness harness (scripts/dev/fairness.cjs, in test.sh); new
+       levels are placed with its `land` probe. winNow() is a test-only hook.
+       Difficulty is NOT yet sawtooth-ordered and the new mechanics lack in-level
+       cues — deliberate (Qi: "build to 100, fine tune later")
    Everything else: keep the numbers in sync with the handoff — feel is the moat. */
 
 /* ============================== globals ============================== */
@@ -62,9 +80,9 @@ let level=0;
 // 20 levels, 0..19 — the design's 12 restructured per pacing research (each new
 // mechanic gets intro → develop → twist before the next; combos late; breathers
 // between peaks). Levels 9-12/13-15/16-18 are our balloon/trolley/pulse arcs.
-const LAST=19;
+const LAST=52;
 const cleared=new Array(LAST+1).fill(false);
-let balloons=[],trolleys=[];
+let balloons=[],trolleys=[],rotors=[],blades=[],winds=[],magnets=[],stars=[];
 let phase='play', phaseTimer=0, slowSteps=0, stepCount=0, creakCd=0;
 let particles=[],cons=[],boxes=[],segs=[],pulleys=[],beams=[],anchorsPts=[];
 let crate=null,decoy=null,basket=null,crackLines=null;
@@ -82,22 +100,17 @@ function detectCue(){
   cue=null;
   const hasPulse=segs.some(s=>s.kind==='spike'&&s.pulse);
   const hasSpike=segs.some(s=>s.kind==='spike'&&!s.pulse);
+  const hasElastic=cons.some(c=>c.type==='rope'&&c.mat==='elastic'&&!c.cut);
+  // present[kind] → is that mechanic in THIS level (new mechanics first so an
+  // intro level cues its new item even if an older mechanic is also present)
+  const present={ elastic:hasElastic, rotor:rotors.length>0, wind:winds.length>0,
+    magnet:magnets.length>0, blade:blades.length>0, star:stars.length>0,
+    balloon:balloons.length>0, trolley:trolleys.length>0, pulse:hasPulse,
+    spike:hasSpike, pad:segs.some(s=>s.kind==='pad'), pulley:pulleys.length>0 };
+  const order=['elastic','rotor','wind','magnet','blade','star','balloon','trolley','pulse','spike','pad','pulley'];
   let k=null;
-  if(FORCE_CUE){
-    if(FORCE_CUE==='balloon'&&balloons.length) k='balloon';
-    else if(FORCE_CUE==='trolley'&&trolleys.length) k='trolley';
-    else if(FORCE_CUE==='pulse'&&hasPulse) k='pulse';
-    else if(FORCE_CUE==='pad'&&segs.some(s=>s.kind==='pad')) k='pad';
-    else if(FORCE_CUE==='spike'&&hasSpike) k='spike';
-    else if(FORCE_CUE==='pulley'&&pulleys.length) k='pulley';
-    if(k){ cue={kind:k}; return; }
-  }
-  if(balloons.length && !seenAlready('balloon')) k='balloon';
-  else if(trolleys.length && !seenAlready('trolley')) k='trolley';
-  else if(hasPulse && !seenAlready('pulse')) k='pulse';
-  else if(hasSpike && !seenAlready('spike')) k='spike';
-  else if(segs.some(s=>s.kind==='pad') && !seenAlready('pad')) k='pad';
-  else if(pulleys.length && !seenAlready('pulley')) k='pulley';
+  if(FORCE_CUE){ if(present[FORCE_CUE]){ cue={kind:FORCE_CUE}; return; } }
+  for(const kind of order){ if(present[kind] && !seenAlready(kind)){ k=kind; break; } }
   if(k) cue={kind:k};
 }
 let paused=false;
@@ -207,6 +220,9 @@ function resumeAudio(){
   kick();
 }
 document.addEventListener('visibilitychange',()=>{
+  // recover the render surfaces FIRST, before the audio-only early-return below —
+  // iOS can purge the canvas backing during background regardless of audio state
+  if(document.visibilityState==='visible') refreshRender();
   audioLog('vis');
   if(!actx) return;
   if(document.visibilityState==='visible') resumeAudio();
@@ -525,6 +541,7 @@ function makeBox(cx,cy,side,im,kind){
   const h=side/2;
   const off=[[-h,-h],[h,-h],[h,h],[-h,h]]; // TL TR BR BL
   const idx=off.map(o=>pt(cx+o[0],cy+o[1],im));
+  for(const i of idx) particles[i].boxed=true; // box corners: wind applies per-BOX (see physCore)
   const dg=side*Math.SQRT2;
   link(idx[0],idx[1],side,'rigid'); link(idx[1],idx[2],side,'rigid');
   link(idx[2],idx[3],side,'rigid'); link(idx[3],idx[0],side,'rigid');
@@ -589,6 +606,25 @@ function makeRope(path,startOpt,endOpt){
   else attachEnd(ids[ids.length-1],endOpt);
   return ids;
 }
+// ELASTIC rope (T4 material) — a soft spring/bungee. Builds like makeRope, then
+// tags every rope constraint it created with a stiffness < 1 (the solver
+// under-corrects → it stretches under load and springs back) and scales the
+// rest length by restScale (< 1 = pre-tensioned: it wants to CONTRACT, so
+// cutting a restraint lets it fling the crate — a slingshot launcher). stiff
+// governs bounciness; restScale governs launch power.
+function makeElasticRope(path,startOpt,endOpt,o){
+  o=o||{};
+  const stiff=o.stiff===undefined?0.12:o.stiff;
+  const restScale=o.restScale===undefined?1:o.restScale;
+  const before=cons.length;
+  const ids=makeRope(path,startOpt,endOpt);
+  const idset=new Set(ids);
+  for(let ci=before;ci<cons.length;ci++){
+    const c=cons[ci];
+    if(c.type==='rope'&&(idset.has(c.a)||idset.has(c.b))){ c.mat='elastic'; c.stiff=stiff; c.rest*=restScale; }
+  }
+  return ids;
+}
 function setBasket(x,yb){
   basket={x,yb,iw:1.9*S,wh:1.25*S,squash:0};
   const l=x-basket.iw/2, r=x+basket.iw/2, t=yb-basket.wh;
@@ -625,6 +661,31 @@ function makeTrolley(box,x1,y1,x2,y2,speed,t0){
   trolleys.push({p:ids[0],x1,y1,x2,y2,t:t0,dir:1,speed});
   return ids;
 }
+// Rotating anchor (T5): a kinematic pin ORBITING a center each step, swinging the
+// crate in a circle — release (cut) at the right orbital angle to fling it
+// tangentially. Like a trolley but circular. ang in radians, speed rad/s.
+function makeRotor(box,cx,cy,r,ang0,speed){
+  const sx=cx+Math.cos(ang0)*r, sy=cy+Math.sin(ang0)*r;
+  const ids=makeRope([[sx,sy],harnessPt(box)],{pin:true},{box,mode:'harness'});
+  anchorsPts.pop();
+  rotors.push({p:ids[0],cx,cy,r,ang:ang0,speed});
+  return ids;
+}
+// Sawblade (T5 hazard): a lethal spinning disc; touching its radius shatters the
+// crate. Purely kinematic + a fail check (see collideBox); ang only drives the render.
+function makeBlade(cx,cy,r,speed){ blades.push({cx,cy,r,ang:0,speed:speed===undefined?4:speed}); }
+// Wind zone (T6): a rect region that adds a constant acceleration (ax,ay in units
+// of H, like gravity) to any particle inside — carries the crate somewhere a
+// plain drop can't reach. Applied in physCore.
+function makeWind(x,y,w,h,ax,ay){ winds.push({x,y,w,h,ax:ax*H,ay:(ay||0)*H,t:0}); }
+// Magnet (T6): a point that pulls particles with a normalized inverse-square
+// force (curves the crate's fall). strength is in gravities AT the reference
+// distance 0.25W (so strength≈2 ≈ gravity there); range in W. Applied in physCore.
+function makeMagnet(x,y,strength,range){ magnets.push({x,y,s:strength,ref2:(0.25*W)*(0.25*W),range:(range||0.5)*W,soft2:(0.05*W)*(0.05*W)}); }
+// Star pickup (objective modifier): the crate must pass through EVERY star before
+// the win counts — a routing constraint layerable on any mechanic. Collected when
+// a crate corner comes within radius (see doChecks).
+function makeStar(x,y){ stars.push({x,y,r:0.05*W,got:false,gotT:-999}); }
 // Pulse spikes: extend/retract on a schedule; lethal only while extended.
 function spikeExt(sg){
   if(!sg.pulse) return 1;
@@ -640,7 +701,7 @@ function spikeActive(sg){ return spikeExt(sg)>0.6; }
 
 function buildLevel(i){
   particles=[]; cons=[]; boxes=[]; segs=[]; pulleys=[]; beams=[]; anchorsPts=[];
-  balloons=[]; trolleys=[];
+  balloons=[]; trolleys=[]; rotors=[]; blades=[]; winds=[]; magnets=[]; stars=[];
   crate=null; decoy=null; basket=null; crackLines=null;
   cutThisLevel=false;
   sparks=[]; confetti=[]; streak=[];
@@ -650,7 +711,7 @@ function buildLevel(i){
   // repeat on retry, and the sim's win windows drift run-to-run. All time-
   // relative state (cutT/popT ages) is recreated in this same buildLevel, so
   // zeroing here is safe. (Lesson: kinematic parts need a level-local clock.)
-  phase='play'; phaseTimer=0; slowSteps=0; creakCd=0; stallSteps=0; groundedT=0; stepCount=0;
+  phase='play'; phaseTimer=0; slowSteps=0; creakCd=0; stallSteps=0; groundedT=0; magnetHeldT=0; starMissT=0; stepCount=0;
   S=W/7; SP=W/40; G=H*2.0; FLOORY=H*0.985;
   const s=S;
   switch(i){
@@ -755,7 +816,6 @@ function buildLevel(i){
       segs.push({x1:0.10*W,y1:0.52*H,x2:0.48*W,y2:0.52*H,kind:'spike'});
       setBasket(0.53*W,0.90*H);
     }break;
-    /* ---- BALLOON arc (intro → develop → spectacle → twist) ---- */
     case 8:{ // BALLOON intro — the balloon floats the crate up; pop it to drop into the basket
       const b=makeBox(0.5*W,0.44*H,s,0.25,'crate');
       makeBalloon(b,0.14*H,6.0,s*0.5);
@@ -800,7 +860,6 @@ function buildLevel(i){
       makeBalloon(b,0.14*H,6.0,s*0.5);
       setBasket(0.5*W,0.90*H);
     }break;
-    /* ---- TROLLEY arc (intro → develop → twist) ---- */
     case 12:{ // MOVING ANCHOR (trolley) intro — cut when the swinging crate is over the basket
       const b=makeBox(0.5*W,0.44*H,s,0.25,'crate');
       makeTrolley(b,0.20*W,0.13*H,0.80*W,0.13*H,0.34,0.5);
@@ -827,7 +886,6 @@ function buildLevel(i){
       segs.push({x1:0.07*W,y1:0.70*H,x2:0.46*W,y2:0.70*H,kind:'spike'});
       setBasket(0.82*W,0.90*H);
     }break;
-    /* ---- PULSE arc (intro → develop → twist) ---- */
     case 15:{ // PULSE SPIKES intro — drop through the gate while it's retracted
       beams.push({x:0.40*W,y:0.028*H,w:0.20*W,h:0.024*H});
       const b=makeBox(0.5*W,0.30*H,s,0.25,'crate');
@@ -855,7 +913,6 @@ function buildLevel(i){
       segs.push({x1:0.15*W,y1:0.70*H,x2:0.85*W,y2:0.70*H,kind:'spike',pulse:true,period:1.5,duty:0.45,off:0.15});
       setBasket(0.5*W,0.92*H);
     }break;
-    /* ---- COMBOS ---- */
     case 18:{ // BALLOON + PULSE — pop it to fall through the gate when it opens
       const b=makeBox(0.5*W,0.42*H,s,0.25,'crate');
       makeBalloon(b,0.14*H,6.0,s*0.5);
@@ -878,6 +935,297 @@ function buildLevel(i){
       // basket (fake stakes); removed so the gate carries the climax.
       segs.push({x1:0.18*W,y1:0.58*H,x2:0.82*W,y2:0.58*H,kind:'spike',pulse:true,period:1.5,duty:0.5,off:0});
       setBasket(0.5*W,0.90*H);
+    }break;
+    case 20:{ // ELASTIC intro — the crate bounces on a stretchy cord; cut it at
+              // the bottom of a bounce (moving up) to fling the crate up-and-over
+              // into the basket. Timing teach: the cord stores energy, the cut
+              // releases it. (GEOMETRY UNDER TUNING — probing launch landing.)
+      beams.push({x:0.60*W,y:0.03*H,w:0.20*W,h:0.024*H});
+      const b=makeBox(0.34*W,0.60*H,s,0.25,'crate');
+      makeElasticRope([[0.66*W,0.055*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'},{stiff:0.16,restScale:0.66});
+      setBasket(0.70*W,0.90*H);
+    }break;
+    case 21:{ // ELASTIC × PULSE twist — the cord flings the crate through a timed
+              // GATE: two timings compose — release on the bounce AND when the
+              // gate is open, or the fling is shredded. (first elastic combo.)
+      beams.push({x:0.50*W,y:0.03*H,w:0.20*W,h:0.024*H});
+      const b=makeBox(0.20*W,0.62*H,s,0.25,'crate');
+      makeElasticRope([[0.54*W,0.05*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'},{stiff:0.15,restScale:0.54});
+      segs.push({x1:0.56*W,y1:0.48*H,x2:0.56*W,y2:0.90*H,kind:'spike',pulse:true,period:1.4,duty:0.5,off:0}); // VERTICAL gate/doorway
+      setBasket(0.84*W,0.90*H);
+    }break;
+    case 22:{ // ELASTIC mirror — the cord flings the crate LEFT into the basket.
+      beams.push({x:0.20*W,y:0.03*H,w:0.20*W,h:0.024*H});
+      const b=makeBox(0.66*W,0.60*H,s,0.25,'crate');
+      makeElasticRope([[0.34*W,0.055*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'},{stiff:0.16,restScale:0.66});
+      setBasket(0.30*W,0.90*H);
+    }break;
+    case 23:{ // ROTOR intro — the anchor ORBITS a hub; the crate swings in a
+              // circle. Cut when it swings over the basket to drop it in.
+      const cx=0.5*W, cy=0.27*H;
+      const b=makeBox(cx,cy+0.26*H,s,0.25,'crate');
+      makeRotor(b,cx,cy,0.12*W,Math.PI/2,1.5);
+      setBasket(0.5*W,0.90*H);
+    }break;
+    case 24:{ // ROTOR develop — faster orbit + an OFFSET basket: release on the
+              // swing so momentum flings the crate sideways into it.
+      const cx=0.40*W, cy=0.30*H;
+      const b=makeBox(cx,cy+0.24*H,s,0.25,'crate');
+      makeRotor(b,cx,cy,0.14*W,Math.PI/2,2.2);
+      setBasket(0.74*W,0.90*H);
+    }break;
+    case 25:{ // ROTOR × SAWBLADE twist — a spinning blade waits below the orbit;
+              // an early/wrong release drops the crate onto it — time the fling to
+              // arc past it into the offset basket.
+      const cx=0.40*W, cy=0.30*H;
+      const b=makeBox(cx,cy+0.24*H,s,0.25,'crate');
+      makeRotor(b,cx,cy,0.14*W,Math.PI/2,2.2);
+      makeBlade(0.40*W,0.66*H,0.07*W,5);
+      setBasket(0.74*W,0.90*H);
+    }break;
+    case 26:{ // WIND intro — cut the rope; the crate drops into a rightward gale
+              // that carries it across into a basket a straight drop would miss.
+      beams.push({x:0.20*W,y:0.03*H,w:0.16*W,h:0.024*H});
+      const b=makeBox(0.26*W,0.27*H,s,0.25,'crate');
+      makeRope([[0.26*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeWind(0.20*W,0.42*H,0.64*W,0.40*H,3.2,0);
+      setBasket(0.74*W,0.90*H);
+    }break;
+    case 27:{ // UPDRAFT — a gentle up-and-right draft lofts the crate across a
+              // longer hang than the flat gales. (gentle-carry rule)
+      beams.push({x:0.16*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      const b=makeBox(0.22*W,0.30*H,s,0.25,'crate');
+      makeRope([[0.22*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeWind(0.16*W,0.36*H,0.66*W,0.44*H,1.5,-0.5);
+      setBasket(0.66*W,0.90*H);
+    }break;
+    case 28:{ // WIND × PULSE — ride the gale across, but the gate must be open.
+      beams.push({x:0.16*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      const b=makeBox(0.22*W,0.24*H,s,0.25,'crate');
+      makeRope([[0.22*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeWind(0.16*W,0.40*H,0.66*W,0.44*H,3.4,0);
+      segs.push({x1:0.56*W,y1:0.40*H,x2:0.56*W,y2:0.86*H,kind:'spike',pulse:true,period:1.5,duty:0.5,off:0});
+      setBasket(0.78*W,0.90*H);
+    }break;
+    case 29:{ // WIND × star — ride the gale through a star into the basket.
+              // (gentle-carry rule: soft gravity + soft gale = readable arc;
+              // hot arrivals ricochet off the basket and read as unfair)
+      G=H*1.5;
+      beams.push({x:0.18*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      const b=makeBox(0.24*W,0.26*H,s,0.25,'crate');
+      makeRope([[0.24*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeWind(0.18*W,0.36*H,0.62*W,0.42*H,1.3,0);
+      makeStar(0.42*W,0.62*H);
+      setBasket(0.60*W,0.90*H);
+    }break;
+    case 30:{ // WIND × GATE mirror — ride the leftward gale through the doorway.
+      beams.push({x:0.82*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      const b=makeBox(0.78*W,0.24*H,s,0.25,'crate');
+      makeRope([[0.78*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeWind(0.18*W,0.40*H,0.66*W,0.44*H,-3.4,0);
+      segs.push({x1:0.44*W,y1:0.40*H,x2:0.44*W,y2:0.86*H,kind:'spike',pulse:true,period:1.5,duty:0.5,off:0});
+      setBasket(0.22*W,0.90*H);
+    }break;
+    case 31:{ // MAGNET intro — the crate falls past a magnet that curves its path
+              // sideways into the offset basket.
+      beams.push({x:0.40*W,y:0.03*H,w:0.16*W,h:0.024*H});
+      const b=makeBox(0.44*W,0.27*H,s,0.25,'crate');
+      makeRope([[0.44*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeMagnet(0.72*W,0.54*H,2.2,0.55);
+      setBasket(0.74*W,0.90*H);
+    }break;
+    case 32:{ // MAGNET mirror — the pull curves the crate the other way.
+      beams.push({x:0.50*W,y:0.03*H,w:0.16*W,h:0.024*H});
+      const b=makeBox(0.54*W,0.27*H,s,0.25,'crate');
+      makeRope([[0.54*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeMagnet(0.26*W,0.54*H,2.2,0.55);
+      setBasket(0.24*W,0.90*H);
+    }break;
+    case 33:{ // MAGNET × SWING — a pendulum crate + a magnet: the pull bends the
+              // release arc; time the cut so the curve lands home.
+      beams.push({x:0.28*W,y:0.03*H,w:0.16*W,h:0.024*H});
+      const b=makeBox(0.62*W,0.24*H,s,0.25,'crate');
+      makeRope([[0.32*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      pushBox(b,-0.14*H,0);
+      makeMagnet(0.72*W,0.60*H,1.8,0.55);
+      setBasket(0.72*W,0.90*H);
+    }break;
+    case 34:{ // MAGNET × GATE — the pull curves the fall through a VERTICAL pulse
+              // gate on the way to the basket: cut so the curve arrives on the
+              // open beat. Horseshoe + vertical gate bar = visually unmistakable,
+              // and the timing is legible. (was a plain left-curve clone of L32 —
+              // Qi spotted it. Tried and cut along the way: a two-magnet S-curve —
+              // a second in-range magnet either captures or slingshots, there is
+              // no "gentle nudge" regime in an inverse-square pull — and a blade,
+              // which the fat curving sweep of the crate can't safely pass.)
+      beams.push({x:0.44*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      const b=makeBox(0.52*W,0.23*H,s,0.25,'crate');
+      makeRope([[0.52*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeMagnet(0.26*W,0.54*H,2.2,0.55); // L32's proven pull numbers
+      segs.push({x1:0.38*W,y1:0.55*H,x2:0.38*W,y2:0.90*H,kind:'spike',pulse:true,period:1.5,duty:0.45,off:0});
+      setBasket(0.24*W,0.90*H);
+    }break;
+    case 35:{ // MAGNET × spike — the pull curves you clear of a spike that sits
+              // under the straight drop. (Magnet strong enough that ANY cut
+              // height clears — cut height must never silently decide; Qi hit
+              // the shallow-curve miss on device.)
+      beams.push({x:0.46*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      const b=makeBox(0.5*W,0.25*H,s,0.25,'crate');
+      makeRope([[0.5*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeMagnet(0.74*W,0.56*H,2.3,0.65);
+      // under the STRAIGHT-DROP line: without the magnet's pull you'd land here
+      // (meaningful-spike rule) — the curve clears its right edge with margin
+      segs.push({x1:0.34*W,y1:0.66*H,x2:0.50*W,y2:0.66*H,kind:'spike'});
+      setBasket(0.76*W,0.90*H);
+    }break;
+    case 36:{ // MAGNET × LEDGE — a solid shelf sits under the straight drop: cut
+              // cold and the crate cracks on it; the pull carries you past its
+              // edge into the far basket. Shelf + horseshoe = visually distinct
+              // from the bare-curve levels (L31 sibling de-dup).
+      beams.push({x:0.40*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      const b=makeBox(0.44*W,0.27*H,s,0.25,'crate'); // L31's exact start — 0.03H higher tips the curve into flyby chaos
+      makeRope([[0.44*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeMagnet(0.72*W,0.54*H,2.2,0.55); // the proven smooth right-curve
+      // horizontal gate under the curve's descent: arrive on the open beat.
+      // (a solid ledge was tried and cut — solids + magnet curves = ricochet
+      // chaos; gates kill cleanly, no bounce)
+      segs.push({x1:0.50*W,y1:0.72*H,x2:0.90*W,y2:0.72*H,kind:'spike',pulse:true,period:1.5,duty:0.45,off:0});
+      setBasket(0.74*W,0.90*H);
+    }break;
+    case 37:{ // MAGNET × 2 stars — the curve threads both on its way home.
+      beams.push({x:0.44*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      const b=makeBox(0.48*W,0.25*H,s,0.25,'crate');
+      makeRope([[0.48*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeMagnet(0.74*W,0.56*H,2.2,0.62);
+      makeStar(0.60*W,0.46*H); makeStar(0.70*W,0.68*H);
+      setBasket(0.74*W,0.90*H);
+    }break;
+    case 38:{ // MAGNET far — a long cross-field pull to the far corner.
+      beams.push({x:0.66*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      // TROLLEY × MAGNET — ride the rail, cut over the pull: the magnet curves
+      // your drop into the corner basket. Rail + horseshoe = distinct tableau,
+      // and the timing is visible. (The old cross-field magnet reel had NO
+      // stable regime — any strength that crosses the field is flyby chaos;
+      // ceiling-thread / hover-beacon / star-trail variants all tried and cut.)
+      const b=makeBox(0.30*W,0.42*H,s,0.25,'crate');
+      makeTrolley(b,0.20*W,0.13*H,0.80*W,0.13*H,0.34,0.2);
+      makeMagnet(0.26*W,0.62*H,2.2,0.55);
+      setBasket(0.24*W,0.90*H);
+    }break;
+    case 39:{ // STAR intro — grab the star on the way down before landing home.
+      beams.push({x:0.42*W,y:0.03*H,w:0.16*W,h:0.024*H});
+      const b=makeBox(0.5*W,0.30*H,s,0.25,'crate');
+      makeRope([[0.5*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeStar(0.5*W,0.62*H);
+      setBasket(0.5*W,0.90*H);
+    }break;
+    case 40:{ // STAR × pendulum — the star hangs in the swing path; release so the
+              // crate sweeps through it into the far basket.
+      beams.push({x:0.33*W,y:0.028*H,w:0.24*W,h:0.024*H});
+      const b=makeBox(0.75*W,0.28*H,s,0.25,'crate');
+      makeRope([[0.45*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      pushBox(b,-0.15*H,0);
+      makeStar(0.32*W,0.66*H);
+      setBasket(0.15*W,0.90*H);
+    }break;
+    case 41:{ // TWO STARS — grab both on the straight drop before landing.
+      beams.push({x:0.42*W,y:0.03*H,w:0.16*W,h:0.024*H});
+      const b=makeBox(0.5*W,0.24*H,s,0.25,'crate');
+      makeRope([[0.5*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeStar(0.5*W,0.50*H); makeStar(0.5*W,0.70*H);
+      setBasket(0.5*W,0.90*H);
+    }break;
+    case 42:{ // TROLLEY revisit — a mid-speed patrol to an offset basket + star.
+      const b=makeBox(0.30*W,0.42*H,s,0.25,'crate');
+      makeTrolley(b,0.18*W,0.13*H,0.74*W,0.13*H,0.40,0.2);
+      makeStar(0.5*W,0.62*H);
+      setBasket(0.80*W,0.90*H);
+    }break;
+    case 43:{ // TROLLEY diagonal mirror.
+      const b=makeBox(0.72*W,0.42*H,s,0.25,'crate');
+      makeTrolley(b,0.80*W,0.10*H,0.30*W,0.35*H,0.40,0.15);
+      setBasket(0.18*W,0.90*H);
+    }break;
+    case 44:{ // TWO STARS × tip — tip the crate through two stars into the basket.
+      beams.push({x:0.36*W,y:0.028*H,w:0.28*W,h:0.024*H});
+      const cx=0.5*W,cy=0.38*H; const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[cx-s/2,0.052*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0});
+      makeRope([[cx+s/2,0.052*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1});
+      makeStar(0.5*W,0.58*H); makeStar(0.5*W,0.74*H);
+      setBasket(0.5*W,0.90*H);
+    }break;
+    case 45:{ // TIP-ORDER × gate — two ropes; tip toward the offset basket, then
+              // drop the second rope through a NARROW gate on the beat. (was a
+              // straight-drop full-gate clone of L16 — Qi spotted the dup)
+      beams.push({x:0.5*W-s*0.9,y:0.028*H,w:s*1.8,h:0.024*H});
+      const cx=0.5*W,cy=0.34*H; const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[cx-s/2,0.052*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0});
+      makeRope([[cx+s/2,0.052*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1});
+      segs.push({x1:0.48*W,y1:0.62*H,x2:0.82*W,y2:0.62*H,kind:'spike',pulse:true,period:1.5,duty:0.45,off:0});
+      setBasket(0.64*W,0.90*H);
+    }break;
+    case 46:{ // HEAVY GRAVITY, LOW HANG — the crate dangles just above a short,
+              // fast gate: a snap drop with a razor window. Visually a compressed
+              // bottom-half tableau, nothing like the high full-gate drops.
+      G=H*2.7;
+      beams.push({x:0.40*W,y:0.36*H,w:0.20*W,h:0.024*H});
+      const b=makeBox(0.5*W,0.56*H,s,0.25,'crate');
+      makeRope([[0.5*W,0.384*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      segs.push({x1:0.32*W,y1:0.74*H,x2:0.68*W,y2:0.74*H,kind:'spike',pulse:true,period:1.1,duty:0.45,off:0});
+      setBasket(0.5*W,0.90*H);
+    }break;
+    case 47:{ // ROTOR mirror-slow — a gentle reverse orbit to a left basket.
+      const cx=0.62*W, cy=0.29*H;
+      const b=makeBox(cx,cy+0.24*H,s,0.25,'crate');
+      makeRotor(b,cx,cy,0.13*W,Math.PI/2,-2.0);
+      setBasket(0.28*W,0.90*H);
+    }break;
+    case 48:{ // STAGGERED HALF-GATES — a left half-gate up high, a right half-gate
+              // below, anti-phase: the drop weaves the staircase. (was a full-gate
+              // clone)
+      beams.push({x:0.30*W,y:0.028*H,w:0.20*W,h:0.024*H});
+      const b=makeBox(0.40*W,0.26*H,s,0.25,'crate');
+      makeRope([[0.40*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      segs.push({x1:0.10*W,y1:0.50*H,x2:0.52*W,y2:0.50*H,kind:'spike',pulse:true,period:1.6,duty:0.42,off:0});
+      segs.push({x1:0.30*W,y1:0.70*H,x2:0.72*W,y2:0.70*H,kind:'spike',pulse:true,period:1.6,duty:0.42,off:0.5});
+      setBasket(0.40*W,0.90*H);
+    }break;
+    case 49:{ // DIAGONAL GATE — a slanted pulse bar across the field; the drop
+              // threads it on the beat. A tilted strip reads nothing like the
+              // flat gates. (was a full-gate clone of L16 — Qi spotted the dups)
+      beams.push({x:0.40*W,y:0.028*H,w:0.20*W,h:0.024*H});
+      const b=makeBox(0.5*W,0.24*H,s,0.25,'crate');
+      makeRope([[0.5*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      segs.push({x1:0.14*W,y1:0.50*H,x2:0.86*W,y2:0.68*H,kind:'spike',pulse:true,period:1.6,duty:0.42,off:0});
+      setBasket(0.5*W,0.90*H);
+    }break;
+    case 50:{ // DOUBLE GATE 2 — two staggered gates, tighter windows.
+      beams.push({x:0.40*W,y:0.028*H,w:0.20*W,h:0.024*H});
+      const b=makeBox(0.5*W,0.22*H,s,0.25,'crate');
+      makeRope([[0.5*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      // TRIPLE gauntlet — three short staggered gates (was a two-full-gate clone
+      // of L59); visibly "the gauntlet", a late-campaign capstone
+      segs.push({x1:0.24*W,y1:0.46*H,x2:0.76*W,y2:0.46*H,kind:'spike',pulse:true,period:1.6,duty:0.4,off:0});
+      segs.push({x1:0.30*W,y1:0.62*H,x2:0.70*W,y2:0.62*H,kind:'spike',pulse:true,period:1.6,duty:0.4,off:0.33});
+      segs.push({x1:0.36*W,y1:0.78*H,x2:0.64*W,y2:0.78*H,kind:'spike',pulse:true,period:1.6,duty:0.4,off:0.66});
+      setBasket(0.5*W,0.92*H);
+    }break;
+    case 51:{ // MAGNET × spike × star — curve clear of the spike, grab the star.
+              // (retuned like L54: strong enough that any cut height clears)
+      beams.push({x:0.46*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      const b=makeBox(0.5*W,0.24*H,s,0.25,'crate');
+      makeRope([[0.5*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeMagnet(0.80*W,0.50*H,3.2,0.72);
+      makeStar(0.66*W,0.52*H);
+      segs.push({x1:0.38*W,y1:0.66*H,x2:0.54*W,y2:0.66*H,kind:'spike'});
+      setBasket(0.80*W,0.90*H);
+    }break;
+    case 52:{ // FINALE (L100) — a fast orbit threaded past the blade to the far
+              // corner: everything you've mastered, one clean release.
+      const cx=0.46*W, cy=0.26*H; const b=makeBox(cx,cy+0.22*H,s,0.25,'crate');
+      makeRotor(b,cx,cy,0.15*W,Math.PI/2,2.6);
+      makeBlade(0.46*W,0.62*H,0.075*W,6);
+      setBasket(0.82*W,0.90*H);
     }break;
   }
   segs.push({x1:-0.5*W,y1:FLOORY,x2:1.5*W,y2:FLOORY,kind:'floor'});
@@ -1030,6 +1378,25 @@ function collideBox(b){
 let padFlash=0;
 let settling=false; // true during buildLevel's hidden pre-settle — no fails, no flash
 let crateGrounded=false, groundedT=0; // bare-floor contact → delayed crack (see collideBox)
+// Is the crate genuinely SUSPENDED from above by a taut, uncut rope (a hang the
+// player can still cut to progress) — vs perched / balanced / rested (stuck)? The
+// stall watchdog uses this instead of a height guard: a crate rested on a HIGH
+// ledge or balanced below a pulley has no taut up-rope, so it's caught; a real
+// hang (pre-cut, or an intermediate hang between cuts) is not (no false-fire).
+function crateSuspended(){
+  if(!crate) return false;
+  const cset=crate.idx;
+  for(const c of cons){
+    if(c.cut||c.type!=='rope') continue;
+    const aIn=cset.indexOf(c.a)>=0, bIn=cset.indexOf(c.b)>=0;
+    if(aIn===bIn) continue; // both-crate diagonal or neither — not a suspending line
+    const cp=aIn?c.a:c.b, op=aIn?c.b:c.a;
+    const a=particles[cp], o=particles[op];
+    // other end meaningfully HIGHER and the link ~taut → the crate hangs from it
+    if(o.y < a.y - crate.side*0.25 && Math.hypot(o.x-a.x,o.y-a.y) > c.rest*0.85) return true;
+  }
+  return false;
+}
 function collideAll(){
   crateGrounded=false;
   for(const b of boxes){
@@ -1055,11 +1422,36 @@ function inBasket(p){
   return p.x>b.x-b.iw/2+3 && p.x<b.x+b.iw/2-3 &&
          p.y>b.yb-b.wh-S*0.35 && p.y<b.yb+5;
 }
-let stallSteps=0;
+let stallSteps=0, magnetHeldT=0, starMissT=0;
 function doChecks(){
   if(!crate) return;
   const c=boxCenter(crate);
   if(c.x<-S||c.x>W+S||c.y>H+2*S){ failLevel('off'); return; }
+  // magnet CAPTURE watchdog (T6): a magnet is an attractor, so it can trap the
+  // crate in a slow decaying orbit / jitter it against the core forever (speed
+  // never stays below the settle threshold → the stall watchdog can't latch; the
+  // crate never reaches the basket → dead-end, hit on device L35). Proximity+time
+  // instead of speed: if the crate lingers within ~0.15W of a magnet without
+  // winning, it's captured → soft-reset. A crate merely FALLING PAST a magnet
+  // clears the radius in well under this window.
+  if(magnets.length){
+    let near=false; for(const mg of magnets){ if((c.x-mg.x)*(c.x-mg.x)+(c.y-mg.y)*(c.y-mg.y) < (0.15*W)*(0.15*W)){ near=true; break; } }
+    if(near) magnetHeldT++; else magnetHeldT=0;
+    if(magnetHeldT>=300){ failLevel('stall'); return; }
+  }
+  // sawblade (T5): any crate corner inside a spinning blade's disc shatters it
+  if(blades.length){
+    const br=crate.side*0.18;
+    for(const i of crate.idx){ const p=particles[i];
+      for(const bl of blades){ const dx=p.x-bl.cx, dy=p.y-bl.cy; if(dx*dx+dy*dy<(bl.r+br)*(bl.r+br)){ failLevel('blade'); return; } }
+    }
+  }
+  // star pickups (objective): collect when a crate corner passes within radius
+  if(stars.length){
+    for(const st of stars){ if(st.got) continue;
+      for(const i of crate.idx){ const p=particles[i]; const dx=p.x-st.x, dy=p.y-st.y; if(dx*dx+dy*dy<(st.r+crate.side*0.3)*(st.r+crate.side*0.3)){ st.got=true; st.gotT=stepCount; if(!settling) playPlopChime(); break; } }
+    }
+  }
   // bare-floor landing: the crate survives the thud, then cracks after a beat
   if(crateGrounded) groundedT++; else groundedT=0;
   if(groundedT>=48){ failLevel('floor'); return; }
@@ -1071,17 +1463,28 @@ function doChecks(){
       sp2+=Math.hypot(p.x-p.px,p.y-p.py)/DT;
     }
     sp2/=4;
-    if(all&&sp2<0.25*H) slowSteps++; else slowSteps=0;
+    const starsDone=stars.every(s=>s.got); // must collect every star before the win counts
+    if(all&&sp2<0.25*H&&starsDone) slowSteps++; else slowSteps=0;
     if(slowSteps>=36) winLevel();
+    // STAR-MISS dead-end (hit on device L43): the crate settled INSIDE the basket
+    // with stars uncollected — the win is gated on stars so it never fires, and
+    // the stall watchdog is guarded by !all so it can't fire either → permanent
+    // 'play'. A crate at rest in the basket can never collect anything, so the
+    // run is decided: fail → retry after a readable beat.
+    if(stars.length&&all&&sp2<0.05*H&&!starsDone) starMissT++; else starMissT=0;
+    if(starMissT>=90){ failLevel('stall'); return; }
     // stall watchdog: crate settled somewhere that is neither basket nor floor
     // (e.g. perched on the basket rim) — soft-reset so the level can't dead-end.
     // Threshold is 0.05*H (reference used 0.02*H, which sits BELOW the sim's
     // contact-jitter noise floor: gravity alone re-injects G*DT^2 = 0.0167*H px/s
     // per step, and a tilted rim-perch with a severed-rope remnant attached rocks
     // at 17-30px/s forever — the watchdog never fired and the level dead-ended
-    // on device). 0.05*H is still 5x below the win threshold; hanging/transit
-    // states are excluded by the c.y>0.6*H guard (all rope hang points are higher).
-    if(!all&&sp2<0.05*H&&c.y>0.6*H) stallSteps++; else stallSteps=0;
+    // on device). 0.05*H is still 5x below the win threshold. Once the player has
+    // cut this level, a settled crate that is NOT suspended by a taut up-rope is
+    // stuck — perched on a rim (original bug), rested on a HIGH ledge, or balanced
+    // below a pulley (L8, hit on device). A genuine hang (pre-cut, or an
+    // intermediate hang between cuts) IS suspended, so it never false-fires.
+    if(!all&&sp2<0.05*H&&cutThisLevel&&!crateSuspended()) stallSteps++; else stallSteps=0;
     if(stallSteps>=300) failLevel('stall');
   }
 }
@@ -1115,45 +1518,95 @@ function failLevel(kind){
   updateWhoosh(0);
 }
 /* ============================== ending ============================== */
-// Campaign complete: the night fills with rising paper lanterns (the balloon
-// made lanterns part of the game's visual language) over the final tableau.
-let endT=0, endLanterns=[];
+// CAMPAIGN ENDING — a CRATE HOMECOMING (the lantern festival was cut: Qi —
+// "balloon seems not closely related to product"). Little crates drift down
+// from the night sky, each trailing its just-cut rope snippet, and stack into a
+// warehouse pile along the ground: "ALL CRATES HOME", shown literally in the
+// game's own icons (crate, cut rope, the haul made visible).
+let endT=0, endCrates=[], endPile=[], endPlan=[], endSpawnI=0;
+const END_COLS=13;
 function startEnding(){
-  phase='end'; endT=0; endLanterns=[];
+  phase='end'; endT=0; endCrates=[]; endPile=new Array(END_COLS).fill(0); endSpawnI=0;
+  // ONE CRATE PER LEVEL CLEARED (Qi) — the mound IS the campaign. Greedy plan:
+  // place each of the LAST+1 crates in the column minimizing height + a
+  // center-distance penalty → a centered mound of exactly that many crates,
+  // whatever the campaign size.
+  endPlan=[];
+  const hts=new Array(END_COLS).fill(0), mid=(END_COLS-1)/2;
+  for(let n=0;n<=LAST;n++){
+    let best=0, bv=1e9;
+    for(let c=0;c<END_COLS;c++){ const v=hts[c]+Math.abs(c-mid)*0.6; if(v<bv-1e-9){ bv=v; best=c; } }
+    hts[best]++; endPlan.push(best);
+  }
   const h=document.getElementById('hint'); if(h) h.classList.add('hide');
+  const sub=document.getElementById('endSub1'); if(sub) sub.textContent='all '+(LAST+1)+' levels cleared';
 }
 function stepEnding(){
   endT++;
   stepFX();
-  if(endT%16===0&&endLanterns.length<26){
-    endLanterns.push({x:(0.06+0.88*Math.random())*W, y:H+40,
-      vy:(0.045+Math.random()*0.055)*H, sw:8+Math.random()*22,
-      ph:Math.random()*6.3, r:(0.018+Math.random()*0.022)*W, a:0, t:0});
+  const size=W/END_COLS;
+  if(endT%12===0&&endSpawnI<endPlan.length){
+    const col=endPlan[endSpawnI++];
+    endCrates.push({col, x:(col+0.5)*size, y:-size, vy:0,
+      rot:(Math.random()-0.5)*0.6, vr:(Math.random()-0.5)*0.02,
+      sway:6+Math.random()*14, ph:Math.random()*6.3, t:0, landed:false,
+      targetY:FLOORY-(endPile[col]+0.5)*size*0.96, squash:0});
+    endPile[col]++;
   }
-  for(let i=endLanterns.length-1;i>=0;i--){
-    const l=endLanterns[i];
-    l.t+=DT; l.y-=l.vy*DT; l.a=Math.min(1,l.a+0.02);
-    if(l.y<-60) endLanterns.splice(i,1);
+  for(const c of endCrates){
+    if(c.landed){ if(c.squash>0) c.squash*=0.86; continue; }
+    c.t+=DT;
+    c.vy=Math.min(c.vy+0.35*H*DT, 0.34*H); // gentle parachute-fall terminal speed
+    c.y+=c.vy*DT;
+    if(c.y>=c.targetY){ c.y=c.targetY; c.landed=true; c.squash=0.22; c.rot*=0.25; if(endT%2===0) playThump(); }
   }
   if(endT%170===0) spawnConfetti((0.2+Math.random()*0.6)*W, 0.30*H);
   if(endT===90){ const ec=document.getElementById('endcard'); if(ec) ec.classList.add('show'); }
 }
-function drawEndLanterns(now){
-  for(const l of endLanterns){
-    const x=l.x+Math.sin(l.t*0.7+l.ph)*l.sw;
-    ctx.save();
-    ctx.globalAlpha=l.a;
-    ctx.globalCompositeOperation='lighter';
-    const gl=ctx.createRadialGradient(x,l.y,0,x,l.y,l.r*2.4);
-    gl.addColorStop(0,'rgba(255,168,90,0.35)'); gl.addColorStop(1,'rgba(255,168,90,0)');
-    ctx.fillStyle=gl; ctx.beginPath(); ctx.arc(x,l.y,l.r*2.4,0,7); ctx.fill();
-    ctx.globalCompositeOperation='source-over';
-    const grad=ctx.createRadialGradient(x-l.r*0.3,l.y-l.r*0.4,l.r*0.1,x,l.y,l.r);
-    grad.addColorStop(0,'#ffcf8f'); grad.addColorStop(0.55,'#f2843c'); grad.addColorStop(1,'#c8672a');
-    ctx.fillStyle=grad;
-    ctx.beginPath(); ctx.ellipse(x,l.y,l.r*0.82,l.r,0,0,7); ctx.fill();
-    ctx.fillStyle='rgba(255,236,190,0.85)';
-    ctx.beginPath(); ctx.ellipse(x,l.y+l.r*0.35,l.r*0.28,l.r*0.18,0,0,7); ctx.fill();
+// mini crate in the world's own art (brown planks, amber band, dark braces)
+function drawMiniCrate(x,y,sd,rot,squash){
+  ctx.save(); ctx.translate(x,y); if(rot) ctx.rotate(rot);
+  if(squash) ctx.scale(1/Math.sqrt(1-squash*0.5),1-squash*0.5);
+  const h=sd/2;
+  ctx.fillStyle='#7c5029'; ctx.fillRect(-h,-h,sd,sd);
+  ctx.fillStyle='rgba(255,179,71,0.94)'; ctx.fillRect(-h,-sd*0.11,sd,sd*0.22);
+  ctx.fillStyle='rgba(255,255,255,0.22)'; ctx.fillRect(-h,-sd*0.11,sd,sd*0.05);
+  ctx.strokeStyle='rgba(38,19,6,0.5)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(-h+2,-sd*0.30); ctx.lineTo(h-2,-sd*0.30);
+  ctx.moveTo(-h+2,sd*0.30); ctx.lineTo(h-2,sd*0.30); ctx.stroke();
+  ctx.strokeStyle='#38240f'; ctx.lineWidth=1.8; ctx.strokeRect(-h,-h,sd,sd);
+  ctx.strokeStyle='#262e42'; ctx.lineWidth=Math.max(2,sd*0.06); ctx.lineCap='butt';
+  const br=sd*0.17;
+  ctx.beginPath(); ctx.moveTo(-h+1,-h+br); ctx.lineTo(-h+1,-h+1); ctx.lineTo(-h+br,-h+1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(h-br,-h+1); ctx.lineTo(h-1,-h+1); ctx.lineTo(h-1,-h+br); ctx.stroke();
+  ctx.restore();
+}
+function drawEndCrates(now){
+  const size=W/END_COLS;
+  for(const c of endCrates){
+    const sway=c.landed?0:Math.sin(c.t*2.2+c.ph)*c.sway;
+    const x=c.x+sway, sd=size*0.9;
+    if(!c.landed){
+      // the just-cut rope snippet trailing above — the game's verb, falling home
+      ctx.save(); ctx.lineCap='round';
+      const rx=x, ry=c.y-sd*0.55, rl=sd*0.5, lean=Math.sin(c.t*2.2+c.ph+0.6)*0.35;
+      ctx.strokeStyle='rgba(10,6,2,0.5)'; ctx.lineWidth=Math.max(2.6,W*0.008);
+      ctx.beginPath(); ctx.moveTo(rx,ry); ctx.quadraticCurveTo(rx+lean*14,ry-rl*0.5,rx+lean*26,ry-rl); ctx.stroke();
+      ctx.strokeStyle='hsl(33,55%,55%)'; ctx.lineWidth=Math.max(1.8,W*0.006);
+      ctx.beginPath(); ctx.moveTo(rx,ry); ctx.quadraticCurveTo(rx+lean*14,ry-rl*0.5,rx+lean*26,ry-rl); ctx.stroke();
+      ctx.restore();
+    }
+    drawMiniCrate(x,c.y,sd,c.landed?c.rot*0.3:c.rot+Math.sin(c.t*1.6+c.ph)*0.08,c.squash);
+  }
+  // warm hearth-glow over the grown pile
+  const maxRows=Math.max(...endPile,0);
+  if(maxRows>0){
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    const gy=FLOORY-maxRows*size*0.5;
+    const gl=ctx.createRadialGradient(W/2,gy,0,W/2,gy,W*0.55);
+    gl.addColorStop(0,'rgba(255,183,99,'+Math.min(0.10,0.02*maxRows).toFixed(3)+')');
+    gl.addColorStop(1,'rgba(255,183,99,0)');
+    ctx.fillStyle=gl; ctx.beginPath(); ctx.arc(W/2,gy,W*0.55,0,7); ctx.fill();
     ctx.restore();
   }
 }
@@ -1174,14 +1627,43 @@ function physCore(damp){
     p.x=tr.x1+(tr.x2-tr.x1)*tr.t; p.y=tr.y1+(tr.y2-tr.y1)*tr.t;
     p.px=p.x; p.py=p.y;
   }
-  const g=G*DT*DT;
+  for(const ro of rotors){
+    ro.ang+=ro.speed*DT;
+    const p=particles[ro.p];
+    p.x=ro.cx+Math.cos(ro.ang)*ro.r; p.y=ro.cy+Math.sin(ro.ang)*ro.r;
+    p.px=p.x; p.py=p.y;
+  }
+  for(const bl of blades) bl.ang+=bl.speed*DT;
+  const g=G*DT*DT, dt2=DT*DT;
   for(const p of particles){
     if(p.im===0) continue;
     const dmp=p.damp||damp; // per-particle override (L8 decoy winch — see buildLevel)
     const vx=(p.x-p.px)*dmp, vy=(p.y-p.py)*dmp;
     p.px=p.x; p.py=p.y;
     p.x+=vx; p.y+=vy+g*(p.gmul===undefined?1:p.gmul); // balloons: buoyant gmul<0
+    // wind zones (T6): constant push while inside the rect. Box corners are
+    // EXCLUDED (per-particle wind torques a box crossing the zone edge into
+    // chaotic tumbling — boxes get a uniform per-box push below). freeTail
+    // followers are EXCLUDED from wind AND magnets: a severed tail is draped
+    // decoration; external forces on it couple back into the crate through the
+    // harness links and made single-rope wind/magnet levels chaatically unfair
+    // (cut height silently decided the outcome — hit on device L54/L58).
+    if(!p.boxed&&!p.freeTail) for(const wz of winds){ if(p.x>=wz.x&&p.x<=wz.x+wz.w&&p.y>=wz.y&&p.y<=wz.y+wz.h){ p.x+=wz.ax*dt2; p.y+=wz.ay*dt2; } }
+    // magnets (T6): normalized inverse-square pull (softened, capped near center)
+    if(!p.freeTail) for(const mg of magnets){
+      const dx=mg.x-p.x, dy=mg.y-p.y, d2=dx*dx+dy*dy, d=Math.sqrt(d2)||1;
+      if(d<mg.range){ const a=Math.min(mg.s*H*mg.ref2/(d2+mg.soft2), mg.s*H*6)*dt2; p.x+=dx/d*a; p.y+=dy/d*a; }
+    }
   }
+  // per-BOX wind: uniform push on all 4 corners once the box CENTER is inside —
+  // torque-free carry (a crate leans into the gale as one body, no tumbling)
+  if(winds.length) for(const b of boxes){
+    const c=boxCenter(b);
+    for(const wz of winds){ if(c.x>=wz.x&&c.x<=wz.x+wz.w&&c.y>=wz.y&&c.y<=wz.y+wz.h){
+      for(const i of b.idx){ const p=particles[i]; if(p.im>0){ p.x+=wz.ax*dt2; p.y+=wz.ay*dt2; } }
+    } }
+  }
+  for(const wz of winds) wz.t+=DT;
   for(let it=0;it<10;it++){
     for(const c of cons){
       if(c.cut) continue;
@@ -1197,7 +1679,11 @@ function physCore(damp){
       else if(b.freeTail&&!a.freeTail) aim=0;
       const im=aim+bim;
       if(im===0) continue;
-      const k=(d-c.rest)/d/im;
+      // per-constraint stiffness: rigid links + normal ropes solve fully (1);
+      // an ELASTIC rope (material tag, stiff<1) under-corrects each iteration so
+      // it stretches under load and springs back — a bungee that stores energy
+      // and launches the crate (T4 element; see makeElasticRope).
+      const k=(c.stiff===undefined?1:c.stiff)*(d-c.rest)/d/im;
       a.x+=dx*k*aim; a.y+=dy*k*aim;
       b.x-=dx*k*bim; b.y-=dy*k*bim;
     }
@@ -1498,10 +1984,11 @@ function ropeChains(){
     const t=Math.max(0,Math.min(1,(Math.hypot(b.x-a.x,b.y-a.y)/c.rest-1)/0.07));
     if(cur&&cur.last===c.a){
       cur.pts.push(b); cur.last=c.b;
+      if(c.mat==='elastic') cur.elastic=true;
       if(t>maxT) maxT=t;
     }else{
       if(cur){ cur.taut=maxT; chains.push(cur); }
-      cur={pts:[a,b],last:c.b}; maxT=t;
+      cur={pts:[a,b],last:c.b,elastic:c.mat==='elastic'}; maxT=t;
     }
   }
   if(cur){ cur.taut=maxT; chains.push(cur); }
@@ -1511,6 +1998,7 @@ function drawRopes(){
   const base=Math.max(2,W*0.009);
   ctx.lineCap='round'; ctx.lineJoin='round';
   for(const ch of ropeChains()){
+    if(ch.elastic){ drawElasticChain(ch,base); continue; }
     const taut=ch.taut;
     const path=()=>{
       ctx.beginPath();
@@ -1543,6 +2031,34 @@ function drawRopes(){
       ctx.beginPath(); ctx.arc(p.x,p.y,1.5+al*4,0,7); ctx.fill();
     }
   }
+  ctx.globalCompositeOperation='source-over';
+}
+// ELASTIC rope (T4) — drawn as a teal spring coil so it reads as "springy /
+// stores energy," distinct from the amber ropes. Coils tighten (more turns,
+// lower amplitude) as the spring stretches taut.
+function drawElasticChain(ch,base){
+  const p0=ch.pts[0], p1=ch.pts[ch.pts.length-1];
+  const dx=p1.x-p0.x, dy=p1.y-p0.y, L=Math.hypot(dx,dy)||1;
+  const ux=dx/L, uy=dy/L, nx=-uy, ny=ux;
+  const stretch=Math.min(1,ch.taut);
+  const amp=(1-0.5*stretch)*Math.max(6,base*2.2);   // fatter when slack
+  const turns=Math.max(5,Math.round(L/Math.max(10,base*2.6)));
+  const seg=turns*2;
+  const coil=[];
+  coil.push([p0.x,p0.y]);
+  for(let i=1;i<seg;i++){
+    const t=i/seg, s=(i%2?1:-1);
+    coil.push([p0.x+dx*t+nx*amp*s, p0.y+dy*t+ny*amp*s]);
+  }
+  coil.push([p1.x,p1.y]);
+  const draw=()=>{ ctx.beginPath(); ctx.moveTo(coil[0][0],coil[0][1]); for(let i=1;i<coil.length;i++) ctx.lineTo(coil[i][0],coil[i][1]); };
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+  draw(); ctx.strokeStyle='rgba(6,20,20,0.5)'; ctx.lineWidth=base*1.4; ctx.stroke();
+  ctx.globalCompositeOperation='lighter';
+  draw(); ctx.strokeStyle='rgba(95,224,208,'+(0.55+0.35*stretch).toFixed(2)+')'; ctx.lineWidth=base*0.95; ctx.stroke();
+  // anchor nubs
+  for(const p of [p0,p1]){ ctx.beginPath(); ctx.arc(p.x,p.y,base*0.9,0,7); ctx.fillStyle='rgba(150,240,225,0.9)'; ctx.fill(); }
+  ctx.restore();
   ctx.globalCompositeOperation='source-over';
 }
 function drawBox(b){
@@ -1649,6 +2165,196 @@ function drawTrolleys(){
     ctx.fillStyle='#ffb347';
     ctx.beginPath(); ctx.arc(0,4,2.4,0,7); ctx.fill();
     ctx.restore();
+  }
+}
+function drawRotors(){
+  for(const ro of rotors){
+    // faint orbit ring + hub
+    ctx.save();
+    ctx.strokeStyle='rgba(120,150,210,0.16)'; ctx.lineWidth=1.5; ctx.setLineDash([3,5]);
+    ctx.beginPath(); ctx.arc(ro.cx,ro.cy,ro.r,0,7); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#2a3350'; ctx.beginPath(); ctx.arc(ro.cx,ro.cy,5,0,7); ctx.fill();
+    ctx.strokeStyle='#46527a'; ctx.lineWidth=1.5; ctx.stroke();
+    // arm to the orbiting carriage
+    const p=particles[ro.p];
+    ctx.strokeStyle='#3a4664'; ctx.lineWidth=3; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(ro.cx,ro.cy); ctx.lineTo(p.x,p.y); ctx.stroke();
+    ctx.fillStyle='#2b3446'; ctx.beginPath(); ctx.arc(p.x,p.y,6,0,7); ctx.fill();
+    ctx.strokeStyle='#46527a'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#ffb347'; ctx.beginPath(); ctx.arc(p.x,p.y,2.4,0,7); ctx.fill();
+    ctx.restore();
+  }
+}
+function drawBlades(){
+  for(const bl of blades){
+    ctx.save(); ctx.translate(bl.cx,bl.cy); ctx.rotate(bl.ang);
+    // glow
+    ctx.globalCompositeOperation='lighter';
+    const gl=ctx.createRadialGradient(0,0,0,0,0,bl.r*1.5);
+    gl.addColorStop(0,'rgba(255,70,58,0.16)'); gl.addColorStop(1,'rgba(255,70,58,0)');
+    ctx.fillStyle=gl; ctx.beginPath(); ctx.arc(0,0,bl.r*1.5,0,7); ctx.fill();
+    ctx.globalCompositeOperation='source-over';
+    // toothed disc
+    const teeth=12;
+    ctx.fillStyle='#c33'; ctx.beginPath();
+    for(let i=0;i<teeth;i++){
+      const a0=i/teeth*6.283, a1=(i+0.5)/teeth*6.283;
+      ctx.lineTo(Math.cos(a0)*bl.r, Math.sin(a0)*bl.r);
+      ctx.lineTo(Math.cos(a1)*bl.r*0.82, Math.sin(a1)*bl.r*0.82);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#8a2b26'; ctx.beginPath(); ctx.arc(0,0,bl.r*0.55,0,7); ctx.fill();
+    ctx.fillStyle='#1e2536'; ctx.beginPath(); ctx.arc(0,0,bl.r*0.14,0,7); ctx.fill();
+    ctx.restore();
+  }
+}
+function drawWinds(){
+  for(const wz of winds){
+    ctx.save();
+    ctx.fillStyle='rgba(150,205,255,0.045)'; ctx.fillRect(wz.x,wz.y,wz.w,wz.h);
+    ctx.strokeStyle='rgba(150,205,255,0.12)'; ctx.setLineDash([4,6]); ctx.lineWidth=1.5;
+    ctx.strokeRect(wz.x,wz.y,wz.w,wz.h); ctx.setLineDash([]);
+    const mag=Math.hypot(wz.ax,wz.ay)||1, ux=wz.ax/mag, uy=wz.ay/mag, px=-uy, py=ux;
+    const span=Math.abs(ux)>0.5?wz.w:wz.h, cxz=wz.x+wz.w/2, cyz=wz.y+wz.h/2;
+    ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
+    for(let i=0;i<7;i++){
+      const ph=((wz.t*0.5)+i*0.19)%1, lane=(i*0.29+0.12)%1-0.5;
+      const bx=cxz+px*lane*(Math.abs(ux)>0.5?wz.h:wz.w)*0.85, by=cyz+py*lane*(Math.abs(ux)>0.5?wz.h:wz.w)*0.85;
+      const tr=(ph-0.5)*span*0.92, cx=bx+ux*tr, cy=by+uy*tr, a=Math.sin(ph*Math.PI)*0.4;
+      ctx.strokeStyle='rgba(180,220,255,'+a.toFixed(3)+')'; ctx.lineWidth=2.2;
+      ctx.beginPath(); ctx.moveTo(cx-ux*9,cy-uy*9); ctx.lineTo(cx+ux*7,cy+uy*7);
+      ctx.moveTo(cx+ux*7,cy+uy*7); ctx.lineTo(cx+ux*1-px*4,cy+uy*1-py*4);
+      ctx.moveTo(cx+ux*7,cy+uy*7); ctx.lineTo(cx+ux*1+px*4,cy+uy*1+py*4); ctx.stroke();
+    }
+    ctx.restore(); ctx.globalCompositeOperation='source-over';
+  }
+}
+// Iconic HORSESHOE magnet (Qi: the purple orb "can't really tell it's magnet").
+// Purple body (red would read as hazard in this world) + silver pole tips,
+// opening downward. Shared by the world renderer, the cue, and the How-to page.
+function drawHorseshoe(x,y,R){
+  const leg=R*0.9, tube=Math.max(6,R*0.6);
+  ctx.save(); ctx.translate(x,y); ctx.lineCap='butt';
+  ctx.strokeStyle='#2c1656'; ctx.lineWidth=tube+3;   // dark outline
+  ctx.beginPath(); ctx.moveTo(-R,leg); ctx.lineTo(-R,0); ctx.arc(0,0,R,Math.PI,0); ctx.lineTo(R,leg); ctx.stroke();
+  ctx.strokeStyle='#7a3fd4'; ctx.lineWidth=tube;     // purple body
+  ctx.beginPath(); ctx.moveTo(-R,leg); ctx.lineTo(-R,0); ctx.arc(0,0,R,Math.PI,0); ctx.lineTo(R,leg); ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,0.22)'; ctx.lineWidth=tube*0.3; // sheen
+  ctx.beginPath(); ctx.arc(0,-R*0.06,R+tube*0.22,Math.PI*1.15,Math.PI*1.85); ctx.stroke();
+  for(const sx of [-R,R]){ // silver pole tips
+    ctx.fillStyle='#cfd8ea'; ctx.fillRect(sx-tube/2,leg-tube*0.85,tube,tube*0.85);
+    ctx.strokeStyle='#2c1656'; ctx.lineWidth=1.5; ctx.strokeRect(sx-tube/2,leg-tube*0.85,tube,tube*0.85);
+  }
+  ctx.restore();
+}
+function drawMagnets(){
+  for(const mg of magnets){
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    for(let i=0;i<3;i++){
+      const ph=((stepCount*0.012)+i/3)%1, rr=mg.range*(0.18+ph*0.82), a=(1-ph)*0.11;
+      ctx.strokeStyle='rgba(190,140,255,'+a.toFixed(3)+')'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(mg.x,mg.y,rr,0,7); ctx.stroke();
+    }
+    ctx.restore(); ctx.globalCompositeOperation='source-over';
+    drawHorseshoe(mg.x,mg.y,0.03*W);
+  }
+}
+// Active-pull feedback (drawn OVER the crate): whenever the crate is in a
+// magnet's range, field dashes stream from the crate toward the magnet and the
+// crate's IRON CORNER BRACES glint — answering "the box is wood, how does a
+// magnet grab it?": it grabs the metal corners. Always-on physics feedback,
+// not just a first-encounter cue.
+function drawMagnetPull(){
+  if(!crate||!magnets.length) return;
+  const c=boxCenter(crate);
+  for(const mg of magnets){
+    const dx=mg.x-c.x, dy=mg.y-c.y, d=Math.hypot(dx,dy);
+    if(d>=mg.range||d<8) continue;
+    const ux=dx/d, uy=dy/d;
+    ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
+    for(let i=0;i<3;i++){
+      const ph=((stepCount*0.02)+i/3)%1;
+      const px=c.x+dx*ph, py=c.y+dy*ph, a=Math.sin(ph*Math.PI)*0.5;
+      ctx.strokeStyle='rgba(200,155,255,'+a.toFixed(3)+')'; ctx.lineWidth=2.4;
+      ctx.beginPath(); ctx.moveTo(px-ux*7,py-uy*7); ctx.lineTo(px+ux*4,py+uy*4); ctx.stroke();
+    }
+    const gl=0.35+0.3*(0.5+0.5*Math.sin(stepCount*0.15));
+    for(const idx of crate.idx){
+      const p=particles[idx];
+      ctx.fillStyle='rgba(205,170,255,'+gl.toFixed(3)+')';
+      ctx.beginPath(); ctx.arc(p.x,p.y,3.2,0,7); ctx.fill();
+    }
+    ctx.restore(); ctx.globalCompositeOperation='source-over';
+  }
+}
+// 5-point star path around (x,y); caller fills/strokes. Shared by the field
+// star, the basket badges, the cue, and the How-to page.
+function starPath(x,y,rOuter,rInner,rot){
+  ctx.beginPath();
+  for(let i=0;i<10;i++){ const a=i/10*6.283-Math.PI/2+(rot||0), rr=(i%2?rInner:rOuter); ctx.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr); }
+  ctx.closePath();
+}
+// badge slot position for star i (shared by the badges, the guide line, the cue)
+function starBadgePos(i){
+  const n=stars.length, bs=Math.max(7,S*0.16), gap=bs*2.6;
+  return {x:basket.x-(n-1)*gap/2+i*gap, y:basket.yb-basket.wh-S*0.85, bs};
+}
+function drawStars(){
+  for(let si=0;si<stars.length;si++){
+    const st=stars[si];
+    const got=st.got, age=stepCount-st.gotT;
+    // "belongs there" guide (the Tilt lesson): a faint dotted line MARCHING from
+    // the star to its badge slot above the basket — wordless "this goes there,
+    // before you land" (Qi: the star's purpose still wasn't visually intuitive)
+    if(!got&&basket){
+      const bp=starBadgePos(si);
+      ctx.save(); ctx.globalCompositeOperation='lighter';
+      const a=0.16+0.08*Math.sin(stepCount*0.05);
+      ctx.strokeStyle='rgba(255,214,140,'+a.toFixed(3)+')'; ctx.lineWidth=2; ctx.lineCap='round';
+      ctx.setLineDash([2,9]); ctx.lineDashOffset=-(stepCount*0.7)%11;
+      ctx.beginPath(); ctx.moveTo(st.x,st.y); ctx.lineTo(bp.x,bp.y-bp.bs*1.6); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore(); ctx.globalCompositeOperation='source-over';
+    }
+    ctx.save(); ctx.translate(st.x,st.y);
+    if(got){
+      // brief burst on collect, then gone
+      if(age<14){ ctx.globalCompositeOperation='lighter'; const k=age/14;
+        ctx.strokeStyle='rgba(255,224,140,'+((1-k)*0.8).toFixed(3)+')'; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.arc(0,0,st.r*(0.6+k*1.8),0,7); ctx.stroke(); }
+      ctx.restore(); continue;
+    }
+    const pulse=1+0.08*Math.sin(stepCount*0.08);
+    ctx.globalCompositeOperation='lighter';
+    const gl=ctx.createRadialGradient(0,0,0,0,0,st.r*2.2);
+    gl.addColorStop(0,'rgba(255,214,110,0.5)'); gl.addColorStop(1,'rgba(255,214,110,0)');
+    ctx.fillStyle=gl; ctx.beginPath(); ctx.arc(0,0,st.r*2.2,0,7); ctx.fill();
+    ctx.globalCompositeOperation='source-over';
+    ctx.fillStyle='#ffd76a'; ctx.strokeStyle='#c8912f'; ctx.lineWidth=2;
+    starPath(0,0,st.r*pulse,st.r*0.46,stepCount*0.01);
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+}
+// Star REQUIREMENT badges over the basket (Qi: "what's the star for" — the cue
+// alone didn't say). One badge slot per star, floating above the rim: dim
+// outline = still needed, gold = collected. Persistent, wordless statement that
+// the basket only accepts the crate once every star is collected.
+function drawStarBadges(){
+  if(!stars.length||!basket) return;
+  for(let i=0;i<stars.length;i++){
+    const st=stars[i], bp=starBadgePos(i), x=bp.x, y=bp.y, bs=bp.bs;
+    if(st.got){
+      const age=stepCount-st.gotT;
+      if(age<16){ ctx.save(); ctx.globalCompositeOperation='lighter'; const k=age/16;
+        ctx.strokeStyle='rgba(255,224,140,'+((1-k)*0.7).toFixed(3)+')'; ctx.lineWidth=2.5;
+        ctx.beginPath(); ctx.arc(x,y,bs*(1+k*1.4),0,7); ctx.stroke(); ctx.restore(); }
+      ctx.fillStyle='#ffd76a'; ctx.strokeStyle='#c8912f'; ctx.lineWidth=1.6;
+      starPath(x,y,bs,bs*0.46,0); ctx.fill(); ctx.stroke();
+    }else{
+      ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.strokeStyle='rgba(200,208,228,0.5)'; ctx.lineWidth=1.6;
+      starPath(x,y,bs,bs*0.46,0); ctx.fill(); ctx.stroke();
+    }
   }
 }
 function drawBalloons(){
@@ -1938,6 +2644,126 @@ function drawCue(now){
         ctx.beginPath(); ctx.moveTo(mx-11,yy); ctx.lineTo(mx,yy+9); ctx.lineTo(mx+11,yy); ctx.stroke();
       }
     }
+  }else if(cue.kind==='magnet'){
+    // DEMO: chevrons converge INWARD on the magnet (it pulls) + a ghost crate curves toward it
+    const mg=magnets[0];
+    if(mg){
+      ctx.save(); ctx.globalCompositeOperation='lighter';
+      const pulse=0.5+0.5*Math.sin(now/240);
+      const g=ctx.createRadialGradient(mg.x,mg.y,0,mg.x,mg.y,0.2*W);
+      g.addColorStop(0,'rgba(190,140,255,'+(0.12+0.14*pulse).toFixed(3)+')'); g.addColorStop(1,'rgba(190,140,255,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(mg.x,mg.y,0.2*W,0,7); ctx.fill();
+      for(let i=0;i<6;i++){
+        const ang=i/6*6.283, ph=((now/750)+i*0.02)%1, rr=0.05*W+0.15*W*(1-ph);
+        const cx=mg.x+Math.cos(ang)*rr, cy=mg.y+Math.sin(ang)*rr, a=Math.sin(ph*Math.PI)*0.75;
+        const ix=-Math.cos(ang), iy=-Math.sin(ang), px=-iy, py=ix; // inward + perpendicular
+        ctx.strokeStyle='rgba(200,150,255,'+a.toFixed(3)+')'; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.moveTo(cx-ix*7+px*6,cy-iy*7+py*6); ctx.lineTo(cx+ix*3,cy+iy*3); ctx.lineTo(cx-ix*7-px*6,cy-iy*7-py*6); ctx.stroke();
+      }
+      ctx.restore();
+      const cyc=2600, t=(now%cyc)/cyc, sx=mg.x-0.24*W, sy=mg.y-0.16*H;
+      let gx=sx+(mg.x-sx)*t, gy=sy+(mg.y+0.22*H-sy)*(t*t); gx+=(mg.x-gx)*t*0.5; // curve toward magnet
+      let ga=1; if(t<0.08) ga=t/0.08; if(t>0.9) ga=1-(t-0.9)/0.1;
+      drawGhostCrate(gx,gy,0.1*W,ga*0.9,1,0);
+    }
+  }else if(cue.kind==='wind'){
+    // DEMO: a ghost crate is blown sideways along the gale
+    const wz=winds[0];
+    if(wz){
+      const mag=Math.hypot(wz.ax,wz.ay)||1, ux=wz.ax/mag, uy=wz.ay/mag, px=-uy, py=ux;
+      const cyc=2400, t=(now%cyc)/cyc, sx=wz.x+wz.w*0.18, sy=wz.y+wz.h*0.34;
+      const gx=sx+ux*wz.w*0.62*t, gy=sy+uy*wz.h*0.5*t+0.14*H*t*t;
+      let ga=1; if(t<0.08) ga=t/0.08; if(t>0.9) ga=1-(t-0.9)/0.1;
+      ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
+      for(let i=0;i<3;i++){ const ph=((now/460)+i/3)%1, ax2=gx-ux*34+ux*68*ph, ay2=gy-uy*34+uy*68*ph, a=Math.sin(ph*Math.PI)*0.6;
+        ctx.strokeStyle='rgba(180,220,255,'+a.toFixed(3)+')'; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.moveTo(ax2-ux*9,ay2-uy*9); ctx.lineTo(ax2+ux*7,ay2+uy*7);
+        ctx.moveTo(ax2+ux*7,ay2+uy*7); ctx.lineTo(ax2+ux*1-px*4,ay2+uy*1-py*4);
+        ctx.moveTo(ax2+ux*7,ay2+uy*7); ctx.lineTo(ax2+ux*1+px*4,ay2+uy*1+py*4); ctx.stroke(); }
+      ctx.restore();
+      drawGhostCrate(gx,gy,0.1*W,ga*0.9,1,0);
+    }
+  }else if(cue.kind==='elastic'){
+    // DEMO: a hand cuts the springy cord → a ghost crate flings up-and-over to the basket
+    const cc=crate?boxCenter(crate):null;
+    if(cc&&basket){
+      const cyc=2600, t=(now%cyc)/cyc, cutT=0.42;
+      if(t<cutT){
+        // anchor the sweeping hand ON the elastic cord (midpoint of its live chain)
+        let ex=cc.x, ey=cc.y-0.14*H, n=0, sx=0, sy=0;
+        for(const c2 of cons){ if(c2.type==='rope'&&c2.mat==='elastic'&&!c2.cut){ const a=particles[c2.a],b=particles[c2.b]; sx+=(a.x+b.x)/2; sy+=(a.y+b.y)/2; n++; } }
+        if(n){ ex=sx/n; ey=sy/n; }
+        const ap=Math.min(1,t/cutT), fade=Math.min(1,Math.min(ap,1-ap)/0.2), hx=ex-0.09*W+0.18*W*ap, hy=ey;
+        ctx.save(); ctx.globalCompositeOperation='lighter';
+        ctx.strokeStyle='rgba(95,224,208,'+(0.5*fade).toFixed(3)+')'; ctx.lineWidth=3; ctx.lineCap='round';
+        ctx.beginPath(); ctx.moveTo(hx-0.06*W,hy); ctx.lineTo(hx,hy); ctx.stroke(); ctx.restore();
+        drawTutorialHand(hx,hy,4.6,fade);
+      }else{
+        const u=(t-cutT)/(1-cutT), ex=basket.x, ey=basket.yb-basket.wh*0.42;
+        const gx=cc.x+(ex-cc.x)*u, gy=cc.y+(ey-cc.y)*u-Math.sin(Math.min(1,u)*Math.PI)*0.15*H;
+        let ga=1; if(u>0.88) ga=1-(u-0.88)/0.12;
+        drawGhostCrate(gx,gy,crate.side,ga*0.9,1,0);
+      }
+    }
+  }else if(cue.kind==='rotor'){
+    // DEMO: mark the bottom of the orbit (release point) + a ghost crate drops to the basket
+    const ro=rotors[0];
+    if(ro&&basket){
+      const bx=ro.cx, by=ro.cy+ro.r, cyc=2400, t=(now%cyc)/cyc, pulse=0.5+0.5*Math.sin(now/240);
+      ctx.save(); ctx.globalCompositeOperation='lighter';
+      ctx.strokeStyle='rgba(150,205,255,'+(0.3+0.3*pulse).toFixed(3)+')'; ctx.lineWidth=2.6;
+      ctx.beginPath(); ctx.arc(bx,by,15+pulse*4,0,7); ctx.stroke(); ctx.restore();
+      const sy=by+0.02*H, ey=basket.yb-basket.wh*0.42, gy=sy+(ey-sy)*(t*t), gx=bx+(basket.x-bx)*t;
+      let ga=1; if(t<0.08) ga=t/0.08; if(t>0.9) ga=1-(t-0.9)/0.1;
+      drawGhostCrate(gx,gy,crate?crate.side:0.12*W,ga*0.9,1,0);
+    }
+  }else if(cue.kind==='blade'){
+    // DEMO: a ghost crate touches the spinning blade and shatters (keep clear)
+    const bl=blades[0];
+    if(bl){
+      const cyc=2200, t=(now%cyc)/cyc;
+      ctx.save(); ctx.globalCompositeOperation='lighter';
+      const amb=0.1+0.1*(0.5+0.5*Math.sin(now/200));
+      const g=ctx.createRadialGradient(bl.cx,bl.cy,0,bl.cx,bl.cy,bl.r*2.2);
+      g.addColorStop(0,'rgba(255,70,58,'+amb.toFixed(3)+')'); g.addColorStop(1,'rgba(255,70,58,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(bl.cx,bl.cy,bl.r*2.2,0,7); ctx.fill(); ctx.restore();
+      if(t<0.5){
+        const u=t/0.5, sy=bl.cy-0.15*H, gy=sy+(bl.cy-bl.r-sy)*(u*u);
+        drawGhostCrate(bl.cx,gy,0.09*W,(t<0.06?t/0.06:1)*0.9,1,0);
+      }else{
+        const u=(t-0.5)/0.5; ctx.save(); ctx.globalCompositeOperation='lighter';
+        for(let i=0;i<4;i++){ const ang=-Math.PI/2+(i-1.5)*0.55, sp=0.08*W, fx=bl.cx+Math.cos(ang)*sp*u, fy=bl.cy-bl.r+Math.sin(ang)*sp*u+0.5*0.3*H*u*u;
+          drawGhostCrate(fx,fy,0.038*W,(1-u)*0.85,1,(i-1.5)*0.6+u*2); }
+        ctx.restore();
+      }
+    }
+  }else if(cue.kind==='star'){
+    // DEMO: a ghost crate falls THROUGH the star (it lights up + the basket badge
+    // fills) and lands in the basket — "grab every star on the way home". The
+    // route into the basket is the point: the star gates the win (Qi feedback).
+    const st=stars[0];
+    if(st&&basket){
+      const cyc=3000, t=(now%cyc)/cyc, pulse=0.5+0.5*Math.sin(now/240);
+      const passT=0.42; // ghost crosses the star here
+      ctx.save(); ctx.globalCompositeOperation='lighter';
+      ctx.strokeStyle='rgba(255,214,110,'+(0.35+0.35*pulse).toFixed(3)+')'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(st.x,st.y,st.r*1.4+pulse*5,0,7); ctx.stroke();
+      if(Math.abs(t-passT)<0.07){ for(let i=0;i<6;i++){ const a=i/6*6.28;
+        ctx.strokeStyle='rgba(255,224,140,0.7)'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(st.x+Math.cos(a)*st.r,st.y+Math.sin(a)*st.r); ctx.lineTo(st.x+Math.cos(a)*st.r*1.9,st.y+Math.sin(a)*st.r*1.9); ctx.stroke(); } }
+      ctx.restore();
+      let gx,gy,ga=1;
+      if(t<passT){ const u=t/passT; gx=st.x; gy=st.y-0.14*H+(0.14*H)*u*u; if(t<0.08) ga=t/0.08; }
+      else{ const u=(t-passT)/(1-passT), ex=basket.x, ey=basket.yb-basket.wh*0.45;
+        gx=st.x+(ex-st.x)*u; gy=st.y+(ey-st.y)*(u*u); if(u>0.86) ga=1-(u-0.86)/0.14; }
+      drawGhostCrate(gx,gy,0.1*W,ga*0.85,1,0);
+      // after the pass, highlight the basket's badge slot filling gold
+      if(t>=passT){ const bs=Math.max(7,S*0.16), bx=basket.x, by=basket.yb-basket.wh-S*0.85;
+        ctx.save(); ctx.globalCompositeOperation='lighter';
+        ctx.strokeStyle='rgba(255,224,140,'+(0.4+0.3*pulse).toFixed(3)+')'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(bx,by,bs*1.7,0,7); ctx.stroke(); ctx.restore();
+      }
+    }
   }
   ctx.globalCompositeOperation='source-over';
   ctx.restore();
@@ -1955,6 +2781,12 @@ const HOWTO=[
   {cap:'swipe a balloon to pop it', draw:howtoBalloonPage},
   {cap:'the hook slides — time your cut', draw:howtoTrolleyPage},
   {cap:'pass while the spikes are down', draw:howtoPulsePage},
+  {cap:'cut the springy cord to fling the crate', draw:howtoElasticPage},
+  {cap:'the anchor spins — release toward home', draw:howtoRotorPage},
+  {cap:'spinning blades wreck the crate', draw:howtoBladePage},
+  {cap:'the gale carries the crate', draw:howtoWindPage},
+  {cap:'magnets tug the crate’s iron corners', draw:howtoMagnetPage},
+  {cap:'grab every star, then land', draw:howtoStarPage},
 ];
 let howtoPage=-1, howtoT0=0;
 function openHowto(page){
@@ -1984,9 +2816,9 @@ function syncHowto(){
 function drawHowto(now){
   if(howtoPage<0) return;
   ctx.save();
-  // near-opaque: at 0.9 the paused level bleeds through (a second crate/rope
-  // ghosting behind the demo reads as a glitch)
-  ctx.fillStyle='rgba(6,9,16,0.97)'; ctx.fillRect(0,0,W,H);
+  // fully opaque: the how-to is a self-contained teaching overlay; any bleed of
+  // the paused level behind (busy levels ghost through even at 0.97) reads as a glitch
+  ctx.fillStyle='#080b12'; ctx.fillRect(0,0,W,H);
   ctx.lineCap='round'; ctx.lineJoin='round';
   HOWTO[howtoPage].draw(Math.max(0,now-howtoT0));
   ctx.restore();
@@ -2323,6 +3155,227 @@ function howtoPulsePage(tms){
   }
   howtoBasketFront(mx,bkYb,iw,wh);
 }
+// a teal spring coil between two points (how-to demo — mirrors drawElasticChain)
+function howtoSpringCoil(x0,y0,x1,y1,base){
+  const dx=x1-x0, dy=y1-y0, L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L;
+  const amp=Math.max(6,base*2.2), turns=Math.max(5,Math.round(L/Math.max(10,base*2.6))), seg=turns*2;
+  const coil=[[x0,y0]];
+  for(let i=1;i<seg;i++){ const tt=i/seg, s=(i%2?1:-1); coil.push([x0+dx*tt+nx*amp*s, y0+dy*tt+ny*amp*s]); }
+  coil.push([x1,y1]);
+  const draw=()=>{ ctx.beginPath(); ctx.moveTo(coil[0][0],coil[0][1]); for(let i=1;i<coil.length;i++) ctx.lineTo(coil[i][0],coil[i][1]); };
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+  draw(); ctx.strokeStyle='rgba(6,20,20,0.5)'; ctx.lineWidth=base*1.4; ctx.stroke();
+  ctx.globalCompositeOperation='lighter';
+  draw(); ctx.strokeStyle='rgba(95,224,208,0.72)'; ctx.lineWidth=base*0.95; ctx.stroke();
+  for(const p of [[x0,y0],[x1,y1]]){ ctx.beginPath(); ctx.arc(p[0],p[1],base*0.9,0,7); ctx.fillStyle='rgba(150,240,225,0.9)'; ctx.fill(); }
+  ctx.restore(); ctx.globalCompositeOperation='source-over';
+}
+function howtoElasticPage(tms){
+  const cyc=3800, t=(tms%cyc)/cyc, now=tms, base=Math.max(2,W*0.009);
+  const anchorX=0.64*W, anchorY=0.12*H;
+  const startX=0.34*W, startY=0.52*H;
+  const bkX=0.72*W, bkYb=0.82*H, iw=0.26*W, wh=0.075*H, cutT=0.42;
+  ctx.fillStyle='#232b41'; roundRectPath(anchorX-0.10*W,anchorY-6,0.20*W,12,5); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.fillRect(anchorX-0.10*W,anchorY-6,0.20*W,2);
+  howtoBasketBack(bkX,bkYb,iw,wh);
+  let cx,cy,alpha=1;
+  if(t<cutT){
+    const bob=Math.sin(now/280)*0.02*H;
+    cx=startX; cy=startY+bob;
+    howtoSpringCoil(anchorX,anchorY,cx,cy-0.055*H,base);
+    drawGhostCrate(cx,cy,0.11*W,Math.min(1,t/0.06)*0.95,1,0);
+    const ap=Math.max(0,(t-(cutT-0.24))/0.24);
+    if(ap>0){
+      const midx=(anchorX+cx)/2, midy=(anchorY+cy)/2;
+      const fx=midx-0.09*W+0.18*W*ap, fade=Math.min(1,ap/0.15);
+      howtoSweepHand(fx,midy,fx-0.10*W,fade,now);
+    }
+  }else{
+    const u=(t-cutT)/(1-cutT);
+    const ex=bkX, ey=bkYb-wh*0.42;
+    cx=startX+(ex-startX)*u;
+    cy=startY+(ey-startY)*u - Math.sin(Math.min(1,u)*Math.PI)*0.16*H; // fling arc
+    if(u>0.9) alpha=1-(u-0.9)/0.1;
+    if(u<0.14){ ctx.save(); ctx.globalCompositeOperation='lighter';
+      ctx.strokeStyle='rgba(95,224,208,'+((1-u/0.14)*0.75).toFixed(3)+')'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(startX,startY,6+u/0.14*30,0,7); ctx.stroke(); ctx.restore(); }
+    drawGhostCrate(cx,cy,0.11*W,alpha*0.95,1,0);
+    howtoWinGlow(bkX,bkYb-wh,(u>0.62&&u<0.95)?Math.max(0,1-(u-0.62)/0.33):0);
+  }
+  howtoBasketFront(bkX,bkYb,iw,wh);
+}
+function howtoRotorPage(tms){
+  const now=tms, cx=0.5*W, cy=0.30*H, R=0.15*W;
+  const bkX=0.5*W, bkYb=0.78*H, iw=0.26*W, wh=0.075*H;
+  howtoBasketBack(bkX,bkYb,iw,wh);
+  // orbit ring + hub (the world's rotor look)
+  ctx.save();
+  ctx.strokeStyle='rgba(120,150,210,0.2)'; ctx.lineWidth=1.5; ctx.setLineDash([3,5]);
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,7); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#2a3350'; ctx.beginPath(); ctx.arc(cx,cy,5,0,7); ctx.fill();
+  ctx.strokeStyle='#46527a'; ctx.lineWidth=1.5; ctx.stroke();
+  const cyc=3000, t=(now%cyc)/cyc;
+  const relT=0.55; // carriage reaches the bottom of the orbit here
+  const ang=Math.PI/2+(t<relT? (t/relT-1)*4.4 : 0); // sweeps into bottom position
+  const px=cx+Math.cos(ang)*R, py=cy+Math.sin(ang)*R;
+  ctx.strokeStyle='#3a4664'; ctx.lineWidth=3; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(px,py); ctx.stroke();
+  ctx.fillStyle='#2b3446'; ctx.beginPath(); ctx.arc(px,py,6,0,7); ctx.fill();
+  ctx.strokeStyle='#46527a'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.restore();
+  // release marker at the bottom of the orbit (over the basket)
+  const pulse=0.5+0.5*Math.sin(now/240);
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  ctx.strokeStyle='rgba(150,205,255,'+(0.3+0.3*pulse).toFixed(3)+')'; ctx.lineWidth=2.6;
+  ctx.beginPath(); ctx.arc(cx,cy+R,14+pulse*4,0,7); ctx.stroke(); ctx.restore();
+  // crate: swings with the carriage, releases at the marker, drops into the basket
+  const gs=0.10*W;
+  if(t<relT){
+    drawGhostCrate(px,py+0.075*H,gs,Math.min(1,t/0.06)*0.95,1,0);
+    howtoRope(px,py,px,py+0.075*H-gs/2,0.85);
+  }else{
+    const u=(t-relT)/(1-relT), sy=cy+R+0.075*H, ey=bkYb-wh*0.42;
+    const gy=sy+(ey-sy)*u*u; let ga=1; if(u>0.88) ga=1-(u-0.88)/0.12;
+    drawGhostCrate(cx,gy,gs,ga*0.95,1,0);
+    howtoWinGlow(bkX,bkYb-wh,(u>0.6&&u<0.95)?Math.max(0,1-(u-0.6)/0.35):0);
+  }
+  howtoBasketFront(bkX,bkYb,iw,wh);
+}
+function howtoBladePage(tms){
+  const now=tms, cx=0.5*W, cy=0.48*H, r=0.075*W;
+  const cyc=2400, t=(now%cyc)/cyc;
+  // spinning toothed disc (world look, local geometry)
+  ctx.save(); ctx.translate(cx,cy); ctx.rotate(now/300);
+  ctx.globalCompositeOperation='lighter';
+  const gl=ctx.createRadialGradient(0,0,0,0,0,r*1.6);
+  gl.addColorStop(0,'rgba(255,70,58,0.18)'); gl.addColorStop(1,'rgba(255,70,58,0)');
+  ctx.fillStyle=gl; ctx.beginPath(); ctx.arc(0,0,r*1.6,0,7); ctx.fill();
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle='#c33'; ctx.beginPath();
+  for(let i=0;i<12;i++){ const a0=i/12*6.283, a1=(i+0.5)/12*6.283;
+    ctx.lineTo(Math.cos(a0)*r,Math.sin(a0)*r); ctx.lineTo(Math.cos(a1)*r*0.82,Math.sin(a1)*r*0.82); }
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#8a2b26'; ctx.beginPath(); ctx.arc(0,0,r*0.55,0,7); ctx.fill();
+  ctx.fillStyle='#1e2536'; ctx.beginPath(); ctx.arc(0,0,r*0.14,0,7); ctx.fill();
+  ctx.restore();
+  // ghost crate falls onto it and shatters (the spike-page teach, rotary flavor)
+  const gs=0.10*W;
+  if(t<0.5){
+    const u=t/0.5, sy=cy-0.16*H, gy=sy+(cy-r-gs/2-sy)*u*u;
+    drawGhostCrate(cx,gy,gs,(t<0.06?t/0.06:1)*0.95,1,0);
+  }else{
+    const u=(t-0.5)/0.5;
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    ctx.strokeStyle='rgba(255,80,66,'+((1-u)*0.85).toFixed(3)+')'; ctx.lineWidth=3.2;
+    ctx.beginPath(); ctx.arc(cx,cy-r,8+0.1*W*u,0,7); ctx.stroke(); ctx.restore();
+    for(let i=0;i<4;i++){ const ang=-Math.PI/2+(i-1.5)*0.55, sp=0.08*W;
+      const fx=cx+Math.cos(ang)*sp*u, fy=cy-r+Math.sin(ang)*sp*u+0.5*0.3*H*u*u;
+      drawGhostCrate(fx,fy,gs*0.42,(1-u)*0.9,1,(i-1.5)*0.6+u*2); }
+  }
+}
+function howtoWindPage(tms){
+  const now=tms;
+  const zx=0.14*W, zy=0.34*H, zw=0.6*W, zh=0.3*H;
+  const bkX=0.76*W, bkYb=0.80*H, iw=0.26*W, wh=0.075*H;
+  howtoBasketBack(bkX,bkYb,iw,wh);
+  // wind zone (world look): dashed rect + drifting arrows
+  ctx.save();
+  ctx.fillStyle='rgba(150,205,255,0.05)'; ctx.fillRect(zx,zy,zw,zh);
+  ctx.strokeStyle='rgba(150,205,255,0.14)'; ctx.setLineDash([4,6]); ctx.lineWidth=1.5;
+  ctx.strokeRect(zx,zy,zw,zh); ctx.setLineDash([]);
+  ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
+  for(let i=0;i<6;i++){
+    const ph=((now/1400)+i*0.19)%1, lane=(i*0.31+0.15)%1;
+    const ax=zx+zw*0.06+zw*0.85*ph, ay=zy+zh*lane, a=Math.sin(ph*Math.PI)*0.4;
+    ctx.strokeStyle='rgba(180,220,255,'+a.toFixed(3)+')'; ctx.lineWidth=2.2;
+    ctx.beginPath(); ctx.moveTo(ax-9,ay); ctx.lineTo(ax+7,ay);
+    ctx.moveTo(ax+7,ay); ctx.lineTo(ax+1,ay-4); ctx.moveTo(ax+7,ay); ctx.lineTo(ax+1,ay+4); ctx.stroke();
+  }
+  ctx.restore(); ctx.globalCompositeOperation='source-over';
+  // ghost crate drops in on the left, gets carried right, lands in the basket
+  const cyc=3000, t=(now%cyc)/cyc, gs=0.10*W;
+  const sx=zx+zw*0.15, sy=zy-0.06*H;
+  const gx=sx+(bkX-sx)*(t*t*0.4+t*0.6), gy=sy+(bkYb-wh*0.42-sy)*(t*t);
+  let ga=1; if(t<0.08) ga=t/0.08; if(t>0.9) ga=1-(t-0.9)/0.1;
+  drawGhostCrate(gx,gy,gs,ga*0.95,1,0);
+  howtoWinGlow(bkX,bkYb-wh,(t>0.72&&t<0.97)?Math.max(0,1-(t-0.72)/0.25):0);
+  howtoBasketFront(bkX,bkYb,iw,wh);
+}
+function howtoMagnetPage(tms){
+  const now=tms, mx=0.62*W, my=0.42*H;
+  const bkX=0.62*W, bkYb=0.80*H, iw=0.26*W, wh=0.075*H;
+  howtoBasketBack(bkX,bkYb,iw,wh);
+  // pulsing field rings + the horseshoe
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<3;i++){
+    const ph=((now/2600)+i/3)%1, rr=0.06*W+0.16*W*ph, a=(1-ph)*0.13;
+    ctx.strokeStyle='rgba(190,140,255,'+a.toFixed(3)+')'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(mx,my,rr,0,7); ctx.stroke();
+  }
+  ctx.restore(); ctx.globalCompositeOperation='source-over';
+  drawHorseshoe(mx,my,0.032*W);
+  // ghost crate falls from the upper-left; the pull bends its path toward the
+  // magnet (field dashes + glinting iron corners), then it drops into the basket
+  const cyc=3200, t=(now%cyc)/cyc, gs=0.10*W;
+  const sx=0.26*W, sy=0.16*H;
+  const bendX=sx+(mx-sx)*Math.min(1,t*1.5), gx=bendX, gy=sy+(bkYb-wh*0.42-sy)*(t*t);
+  let ga=1; if(t<0.08) ga=t/0.08; if(t>0.9) ga=1-(t-0.9)/0.1;
+  // field dashes from crate toward the magnet while in range
+  const dx=mx-gx, dy=my-gy, d=Math.hypot(dx,dy);
+  if(d<0.3*W&&d>10){
+    const ux=dx/d, uy=dy/d;
+    ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
+    for(let i=0;i<3;i++){
+      const ph=((now/900)+i/3)%1, px=gx+dx*ph, py=gy+dy*ph, a=Math.sin(ph*Math.PI)*0.5*ga;
+      ctx.strokeStyle='rgba(200,155,255,'+a.toFixed(3)+')'; ctx.lineWidth=2.4;
+      ctx.beginPath(); ctx.moveTo(px-ux*7,py-uy*7); ctx.lineTo(px+ux*4,py+uy*4); ctx.stroke();
+    }
+    // glint the ghost's iron corners
+    const h=gs/2, gl=0.35+0.3*(0.5+0.5*Math.sin(now/140));
+    for(const [ox,oy] of [[-h,-h],[h,-h],[h,h],[-h,h]]){
+      ctx.fillStyle='rgba(205,170,255,'+(gl*ga).toFixed(3)+')';
+      ctx.beginPath(); ctx.arc(gx+ox,gy+oy,2.8,0,7); ctx.fill();
+    }
+    ctx.restore(); ctx.globalCompositeOperation='source-over';
+  }
+  drawGhostCrate(gx,gy,gs,ga*0.95,1,0);
+  howtoWinGlow(bkX,bkYb-wh,(t>0.72&&t<0.97)?Math.max(0,1-(t-0.72)/0.25):0);
+  howtoBasketFront(bkX,bkYb,iw,wh);
+}
+function howtoStarPage(tms){
+  const now=tms, sx=0.5*W, sy=0.40*H, sr=0.05*W;
+  const bkX=0.5*W, bkYb=0.80*H, iw=0.26*W, wh=0.075*H;
+  howtoBasketBack(bkX,bkYb,iw,wh);
+  const cyc=3200, t=(now%cyc)/cyc, passT=0.45, pulse=0.5+0.5*Math.sin(now/240);
+  const collected=t>=passT;
+  // the field star (until collected)
+  if(!collected){
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    const gl=ctx.createRadialGradient(sx,sy,0,sx,sy,sr*2.2);
+    gl.addColorStop(0,'rgba(255,214,110,0.5)'); gl.addColorStop(1,'rgba(255,214,110,0)');
+    ctx.fillStyle=gl; ctx.beginPath(); ctx.arc(sx,sy,sr*2.2,0,7); ctx.fill();
+    ctx.restore(); ctx.globalCompositeOperation='source-over';
+    ctx.fillStyle='#ffd76a'; ctx.strokeStyle='#c8912f'; ctx.lineWidth=2;
+    starPath(sx,sy,sr,sr*0.46,now/900); ctx.fill(); ctx.stroke();
+  }else if(t<passT+0.1){
+    const k=(t-passT)/0.1;
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    ctx.strokeStyle='rgba(255,224,140,'+((1-k)*0.8).toFixed(3)+')'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(sx,sy,sr*(0.6+k*1.8),0,7); ctx.stroke(); ctx.restore();
+  }
+  // the basket's badge slot: dim outline until the star is collected, then gold
+  const bs=Math.max(7,0.02*W), by=bkYb-wh-0.035*H;
+  if(collected){ ctx.fillStyle='#ffd76a'; ctx.strokeStyle='#c8912f'; }
+  else{ ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.strokeStyle='rgba(200,208,228,0.5)'; }
+  ctx.lineWidth=1.6; starPath(bkX,by,bs,bs*0.46,0); ctx.fill(); ctx.stroke();
+  // ghost crate: falls through the star, then on into the basket
+  const gs=0.10*W; let gx,gy,ga=1;
+  if(t<passT){ const u=t/passT; gx=sx; gy=sy-0.16*H+0.16*H*u*u; if(t<0.08) ga=t/0.08; }
+  else{ const u=(t-passT)/(1-passT); gx=sx; gy=sy+(bkYb-wh*0.42-sy)*(u*u); if(u>0.88) ga=1-(u-0.88)/0.12; }
+  drawGhostCrate(gx,gy,gs,ga*0.95,1,0);
+  howtoWinGlow(bkX,bkYb-wh,(collected&&t>0.75&&t<0.97)?Math.max(0,1-(t-0.75)/0.22):0);
+  howtoBasketFront(bkX,bkYb,iw,wh);
+}
 function drawFX(now){
   ctx.globalCompositeOperation='lighter';
   for(const p of sparks){
@@ -2360,8 +3413,14 @@ function drawFX(now){
 }
 function draw(now){
   ctx.setTransform(DPR,0,0,DPR,0,0);
+  // ALWAYS clear the frame first. bgCv is an OFFSCREEN canvas whose backing store
+  // iOS WKWebView can PURGE during long backgrounding — then drawImage(bgCv) paints
+  // nothing, the frame never clears, and every draw accumulates on top of the last
+  // (the crate smears into a tall tower, confetti leave trails — the "render bug"
+  // hit on device after an overnight background). This fillRect guarantees a clean
+  // frame regardless of bgCv's state; makeBgCache on resume restores the pretty bg.
+  ctx.fillStyle='#090b11'; ctx.fillRect(0,0,W,H);
   if(bgCv) ctx.drawImage(bgCv,0,0,W,H);
-  else{ ctx.fillStyle='#0c1017'; ctx.fillRect(0,0,W,H); }
   if(basket){
     const pool=ctx.createRadialGradient(basket.x,FLOORY,0,basket.x,FLOORY,S*2.4);
     pool.addColorStop(0,'rgba(255,183,99,0.13)'); pool.addColorStop(1,'rgba(255,183,99,0)');
@@ -2382,18 +3441,25 @@ function draw(now){
   ctx.globalCompositeOperation='source-over';
   drawBeams();
   drawSegs();
+  drawWinds();
   drawTrolleys();
+  drawRotors();
+  drawMagnets();
   drawBasketBack();
   drawRopes();
   for(const b of boxes) if(b.kind!=='crate') drawBox(b);
   if(crate) drawBox(crate);
+  drawMagnetPull();
+  drawBlades();
+  drawStars();
   drawBalloons();
   drawBasketFront();
+  drawStarBadges();
   drawFX(now);
   if(vgCv) ctx.drawImage(vgCv,0,0,W,H);
   drawGestureHint(now);
   drawCue(now);
-  if(phase==='end') drawEndLanterns(now);
+  if(phase==='end') drawEndCrates(now);
   drawHowto(now);
   if(crate&&phase==='play'&&!paused){
     const v=boxVel(crate);
@@ -2466,6 +3532,31 @@ function scheduleHint(){
 }
 function updateHUD(){
   lvlEl.textContent='LEVEL '+(level+1);
+  renderDevJump();
+}
+// DEV-ONLY level jump — a grid in the Settings sheet for reaching any level on
+// device while authoring content. Shown ONLY on DEV_UNLOCK builds (native
+// #if-DEBUG __DEV_BUILD, or plain-http localhost/LAN); stripped from the shipping
+// App Store build, so the player-facing UI stays chrome-free (Qi's call).
+const devLevelsEl=document.getElementById('devLevels');
+const devCells=[];
+function initDevJump(){
+  if(!DEV_UNLOCK||!devLevelsEl) return;
+  const wrap=document.getElementById('devJump'); if(wrap) wrap.classList.remove('hidden');
+  for(let i=0;i<=LAST;i++){
+    const c=document.createElement('button');
+    c.className='lvlCell'; c.type='button'; c.textContent=(i+1);
+    c.addEventListener('click',()=>{
+      const switching=i!==level;
+      level=i; buildLevel(i); renderDevJump(); closeSettings();
+      if(switching) trackLevelStart();
+    });
+    devLevelsEl.appendChild(c); devCells.push(c);
+  }
+}
+function renderDevJump(){
+  if(!devCells.length) return;
+  for(let i=0;i<=LAST;i++){ if(devCells[i]) devCells[i].className='lvlCell'+(cleared[i]?' cleared':'')+(i===level?' cur':''); }
 }
 const setBtn=document.getElementById('setBtn');
 const setEl=document.getElementById('settings');
@@ -2557,6 +3648,19 @@ function resize(){
   if(w!==W||h!==H){ W=w; H=h; makeBgCache(); initFireflies(); buildLevel(level); }
 }
 window.addEventListener('resize',resize);
+// Recover the canvas after a long background: iOS purges the MAIN canvas + the
+// offscreen bg/vignette caches' GPU backing. Re-assigning cv.width recreates the
+// main backing; makeBgCache rebuilds the offscreen caches. Does NOT rebuild the
+// level (progress kept) — only the render surfaces. Also reset the frame clock so
+// the accumulator doesn't dump a huge catch-up burst on the first resumed frame.
+function refreshRender(){
+  cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
+  cv.style.width=W+'px'; cv.style.height=H+'px';
+  makeBgCache();
+  lastT=performance.now(); acc=0;
+  draw(performance.now());
+}
+window.addEventListener('pageshow',refreshRender);
 let acc=0,lastT=performance.now();
 function frame(now){
   requestAnimationFrame(frame);
@@ -2575,13 +3679,16 @@ window.__game={
       crate:{x:c.x,y:c.y,vx:v.vx,vy:v.vy}};
   },
   stepN:(n)=>{ for(let i=0;i<n;i++) step(); draw(performance.now()); },
+  simN:(n)=>{ for(let i=0;i<n;i++) step(); }, // headless stepping WITHOUT draw — the fairness certifier runs 100s of rollouts; draw() per step is ~15x slower
+  winNow:()=>{ if(phase==='play') winLevel(); }, // test-only: force the win transition (ending smoke checks win→lantern ending without re-solving the level)
+
   cutAt:(x1,y1,x2,y2)=>cutSegment(x1,y1,x2,y2),
   // dev/test-only hooks (harmless in prod):
   ropes:()=>cons.filter(c=>c.type==='rope'&&!c.cut).map(c=>{const a=particles[c.a],b=particles[c.b];return {x1:a.x,y1:a.y,x2:b.x,y2:b.y,mx:(a.x+b.x)/2,my:(a.y+b.y)/2};}),
   balloons:()=>balloons.filter(b=>!b.popped).map(b=>({x:particles[b.p].x,y:particles[b.p].y,r:b.r})),
   setLevel:(i)=>{ level=Math.max(0,Math.min(LAST,i|0)); buildLevel(level); },
   howto:(p)=>{ if(p<0) closeHowto(); else openHowto(p); },
-  dims:()=>({W,H,S,SP,FLOORY})
+  dims:()=>({W,H,S,SP,FLOORY,LAST})
 };
 loadProgress();
 level=frontierLevel();
@@ -2592,6 +3699,7 @@ FREEZE=!!new URLSearchParams(location.search).get('freeze');
 try{ if(window.Track) Track.init({ gaId: CUT_GA_ID }); }catch(_){}
 resize();
 initSettings();
+initDevJump();
 (function(){
   // presentation-only: reach & hold a transient beat for gallery frames
   const dm=new URLSearchParams(location.search).get('demo');
