@@ -5,6 +5,8 @@
   "description": "Cut — swipe to sever the ropes; gravity, swing, and momentum drop the crate into the basket. Eight handcrafted physics levels.",
   "dependencies": {
     "@jfun/analytics": "*",
+    "@capacitor-firebase/analytics": "^8.3.0",
+    "@capacitor-firebase/app": "^8.3.0",
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
     "@capacitor/haptics": "^8.0.2",
