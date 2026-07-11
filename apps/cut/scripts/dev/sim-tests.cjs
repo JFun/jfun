@@ -176,6 +176,37 @@ const IN_PAGE = `(function(){
       pins.l20.push(runOut(1500));
     }
   }
+  // L21 (idx20) ELASTIC intro: the crate bounces on the stretchy cord; cutting at
+  // the launch phase flings it up-and-over into the basket. Release phase must
+  // matter (a mistimed cut misses) — a real timing puzzle, not a free drop.
+  pins.l21 = [0,30,60,90,110,130,160,190,220].map(dl=>{
+    g.setLevel(20); g.stepN(dl);
+    const rs=g.ropes(); if(!rs.length) return 'norope';
+    let top=rs[0],by=1e9; for(const r of rs){ if(r.my<by){by=r.my;top=r;} } // cut near the anchor
+    const dx=top.x2-top.x1, dy=top.y2-top.y1, L=Math.hypot(dx,dy)||1, e=Math.max(14,L);
+    g.cutAt(top.mx+dy/L*e, top.my-dx/L*e, top.mx-dy/L*e, top.my+dx/L*e);
+    return runOut(1300);
+  });
+  // L22 (idx21, post-trim) ELASTIC × PULSE: fling through the timed gate — needs
+  // BOTH the bounce phase and the gate's open window (two timings compose).
+  pins.l22 = [0,60,100,120,140,160,180].map(dl=>{
+    g.setLevel(21); g.stepN(dl);
+    const rs=g.ropes(); if(!rs.length) return 'norope';
+    let top=rs[0],by=1e9; for(const r of rs){ if(r.my<by){by=r.my;top=r;} }
+    const dx=top.x2-top.x1, dy=top.y2-top.y1, L=Math.hypot(dx,dy)||1, e=Math.max(14,L);
+    g.cutAt(top.mx+dy/L*e, top.my-dx/L*e, top.mx-dy/L*e, top.my+dx/L*e);
+    return runOut(1300);
+  });
+  // L23 (idx22, post-trim) ELASTIC mirror: the leftward fling — launch phase must
+  // still matter (mistimed = miss/off-field).
+  pins.l23 = [0,60,110,130,150,170,200].map(dl=>{
+    g.setLevel(22); g.stepN(dl);
+    const rs=g.ropes(); if(!rs.length) return 'norope';
+    let top=rs[0],by=1e9; for(const r of rs){ if(r.my<by){by=r.my;top=r;} }
+    const dx=top.x2-top.x1, dy=top.y2-top.y1, L=Math.hypot(dx,dy)||1, e=Math.max(14,L);
+    g.cutAt(top.mx+dy/L*e, top.my-dx/L*e, top.mx-dy/L*e, top.my+dx/L*e);
+    return runOut(1300);
+  });
   // L4 (idx3) meaningful-spike pin: the mid-air bar must kill the lazy both-cut,
   // while the taught order-solve (left, beat, right) must win.
   g.setLevel(3);
@@ -194,6 +225,39 @@ const IN_PAGE = `(function(){
       g.cutAt(best.mx+dy/L*14,best.my-dx/L*14,best.mx-dy/L*14,best.my+dx/L*14); })();
     return runOut(1200);
   });
+  // L8 (idx7) DEAD-END guard: no cut sequence may leave the crate stuck in 'play'.
+  // The counterweight can perch the crate on the pulley shelf (a HIGH ledge) — hit
+  // on device. The stall watchdog (incl. crateResting for ledge perches) must end
+  // EVERY outcome within budget (win|fail), never leave a settled 'play'.
+  { const cutXY=(x,y)=>{ const rs=g.ropes(); if(!rs.length) return false;
+      let best=rs[0],bd=1e9; for(const r of rs){ const d=Math.hypot(r.mx-x,r.my-y); if(d<bd){bd=d;best=r;} }
+      const dx=best.x2-best.x1,dy=best.y2-best.y1,L=Math.hypot(dx,dy)||1;
+      g.cutAt(best.mx+dy/L*18,best.my-dx/L*18,best.mx-dy/L*18,best.my+dx/L*18); return true; };
+    // HARD dead-end = still 'play' after budget AND no uncut rope left (no player
+    // action can move it). A 'play' with a rope left is RECOVERABLE (cut it) and
+    // allowed — auto-failing suspended crates would break legit between-cut hangs.
+    pins.l8stuck = [];
+    const rec = () => ({ o: runOut(2600), ropes: g.ropes().length });
+    for(const [x,y] of [[0.42,0.20],[0.46,0.12],[0.86,0.42],[0.90,0.44],[0.34,0.24],[0.50,0.09]]) {
+      g.setLevel(7); cutXY(x*D2.W,y*D2.H); pins.l8stuck.push(rec());
+    }
+    for(const d of [40,120,240,360]) { // cut restraint, haul, then cut the line mid-haul
+      g.setLevel(7); cutXY(0.86*D2.W,0.42*D2.H); g.stepN(d); cutXY(0.44*D2.W,0.20*D2.H); pins.l8stuck.push(rec());
+    }
+    // MAGNET capture guard: a magnet can trap the crate in a decaying orbit that
+    // never settles (hit on device L35). Every cut delay must reach a TERMINAL
+    // state within a generous budget — never a permanent 'play' (captured).
+    pins.l35cap = [];
+    const cutTop = () => { const rs=g.ropes(); if(!rs.length) return; let t=rs[0],by=1e9; for(const r of rs){ if(r.my<by){by=r.my;t=r;} }
+      const dx=t.x2-t.x1, dy=t.y2-t.y1, L=Math.hypot(dx,dy)||1, e=Math.max(14,L); g.cutAt(t.mx+dy/L*e,t.my-dx/L*e,t.mx-dy/L*e,t.my+dx/L*e); };
+    for (let dl=0; dl<=240; dl+=30) { g.setLevel(34); g.stepN(dl); cutTop(); pins.l35cap.push(runOut(3200)); }
+    // STAR-MISS guard: landing in the basket WITHOUT the star must FAIL (retry),
+    // never hang in 'play' (win is star-gated + stall watchdog is !all-guarded —
+    // the L43 dead-end hit on device). Sweep cut delays on L43 (trolley × star):
+    // every outcome terminal.
+    pins.l43miss = [];
+    for (let dl=0; dl<=360; dl+=40) { g.setLevel(42); g.stepN(dl); cutTop(); pins.l43miss.push(runOut(3200)); }
+  }
   // L7 (idx6) swing pin: release phase must matter across the mid-gap spike shelf.
   pins.l7 = [];
   for (let dl = 0; dl < 220; dl += 22) {
@@ -221,26 +285,28 @@ const IN_PAGE = `(function(){
     return {out:'play', y01:null}; }
   pins.l14early = earlyCutDeathY(13);
   pins.l15early = earlyCutDeathY(14);
-  // Ending smoke: win the finale → the campaign ending (phase 'end') must start
-  // after the win dwell, and stay stable for a few seconds of lantern time.
-  // winning finale combo under the level-local clock: sever the tether at t=0,
-  // pop ~60 steps later on the gate's open beat (matches an l20 win above).
-  g.setLevel(19);
-  cutLinkNear(D2.H * 0.28);
-  g.stepN(60);
-  popNow();
-  let endedAs = runOut(1500);
-  g.stepN(200); // win dwell is 120 steps → advanceLevel → startEnding
-  const afterWin = g.state().phase;
-  g.stepN(600);
-  pins.ending = { finaleRun: endedAs, phaseAfterWin: afterWin, phaseLater: g.state().phase };
+  // Ending smoke: win the LAST level → the campaign ending (phase 'end') must
+  // start after the win dwell and stay stable for a few seconds of lantern time.
+  // The last level is the elastic intro (idx20) — cut the cord at the launch
+  // window (d~130, a known l21 win) to fling the crate home.
+  { const last = D2.LAST;
+    // The ending TRANSITION is what this checks (win the last level → lantern
+    // ending). Solvability of every level is the fairness harness's job, so force
+    // the win via the test-only winNow() hook rather than re-solving whatever the
+    // last level currently is.
+    g.setLevel(last); g.winNow();
+    let started = false;
+    for (let k=0;k<400;k++){ g.stepN(1); if(g.state().phase==='end'){ started=true; break; } } // win dwell 120 → advanceLevel → startEnding
+    g.stepN(600);
+    pins.ending = { finaleRun: 'win', phaseAfterWin: started?'end':g.state().phase, phaseLater: g.state().phase };
+  }
   // How-to-play smoke: every tutorial page must render without throwing, the
   // overlay chrome must sync (caption per page), and closing must unpause.
   pins.howto = { caps: [], closed: false, unpaused: false };
   try {
     g.setLevel(0);
     const cap = document.getElementById('howtoCap');
-    for (let p = 0; p < 7; p++) {
+    for (let p = 0; p < 13; p++) {
       g.howto(p);
       g.stepN(1); // draws a frame incl. drawHowto
       pins.howto.caps.push(cap.textContent);
@@ -327,11 +393,18 @@ const IN_PAGE = `(function(){
     if (P.l7 && !both(P.l7)) fail.push(`L7: swing release phase must matter (win+fail), got [${P.l7}]`);
     if (P.l19 && !P.l19.includes('win')) fail.push(`L19 combo: some pop timing must WIN, got [${P.l19}]`);
     if (P.l20 && !both(P.l20)) fail.push(`L20 finale: combo sweep must contain win and fail, got [${P.l20}]`);
+    if (P.l21 && !both(P.l21)) fail.push(`L21 elastic: launch phase must matter (win+fail), got [${P.l21}]`);
+    if (P.l22 && !both(P.l22)) fail.push(`L22 elastic×pulse: launch+gate timing must matter (win+fail), got [${P.l22}]`);
+    if (P.l23 && !both(P.l23)) fail.push(`L23 elastic mirror: launch phase must matter (win+fail), got [${P.l23}]`);
     if (P.l8line) {
       if (P.l8line.out !== 'fail') fail.push(`L8: cutting the line first must DIE on the raised spike, got '${P.l8line.out}'`);
       else if (P.l8line.y01 !== null && P.l8line.y01 > 0.62) fail.push(`L8: line-first must die MID-FALL on the 0.52H spike, died at ${P.l8line.y01}H (spike not catching → slid to floor/off-field)`);
     }
     if (P.l8restraint && P.l8restraint !== 'win') fail.push(`L8: restraint-first haul must WIN (clear the raised spike), got '${P.l8restraint}'`);
+    if (P.l8stuck) { const hard = P.l8stuck.filter(e => e.o === 'play' && e.ropes === 0);
+      if (hard.length) fail.push(`L8 dead-end: a cut left the crate HARD-STUCK in 'play' with no rope to cut (watchdog didn't fire) — ${hard.length} of ${P.l8stuck.length} combos`); }
+    if (P.l35cap && P.l35cap.some(o => o === 'play')) fail.push(`L35 magnet: a cut left the crate CAPTURED in 'play' (orbit/pinned to the magnet, capture watchdog didn't fire), got [${P.l35cap}]`);
+    if (P.l43miss && P.l43miss.some(o => o === 'play')) fail.push(`L43 star-miss: a cut left the crate in 'play' (settled in basket with star uncollected — starMissT didn't fire), got [${P.l43miss}]`);
     for (const [k, n] of [['l14early','L14'],['l15early','L15']]) {
       const e = P[k]; if (!e) continue;
       if (e.out !== 'fail') fail.push(`${n}: an early/impatient cut must FAIL, got '${e.out}'`);
@@ -344,9 +417,9 @@ const IN_PAGE = `(function(){
     }
     if (P.howto) {
       if (P.howto.err) fail.push(`howto smoke: threw ${P.howto.err}`);
-      if ((P.howto.caps || []).length !== 7 || P.howto.caps.some(c => !c))
-        fail.push(`howto smoke: expected 7 captioned pages, got [${P.howto.caps}]`);
-      if (new Set(P.howto.caps).size !== 7) fail.push(`howto smoke: captions must be distinct per page, got [${P.howto.caps}]`);
+      if ((P.howto.caps || []).length !== 13 || P.howto.caps.some(c => !c))
+        fail.push(`howto smoke: expected 13 captioned pages, got [${P.howto.caps}]`);
+      if (new Set(P.howto.caps).size !== 13) fail.push(`howto smoke: captions must be distinct per page, got [${P.howto.caps}]`);
       if (!P.howto.closed || !P.howto.unpaused) fail.push(`howto smoke: close must hide the overlay and unfreeze (closed=${P.howto.closed} unpaused=${P.howto.unpaused})`);
     }
   }
@@ -358,7 +431,7 @@ const IN_PAGE = `(function(){
     if (out.l5) console.log('  L5 pad pin: ' + out.l5.map(s => `${s.cy}:${s.end}`).join('  '));
     const P2 = out.pins || {};
     if (P2.l9) console.log(`  L9 balloon: rose ${P2.l9.rosePx}px, pop→${P2.l9.end}`);
-    for (const k of ['l10','l11','l13','l14','l15','l16','l17','l18','l19','l20']) {
+    for (const k of ['l10','l11','l13','l14','l15','l16','l17','l18','l19','l20','l21','l22','l23']) {
       if (P2[k]) console.log(`  ${k}: ` + P2[k].join(' '));
     }
     if (P2.l12never !== undefined) console.log(`  l12: never-pop→${P2.l12never}  early-pop→${P2.l12pop}`);
