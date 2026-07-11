@@ -174,10 +174,40 @@ const DATA = [
     comp:["Desert Golfing","Angry Birds","Peglin","OK Golf"],
     growth:"Small discretizable action space (~aim×power) makes procedural levels solver-verifiable → ~500-800 levels for a solo dev. 3-star by shots + daily seeds. Verified in-browser: launch→arc→sink works, elements render.",
     score:null, verdict:"Core is real and feels like a game in 10 seconds. The strongest content-per-effort NEW core — a launch engine whose variety is largely procedural + verifiable." },
+  { n:13, file:'13-rattle.html', title:'Rattle', badge:'new',
+    pitch:"CORE CHECK (longevity design 4, judge #1 of 30): tap a touching same-color cluster to pop it — the whole pile avalanches, rolls, and re-clusters under real gravity. Finite pile, tap budget, objective chips.",
+    diff:"Toon Blast's ~10,000-level content machine with the grid ripped out: cascades are emergent avalanches, not scripted column reflow, and 'bring the toy down' (the duck) is physically real. No rigid-body tumble-blast exists on mobile — nearest precedent is Boom Blox (Wii 2008, never ported).",
+    comp:["Toon Blast","Royal Match","Boom Blox","Blast waves"],
+    growth:"The clusters ARE the discrete action space, so a same-engine verifier plays levels natively → ceiling ~2,000-5,000 verified levels, the portfolio's highest. Tiny level spec (vessel + spawn mix + flags + budget).",
+    score:null, verdict:"The blast genre's proven multiplier stack on honest physics — the highest-ceiling bet on the board. Verified: tap→pop→avalanche→re-cluster→objective ticking all work." },
+  { n:14, file:'14-sluice.html', title:'Sluice', badge:'new',
+    pitch:"CORE CHECK (longevity design 5, judge #2 of 30): tap gates open in the right order — the pooled marbles avalanche down terraces, split at pegs, break dams, and fill bin quotas. Fewer gates = the flex.",
+    diff:"'Plan the flood': the sort genre's physics evolution — Water Sort's quota-legibility with a real avalanche as the payoff. Nobody has owned marble-cascade since Maxis's Marble Drop (1997); sort/screw demand is proven (~$87M IAP Q1 2025).",
+    comp:["Water Sort","Marble Drop (1997)","Screw Jam","Hexa Sort"],
+    growth:"Action space = finite gate permutations → EXHAUSTIVE same-engine certification, no bot policy. Ceiling ~1,500-2,500. Elements: sieves, water wheels, breakable dams, switch-backs, color filters.",
+    score:null, verdict:"Verified: gate→avalanche→quota-fill→win across all 3 levels, order-matters teach works, dam-break releases the trapped pool. The avalanche is the reward — feel it." },
+  { n:15, file:'15-tuck.html', title:'Tuck', badge:'new',
+    pitch:"CORE CHECK (longevity design 6): tap pins to release a real cloth — it falls, drapes, folds and snags. Cover the sleeping cat (85%+) to win. Release ORDER is the puzzle.",
+    diff:"Verlet cloth is the classic cheap sim that no mobile puzzle game has ever made its core — draping, folding, snagging on hooks are all one constraint-grid, and every fold is honest physics. Peak cozy-brand fit of the whole idea pool ('tuck in the cat' needs zero words).",
+    comp:["(none direct)","Cut the Rope (verlet kin)","Paper folding games","Zen genres"],
+    growth:"Action space = which pins in which order (≤6 discrete taps) → exhaustive verification. ~250-350 hand-authored + 800-1,500 procedural. Elements: hooks, drafts, buttons, holes in the cloth, second sheet.",
+    score:null, verdict:"The coziest core we've ever had and it works: pin-release → drape → coverage meter → win, verified end-to-end. If the fold feels as good on device as it sims, this is a brand." },
+  { n:16, file:'16-quarter.html', title:'Quarter', badge:'new',
+    pitch:"CORE CHECK (longevity design 7 — Tilt 2): tap left or right and the WHOLE WORLD rotates 90° — the marble (and boulders) tumble live through the turn. Sink the hole in par turns.",
+    diff:"The shipped Tilt's marble-and-hole soul with the accelerometer swapped for a discrete rotation verb. The turn animates with physics LIVE (gravity-vector tween — the marble never freezes): the tumble IS the moat. Positioned as a true App Store sequel on Tilt's engine + shell.",
+    comp:["Tilt (ours, shipped)","Fireball/rotate mazes","Gravity mazes","(open as a sequel)"],
+    growth:"Action space = {L,R} sequences ≤16K nodes → EXHAUSTIVE full-engine tree search — the definitive fix for the discrete-solver scar; verifier cheap enough to run on-device ('provably no path from here'). Ceiling ~1,500-2,500.",
+    score:null, verdict:"Verified: all 3 levels solve at par via exhaustive search through the real engine — the search even caught and fixed a broken L2, proving the whole verifier thesis in miniature." },
+  { n:17, file:'17-poise.html', title:'Poise', badge:'new',
+    pitch:"CORE CHECK (longevity design 8): drag weights from the queue onto snap-hooks — the whole hanging mobile swings, counter-rotates and settles. Make every beam level. Lever arms are the puzzle.",
+    diff:"The Calder mobile digitized with real coupled-pendulum physics for the first time — total white space (only a static-algebra edu-tool exists). Runs on Cut's rope/pin-joint verlet solver; bubble-level tint makes equilibrium a one-glance goal.",
+    comp:["SolveMe Mobiles (edu)","Cut the Rope (solver kin)","Odd Bot Out","(open lane)"],
+    growth:"Snap-hooks make the player's and the verifier's action spaces IDENTICAL (which weight on which hook — pure enumeration) → ~1,500-2,500 certified levels. Elements: unequal arms, two-tier beams, pulleys, ratchets, wind.",
+    score:null, verdict:"Verified: hang→swing→settle→level detection all work, and the lever-arm 'aha' (heavy weight on the short arm) is already in L2. Elegant, differentiated, and the best verifier economics in the portfolio." },
 ];
 
 // per-prototype [differentiation, growth] scores (1-5), from the market-research pass
-const SCORES = {1:[3,2], 2:[4.5,4], 3:[4,3.5], 4:[2,2], 5:[2,2], 6:[3,3.5], 7:[3,2], 8:[4,3], 9:[4,4.5], 10:[4,3.5], 11:[4,4.5], 12:[4,4]};
+const SCORES = {1:[3,2], 2:[4.5,4], 3:[4,3.5], 4:[2,2], 5:[2,2], 6:[3,3.5], 7:[3,2], 8:[4,3], 9:[4,4.5], 10:[4,3.5], 11:[4,4.5], 12:[4,4], 13:[4.5,4.5], 14:[4.5,4], 15:[4.5,4], 16:[4,4.5], 17:[4.5,4]};
 
 const esc = s => String(s==null?'':s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const pad = n => String(n).padStart(2,'0');

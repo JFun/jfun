@@ -2,7 +2,7 @@
 
 > Read [`README.md`](README.md) first (the levers + anti-patterns this design applies).
 
-**Status:** design-only — no prototype yet, but **~60% of the engine already exists**. Cut's Verlet integrator (`apps/cut/web/js/game.js`: particle + constraint relaxation at 1/120) generalizes from a 1D rope chain to a 2D cloth lattice with zero new math; Cut's fairness harness (`apps/cut/scripts/dev/fairness.cjs`) is a certified tap-to-release-at-time oracle that ports near-directly (sever-rope → release-pin, land-probe → coverage-probe). **First deliverable is a kill-gate prototype** (`prototypes/13-tuck.html`): if a 12×16 sheet doesn't drape deliciously in a week, stop.
+**Status:** core-check **BUILT + VERIFIED + FEEL-PASSED** (2026-07-11) at `prototypes/15-tuck.html` — the kill-gate is passed: pin-release→drape→coverage 0.95→win verified via `__game.releasePin/coverage`; the 12×14 Verlet sheet drapes convincingly in-browser and passed Qi's feel-test ("high quality"). Remaining open question before full commitment: puzzle DEPTH (pin-order is the shallowest mechanic of the round-2 five) and cloth feel on a physical device — do a depth-probe (more elements from the ladder below) before green-lighting the campaign. Engine notes: Cut's Verlet integrator generalized to a 2D lattice as predicted; Cut's fairness harness (`apps/cut/scripts/dev/fairness.cjs`) ports near-directly (sever-rope → release-pin, land-probe → coverage-probe).
 
 **Path & ceiling:** hybrid — **~250–350 hand-authored, then 800–1,500 verifier-certified procedural** (the best procedural ratio of the material slate: the action space is *discrete taps on ≤6 discrete pins*, smaller than Slingshaft's 4,800 shots). Judged 24.2/30, top-5 of a 30-idea pool; peak cozy-brand fit.
 
