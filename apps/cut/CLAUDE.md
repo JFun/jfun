@@ -380,6 +380,17 @@ modules (unlike Tilt). Keep it one file.
 
 ## Status / follow-ons (not done yet)
 
-- **Firebase** — create a `com.jfun.cut` project, add `@capacitor-firebase/analytics`
-  + `@capacitor-firebase/app`, drop `GoogleService-Info.plist`, set `CUT_GA_ID`.
+- **Firebase — WIRED (2026-07-10), native-only.** Project `cut-jfun` (created via
+  `firebase` CLI; app `com.jfun.cut`, App ID `1:1061025053555:ios:0658a42bccdb407d136306`).
+  `GoogleService-Info.plist` at `ios/App/App/` AND wired into the App target
+  (pbxproj — cap sync does NOT do this; UUIDs `F1AE…0001/0002`, replicated from
+  Tilt). `@capacitor-firebase/analytics`+`/app` `^8.3.0` in package.json, cap
+  sync'd. Device build links + launches clean, no crash → `FirebaseApp.configure()`
+  finds the plist. `CUT_GA_ID` left EMPTY on purpose — the module routes through
+  Firebase on native regardless; web gtag is only for a web build (none planned),
+  and gtag in WKWebView is unreliable. **REMAINING (the one manual step): enable
+  Google Analytics on the project** (console-only, no `firebase` command):
+  console.firebase.google.com/project/cut-jfun/analytics → Enable. Until then the
+  SDK logs events but they have no GA property to land in. Verify flow via Firebase
+  DebugView after enabling (`-FIRDebugEnabled` launch arg).
 - App Store: screenshots/TestFlight/support+privacy per `docs/handbook/07-app-store-release.md`.
