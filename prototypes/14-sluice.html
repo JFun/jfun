@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>SLUICE</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0b0d12;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+    -webkit-tap-highlight-color:transparent;overscroll-behavior:none;}
+  #c{position:fixed;inset:0;display:block;touch-action:none;}
+  #hud{position:fixed;top:10px;left:14px;pointer-events:none;z-index:2;}
+  #lvl{color:rgba(255,255,255,0.82);font-size:13px;font-weight:800;letter-spacing:2.5px;}
+  #gatesEl{color:#8f9ab8;font-size:11px;font-weight:600;letter-spacing:1px;margin-top:3px;}
+  #lostEl{color:rgba(255,107,107,0.85);font-size:11px;font-weight:600;letter-spacing:1px;margin-top:2px;}
+  #restart{position:fixed;top:8px;right:8px;width:40px;height:40px;border-radius:50%;z-index:3;
+    border:1px solid rgba(255,255,255,0.22);background:rgba(255,255,255,0.06);
+    color:rgba(255,255,255,0.85);font-size:20px;line-height:1;cursor:pointer;
+    touch-action:manipulation;padding:0;}
+  #restart:active{background:rgba(255,255,255,0.18);}
+  #hint{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:2;
+    transform:translateX(-50%);padding:8px 18px;border-radius:999px;
+    background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.10);
+    color:rgba(255,255,255,0.85);font-size:13px;letter-spacing:0.5px;white-space:nowrap;
+    pointer-events:none;transition:opacity 0.8s ease;opacity:1;}
+  #hint.hide{opacity:0;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="lvl">LEVEL 1</div>
+  <div id="gatesEl">gates 0/1</div>
+  <div id="lostEl"></div>
+</div>
+<button id="restart" aria-label="restart level">&#8635;</button>
+<div id="hint">tap a gate</div>
+<script>
+'use strict';
+/* ============ SLUICE — terraced marble cascade (tap gates, fill bins) ============ */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const lvlEl = document.getElementById('lvl');
+const gatesEl = document.getElementById('gatesEl');
+const lostEl = document.getElementById('lostEl');
+const hintEl = document.getElementById('hint');
+const restartBtn = document.getElementById('restart');
+
+const TAU = Math.PI * 2;
+const STEP = 1 / 120;
+const MCOL = { a: '#ffce6b', s: '#6ea8ff', v: '#9d7bff' };  // amber / sky / violet
+const MINT = '#4bd48a', CORAL = '#ff6b6b';
+const ANYC = '#dfe6f5';
+
+let W = 0, H = 0, DPR = 1;
+let pfX = 0, pfW = 0;           // playfield (portrait column, centered)
+let R = 8, D = 16, GRAV = 900, floorY = 0;
+
+let level = 1, phase = 'play';   // 'play' | 'win' | 'fail'
+let prerolling = false;
+let marbles = [], gates = [], dams = [], pegs = [], bins = [], terr = [], parts = [];
+let gatesUsed = 0, lost = 0;
+let settled = true, stillT = 0, unsettledT = 0, winT = 0;
+let stepCount = 0, firstTap = false;
+let bannerT = -1, bannerMsg = '', bannerSub = '', bannerCol = MINT;
+let bgGrad = null;
+
+let cell = 16, gridW = 1, gridH = 1;
+let gridHead = new Int32Array(1), gridNext = new Int32Array(64);
+
+/* ---------------- utils ---------------- */
+function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hexRGB(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+function shade(h, f) {
+  const c = hexRGB(h);
+  return 'rgb(' + Math.min(255, c[0] * f | 0) + ',' + Math.min(255, c[1] * f | 0) + ',' + Math.min(255, c[2] * f | 0) + ')';
+}
+function hexA(h, a) { const c = hexRGB(h); return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; }
+function easeOutBack(t) { const c = 2.2; t = t - 1; return 1 + (c + 1) * t * t * t + c * t * t; }
+function pointSegD(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const l2 = dx * dx + dy * dy || 1;
+  let t = ((px - ax) * dx + (py - ay) * dy) / l2;
+  t = clamp(t, 0, 1);
+  return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+}
+
+/* ---------------- audio (lazy, synthesized) ---------------- */
+let AC = null, master = null, noiseBuf = null, lastClat = 0;
+function initAudio() {
+  if (AC) return;
+  try {
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return;
+    AC = new Ctor();
+    master = AC.createGain();
+    master.gain.value = 0.55;
+    master.connect(AC.destination);
+    const len = Math.floor(AC.sampleRate * 0.6);
+    noiseBuf = AC.createBuffer(1, len, AC.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  } catch (e) { AC = null; }
+}
+function tone(freq, when, dur, vol, type) {
+  if (!AC) return;
+  const t = AC.currentTime + (when || 0);
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(master);
+  o.start(t); o.stop(t + dur + 0.03);
+}
+function noiseHit(when, dur, vol, cutoff, type) {
+  if (!AC) return;
+  const t = AC.currentTime + (when || 0);
+  const src = AC.createBufferSource(); src.buffer = noiseBuf;
+  const f = AC.createBiquadFilter(); f.type = type || 'lowpass'; f.frequency.value = cutoff;
+  const g = AC.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(master);
+  src.start(t); src.stop(t + dur + 0.03);
+}
+function sndClatter(v) {
+  if (!AC || prerolling) return;
+  const now = performance.now();
+  if (now - lastClat < 28) return;
+  lastClat = now;
+  const vol = 0.02 + 0.09 * clamp(v, 0, 1);
+  noiseHit(0, 0.03, vol, 2200 + Math.random() * 1600, 'bandpass');
+  tone(900 + Math.random() * 900, 0, 0.04, vol * 0.5, 'sine');
+}
+function sndCreak() {
+  tone(150, 0, 0.30, 0.10, 'sawtooth');
+  tone(96, 0.05, 0.28, 0.08, 'sawtooth');
+  noiseHit(0, 0.22, 0.05, 700);
+}
+function sndClack() { noiseHit(0, 0.06, 0.22, 900); tone(170, 0, 0.09, 0.14, 'triangle'); }
+function sndPip(fr) { tone(640 + 380 * fr, 0, 0.13, 0.07); }
+function sndMet() { tone(1046, 0, 0.3, 0.09); tone(1318, 0.06, 0.32, 0.07); }
+function sndWin() {
+  tone(523, 0, 0.4, 0.10); tone(659, 0.09, 0.4, 0.10);
+  tone(784, 0.18, 0.5, 0.10); tone(1046, 0.28, 0.7, 0.08);
+}
+function sndFail() { tone(196, 0, 0.4, 0.10, 'sawtooth'); tone(98, 0.05, 0.55, 0.11, 'sine'); }
+function sndCrack() { noiseHit(0, 0.05, 0.16, 1400, 'highpass'); tone(330, 0, 0.05, 0.08, 'triangle'); }
+function sndBreak() {
+  noiseHit(0, 0.32, 0.26, 520);
+  tone(72, 0, 0.32, 0.18, 'sine');
+  sndCrack();
+}
+function sndLost() { tone(230, 0, 0.09, 0.045, 'sine'); }
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && AC && AC.state !== 'running') AC.resume();
+});
+
+/* ---------------- geometry helpers ---------------- */
+function nx(v) { return pfX + v * pfW; }
+function ny(v) { return v * H; }
+function addSeg(ax, ay, bx, by, kind) { terr.push({ ax, ay, bx, by, kind: kind || 't' }); }
+function addWall(xn, hD) { addSeg(nx(xn), floorY, nx(xn), floorY - hD * D, 'w'); }
+function mkGate(pxn, pyPx, lenD, a0, dhx, dhy) {
+  let a1 = Math.atan2(dhy, dhx);
+  if (a1 - a0 > Math.PI) a1 -= TAU;
+  if (a1 - a0 < -Math.PI) a1 += TAU;
+  gates.push({ px: nx(pxn), py: pyPx, len: lenD * D, a0, a1, a: a0, pa: a0, t: 0, open: false, doneSnd: false });
+}
+function mkBin(x0n, x1n, colorNeed, need, rimD) {
+  bins.push({
+    x0: nx(x0n), x1: nx(x1n), colorNeed, need,
+    have: 0, count: 0, lastHave: 0, met: false, glow: 0,
+    topY: floorY - rimD * D
+  });
+}
+function segYat(ax, ay, bx, by, x) { return ay + (by - ay) * ((x - ax) / (bx - ax)); }
+
+function spawnPool(x0n, x1n, seg, count, colorFn, rng) {
+  const x0 = nx(x0n) + R * 1.15, x1 = nx(x1n) - R * 1.15;
+  const cols = Math.max(2, Math.floor((x1 - x0) / (D * 1.03)) + 1);
+  const stepX = cols > 1 ? (x1 - x0) / (cols - 1) : 0;
+  const rowH = D * 0.9;
+  let col = 0, row = 0;
+  for (let i = 0; i < count; i++) {
+    let x = x0 + col * stepX + (row % 2 ? stepX * 0.5 : 0) + (rng() - 0.5) * R * 0.3;
+    x = clamp(x, x0, x1);
+    const yf = segYat(seg.ax, seg.ay, seg.bx, seg.by, x);
+    const y = yf - R - row * rowH;
+    const c = colorFn(i);
+    marbles.push({
+      x, y, px: x, py: y, c,
+      style: shade(MCOL[c], 0.8 + rng() * 0.35),
+      sleepy: 0, sleep: false, frozen: false,
+      jit: 0, ax: x, ay: y,
+      contact: false, squash: 0, lostT: 0, hitCd: 0
+    });
+    col++;
+    if (col >= cols) { col = 0; row++; }
+  }
+}
+
+/* ---------------- levels ---------------- */
+function buildLevel(l) {
+  level = clamp(l | 0, 1, 3);
+  marbles = []; gates = []; dams = []; pegs = []; bins = []; terr = []; parts = [];
+  gatesUsed = 0; lost = 0;
+  phase = 'play'; winT = 0; bannerT = -1;
+  settled = true; stillT = 0.6; unsettledT = 0;
+  const rng = mulberry32(level * 991 + 7);
+  floorY = ny(0.965);
+  addSeg(pfX - 2, floorY, pfX + pfW + 2, floorY, 'f');           // gutter/bin floor
+
+  if (level === 1) {
+    // one basin -> gate -> two terraces -> peg -> two ANY-quota bins
+    const basin = { ax: nx(0.03), ay: ny(0.185), bx: nx(0.335), by: ny(0.21) };
+    addSeg(basin.ax, basin.ay, basin.bx, basin.by);
+    addSeg(nx(0.345), ny(0.215), nx(0.88), ny(0.33));            // shelf A (down-right)
+    addSeg(nx(0.96), ny(0.435), nx(0.40), ny(0.56));             // shelf B (down-left)
+    pegs.push({ x: nx(0.22), y: ny(0.68), r: D * 1.05 });   // sits in the ballistic stream, above the bin divider — splits the avalanche
+    addWall(0.015, 5); addWall(0.26, 3.2); addWall(0.50, 5);
+    mkBin(0.015, 0.26, 'any', 6, 3.2);
+    mkBin(0.26, 0.50, 'any', 6, 3.2);
+    mkGate(0.34, ny(0.212), 5.2, -1.745, nx(0.88) - nx(0.345), ny(0.33) - ny(0.215));
+    spawnPool(0.04, 0.325, basin, 24, i => (i % 2 ? 's' : 'a'), rng);
+  } else if (level === 2) {
+    // ORDER matters: open HIGH gate first (sky fills near bin), then LOW (amber
+    // overflows the crest into the far bin). Low-first buries the near bin in amber.
+    const basin = { ax: nx(0.03), ay: ny(0.15), bx: nx(0.29), by: ny(0.175) };
+    addSeg(basin.ax, basin.ay, basin.bx, basin.by);
+    addSeg(nx(0.30), ny(0.18), nx(0.50), ny(0.235));             // shelf A (short, drops mid)
+    const sB = { ax: nx(0.96), ay: ny(0.40), bx: nx(0.24), by: ny(0.525) };
+    addSeg(sB.ax, sB.ay, sB.bx, sB.by);                          // shelf B (down-left; steep enough that the released pool actually delivers)
+    addSeg(nx(0.605), ny(0.235), nx(0.605), ny(0.39), 'w');      // baffle: drops sky onto shelf B
+    addWall(0.04, 6); addWall(0.34, 3.2); addWall(0.62, 5.5);
+    mkBin(0.04, 0.34, 's', 10, 3.2);
+    mkBin(0.34, 0.62, 'a', 9, 3.2);   // flow reliably delivers ~10 of 22 — quota below that; extras piling elsewhere is fine
+    mkGate(0.295, ny(0.178), 5.0, -1.745, nx(0.50) - nx(0.30), ny(0.235) - ny(0.18));  // HIGH
+    const gy = segYat(sB.ax, sB.ay, sB.bx, sB.by, nx(0.615));
+    mkGate(0.615, gy, 6.0, -1.396, nx(0.24) - nx(0.615), ny(0.47) - gy);               // LOW
+    spawnPool(0.035, 0.288, basin, 16, () => 's', rng);
+    spawnPool(0.645, 0.945, sB, 22, () => 'a', rng);
+  } else {
+    // breakable dam mid-slope; breaking it also unseals the trapped violet side-pool
+    const basin = { ax: nx(0.68), ay: ny(0.16), bx: nx(0.96), by: ny(0.14) };
+    addSeg(basin.ax, basin.ay, basin.bx, basin.by);
+    addSeg(nx(0.655), ny(0.165), nx(0.12), ny(0.28));            // shelf A (down-left)
+    const sB = { ax: nx(0.05), ay: ny(0.40), bx: nx(0.80), by: ny(0.50) };
+    addSeg(sB.ax, sB.ay, sB.bx, sB.by);                          // shelf B (down-right)
+    const side = { ax: nx(0.24), ay: ny(0.583), bx: nx(0.455), by: ny(0.605) };
+    addSeg(side.ax, side.ay, side.bx, side.by);                  // trapped side-pool floor
+    addSeg(nx(0.24), ny(0.583), nx(0.24), ny(0.583) - 4.2 * D, 'w');
+    const dy = segYat(sB.ax, sB.ay, sB.bx, sB.by, nx(0.46));
+    dams.push({
+      x: nx(0.46), yTop: dy - 3.6 * D, yBot: ny(0.63),
+      hp: 8, maxHp: 8, broken: false, shake: 0, hits: 0, pressT: 0
+    });
+    addWall(0.46, 4.5); addWall(0.70, 4); addWall(0.965, 6);
+    mkBin(0.46, 0.70, 'v', 6, 4);
+    mkBin(0.70, 0.965, 's', 11, 4);
+    mkGate(0.66, ny(0.163), 5.2, -1.396, nx(0.12) - nx(0.655), ny(0.28) - ny(0.165));
+    spawnPool(0.695, 0.945, basin, 20, () => 's', rng);
+    spawnPool(0.255, 0.445, side, 10, () => 'v', rng);
+  }
+
+  cell = D;
+  gridW = Math.ceil(W / cell) + 2;
+  gridH = Math.ceil(H / cell) + 2;
+  gridHead = new Int32Array(gridW * gridH);
+  gridNext = new Int32Array(Math.max(64, marbles.length));
+
+  prerolling = true;
+  for (let i = 0; i < 200; i++) physStep();
+  for (const p of marbles) { p.px = p.x; p.py = p.y; p.jit = 0; p.ax = p.x; p.ay = p.y; }
+  prerolling = false;
+  settled = true; stillT = 0.6; unsettledT = 0;
+  updateHUD();
+  runCheck();
+}
+
+function updateHUD() {
+  lvlEl.textContent = 'LEVEL ' + level;
+  gatesEl.textContent = 'gates ' + gatesUsed + '/' + gates.length;
+  lostEl.textContent = lost > 0 ? 'lost ' + lost : '';
+}
+
+/* ---------------- actions ---------------- */
+function wakeNear(x, y, r) {
+  for (const p of marbles) {
+    if (Math.abs(p.x - x) < r && Math.abs(p.y - y) < r) {
+      p.sleepy = 0; p.sleep = false; p.frozen = false; p.jit = 0; p.ax = p.x; p.ay = p.y;
+    }
+  }
+}
+function openGate(i) {
+  i = i | 0;
+  if (phase !== 'play' || i < 0 || i >= gates.length) return false;
+  const g = gates[i];
+  if (g.open) return false;
+  g.open = true; g.t = 0;
+  gatesUsed++;
+  settled = false; stillT = 0; unsettledT = 0;
+  wakeNear(g.px, g.py, g.len * 2.5 + 4 * D);
+  sndCreak();
+  dust(g.px + Math.cos(g.a) * g.len * 0.6, g.py + Math.sin(g.a) * g.len * 0.6, 5, '#c7b08a');
+  if (!firstTap) { firstTap = true; hintEl.classList.add('hide'); }
+  updateHUD();
+  return true;
+}
+function breakDam(d) {
+  if (d.broken) return;
+  d.broken = true;
+  settled = false; stillT = 0; unsettledT = 0;
+  wakeNear(d.x, (d.yTop + d.yBot) / 2, 8 * D);
+  sndBreak();
+  for (let i = 0; i < 16; i++) {
+    parts.push({
+      x: d.x + (Math.random() - 0.5) * D, y: d.yTop + Math.random() * (d.yBot - d.yTop),
+      vx: (Math.random() - 0.2) * pfW * 0.5, vy: -(Math.random() * 0.4 + 0.1) * H * 0.5,
+      life: 1, dec: 1.4 + Math.random(), size: R * (0.3 + Math.random() * 0.5),
+      col: Math.random() < 0.5 ? '#a8794a' : '#7c5a38', grav: 0.8
+    });
+  }
+}
+function dust(x, y, n, col) {
+  for (let i = 0; i < n; i++) {
+    parts.push({
+      x, y, vx: (Math.random() - 0.5) * pfW * 0.3, vy: -(Math.random() * 0.3) * H * 0.3,
+      life: 1, dec: 2.4 + Math.random() * 1.4, size: R * (0.2 + Math.random() * 0.3),
+      col: col || '#8f97b3', grav: 0.4
+    });
+  }
+}
+function doWin() {
+  phase = 'win'; winT = 0;
+  bannerT = 0; bannerCol = MINT;
+  bannerMsg = level === 3 ? 'ALL CLEAR' : 'LEVEL CLEAR';
+  bannerSub = 'gates ' + gatesUsed + '/' + gates.length + (lost === 0 ? ' · spotless' : '');
+  sndWin();
+  for (const b of bins) {
+    for (let i = 0; i < 14; i++) {
+      parts.push({
+        x: b.x0 + Math.random() * (b.x1 - b.x0), y: b.topY,
+        vx: (Math.random() - 0.5) * pfW * 0.8, vy: -(0.35 + Math.random() * 0.5) * H * 0.8,
+        life: 1, dec: 1.1 + Math.random() * 0.8, size: R * (0.25 + Math.random() * 0.35),
+        col: [MCOL.a, MCOL.s, MINT, MCOL.v][i % 4], grav: 0.55
+      });
+    }
+  }
+}
+function doFail() {
+  phase = 'fail';
+  bannerT = -1;
+  sndFail();
+}
+/* ---------------- collisions ---------------- */
+const REST = 0.16, FRIC = 0.99;
+function collideSeg(p, ax, ay, bx, by, g, rest, fric) {
+  const abx = bx - ax, aby = by - ay;
+  const l2 = abx * abx + aby * aby || 1;
+  let t = ((p.x - ax) * abx + (p.y - ay) * aby) / l2;
+  if (t < 0) t = 0; else if (t > 1) t = 1;
+  const cx = ax + abx * t, cy = ay + aby * t;
+  const dx = p.x - cx, dy = p.y - cy;
+  const d2 = dx * dx + dy * dy;
+  if (d2 >= R * R || d2 === 0) return 0;
+  const d = Math.sqrt(d2), inv = 1 / d;
+  const nxv = dx * inv, nyv = dy * inv;
+  p.x = cx + nxv * R; p.y = cy + nyv * R;
+  let wvx = 0, wvy = 0;
+  if (g) {
+    const da = g.a - g.pa;
+    wvx = -(cy - g.py) * da;
+    wvy = (cx - g.px) * da;
+  }
+  let vx = p.x - p.px, vy = p.y - p.py;
+  const rvx = vx - wvx, rvy = vy - wvy;
+  const vn = rvx * nxv + rvy * nyv;
+  const tx = -nyv, ty = nxv;
+  const vt = rvx * tx + rvy * ty;
+  const nvn = vn < 0 ? -vn * (rest === undefined ? REST : rest) : vn;
+  const nvt = vt * (fric === undefined ? FRIC : fric);
+  vx = wvx + nxv * nvn + tx * nvt;
+  vy = wvy + nyv * nvn + ty * nvt;
+  p.px = p.x - vx; p.py = p.y - vy;
+  p.contact = true;
+  const imp = vn < 0 ? -vn : 0;
+  if (imp > R * 0.5) p.squash = Math.min(1, imp / (R * 1.2));
+  return imp;
+}
+function collidePeg(p, peg) {
+  const dx = p.x - peg.x, dy = p.y - peg.y;
+  const rr = R + peg.r;
+  const d2 = dx * dx + dy * dy;
+  if (d2 >= rr * rr || d2 === 0) return;
+  const d = Math.sqrt(d2), inv = 1 / d;
+  const nxv = dx * inv, nyv = dy * inv;
+  p.x = peg.x + nxv * rr; p.y = peg.y + nyv * rr;
+  let vx = p.x - p.px, vy = p.y - p.py;
+  const vn = vx * nxv + vy * nyv;
+  const tx = -nyv, ty = nxv;
+  const vt = vx * tx + vy * ty;
+  const nvn = vn < 0 ? -vn * 0.4 : vn;
+  vx = nxv * nvn + tx * vt * 0.99;
+  vy = nyv * nvn + ty * vt * 0.99;
+  p.px = p.x - vx; p.py = p.y - vy;
+  p.contact = true;
+  if (vn < -R * 0.3) sndClatter(-vn / R);
+}
+function hashInsert() {
+  gridHead.fill(-1);
+  for (let i = 0; i < marbles.length; i++) {
+    const p = marbles[i];
+    if (p.lostT > 0) { gridNext[i] = -1; continue; }
+    const cx = clamp((p.x / cell) | 0, 0, gridW - 1);
+    const cy = clamp((p.y / cell) | 0, 0, gridH - 1);
+    const k = cy * gridW + cx;
+    gridNext[i] = gridHead[k];
+    gridHead[k] = i;
+  }
+}
+function pairPass() {
+  const DD = D * D;
+  for (let i = 0; i < marbles.length; i++) {
+    const p = marbles[i];
+    if (p.lostT > 0) continue;
+    if (p.sleep && (stepCount & 1)) continue;
+    const cx = clamp((p.x / cell) | 0, 0, gridW - 1);
+    const cy = clamp((p.y / cell) | 0, 0, gridH - 1);
+    for (let yy = cy - 1; yy <= cy + 1; yy++) {
+      if (yy < 0 || yy >= gridH) continue;
+      const rowBase = yy * gridW;
+      for (let xx = cx - 1; xx <= cx + 1; xx++) {
+        if (xx < 0 || xx >= gridW) continue;
+        for (let j = gridHead[rowBase + xx]; j !== -1; j = gridNext[j]) {
+          if (j === i) continue;
+          const q = marbles[j];
+          let dx = q.x - p.x, dy = q.y - p.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < DD) {
+            let d = Math.sqrt(d2);
+            if (d < 1e-4) { dx = 0.01; dy = 0; d = 0.01; }
+            const half = (D - d) * 0.5, inv = 1 / d;
+            const nxv = dx * inv, nyv = dy * inv;
+            p.x -= nxv * half; p.y -= nyv * half;
+            q.x += nxv * half; q.y += nyv * half;
+            if (half > 0.05) { p.sleepy = 0; q.sleepy = 0; p.sleep = q.sleep = false; }
+            if (half > R * 0.22) { p.frozen = q.frozen = false; }
+            if (half > R * 0.3) sndClatter(half / (R * 0.8));
+            p.contact = true; q.contact = true;
+          }
+        }
+      }
+    }
+  }
+}
+function segPass() {
+  const xLo = pfX + R, xHi = pfX + pfW - R;
+  for (let i = 0; i < marbles.length; i++) {
+    const p = marbles[i];
+    if (p.lostT > 0) {
+      if (p.y > floorY - R) { p.y = floorY - R; p.py = p.y; p.px = p.x; }
+      continue;
+    }
+    for (const s of terr) {
+      const imp = collideSeg(p, s.ax, s.ay, s.bx, s.by, null,
+        s.kind === 'f' ? 0.15 : REST, s.kind === 'f' ? 0.97 : FRIC);
+      if (imp > R * 0.4) sndClatter(imp / R);
+    }
+    for (const g of gates) {
+      const tipx = g.px + Math.cos(g.a) * g.len;
+      const tipy = g.py + Math.sin(g.a) * g.len;
+      collideSeg(p, g.px, g.py, tipx, tipy, g);
+    }
+    for (const dm of dams) {
+      if (dm.broken) continue;
+      const imp = collideSeg(p, dm.x, dm.yTop, dm.x, dm.yBot, null, 0.25, 0.99);
+      if (imp > R * 0.1 && p.hitCd <= 0 && !prerolling) {
+        p.hitCd = 0.25;
+        dm.hits++;
+        dm.hp--;
+        dm.shake = 1;
+        sndCrack();
+        dust(dm.x, p.y, 3, '#a8794a');
+        if (dm.hp <= 0) breakDam(dm);
+      }
+    }
+    for (const peg of pegs) collidePeg(p, peg);
+    if (p.x < xLo) { p.x = xLo; if (p.px > p.x) p.px = p.x; }
+    else if (p.x > xHi) { p.x = xHi; if (p.px < p.x) p.px = p.x; }
+    if (p.y < R) { p.y = R; p.py = p.y; }
+    if (p.y > floorY - R) {
+      p.y = floorY - R;
+      const vy = p.y - p.py;
+      if (vy < 0) p.py = p.y - vy * -0.15;
+      p.contact = true;
+    }
+  }
+}
+
+/* ---------------- fixed step ---------------- */
+function physStep() {
+  stepCount++;
+  // gates swing (kinematic, one-shot, ~0.32s ease-out)
+  for (const g of gates) {
+    g.pa = g.a;
+    if (g.open && g.t < 1) {
+      g.t = Math.min(1, g.t + STEP / 0.32);
+      const e = 1 - Math.pow(1 - g.t, 3);
+      g.a = g.a0 + (g.a1 - g.a0) * e;
+      if (g.t >= 1 && !g.doneSnd) {
+        g.doneSnd = true;
+        if (!prerolling) sndClack();
+        dust(g.px + Math.cos(g.a) * g.len, g.py + Math.sin(g.a) * g.len, 4, '#c7b08a');
+      }
+    }
+  }
+  for (const dm of dams) if (dm.shake > 0) dm.shake = Math.max(0, dm.shake - STEP * 4);
+
+  // integrate (verlet)
+  const g2 = GRAV * STEP * STEP;
+  const damp = 0.999;
+  const maxV = R * 0.85;
+  for (const p of marbles) {
+    p.contact = false;
+    if (p.hitCd > 0) p.hitCd -= STEP;
+    if (p.squash > 0.02) p.squash *= 0.92;
+    if (p.lostT > 0) { p.lostT += STEP / 0.8; continue; }
+    if (p.frozen) { p.px = p.x; p.py = p.y; continue; }
+    let vx = (p.x - p.px) * damp;
+    let vy = (p.y - p.py) * damp + g2;
+    const sp = Math.hypot(vx, vy);
+    if (sp > maxV) { vx *= maxV / sp; vy *= maxV / sp; }
+    p.px = p.x; p.py = p.y;
+    p.x += vx; p.y += vy;
+  }
+
+  hashInsert();
+  for (let it = 0; it < 2; it++) { pairPass(); segPass(); }
+
+  // sleep + per-marble jitter watchdog (force-sleep after 6s of jitter)
+  let maxSp = 0, dead = false;
+  for (const p of marbles) {
+    if (p.lostT > 0) { if (p.lostT >= 1) dead = true; continue; }
+    const sp = Math.abs(p.x - p.px) + Math.abs(p.y - p.py);
+    if (p.contact && sp < 0.06) p.sleepy++; else p.sleepy = 0;
+    p.sleep = p.sleepy > 40;
+    if (Math.abs(p.x - p.ax) + Math.abs(p.y - p.ay) > R * 1.2) {
+      p.ax = p.x; p.ay = p.y; p.jit = 0;
+    } else {
+      p.jit += STEP;
+      if (p.jit > 6 && sp > 0.02) { p.frozen = true; p.sleep = true; }
+    }
+    if (!p.frozen && sp > maxSp) maxSp = sp;
+  }
+  if (dead) marbles = marbles.filter(p => p.lostT < 1);
+
+  // settle detection + global stall watchdog (world always settles)
+  const gatesMoving = gates.some(g => g.open && g.t < 1);
+  if (maxSp < R * 0.02 && !gatesMoving) stillT += STEP; else stillT = 0;
+  settled = stillT > 0.45;
+  if (!settled && phase === 'play' && !prerolling) {
+    unsettledT += STEP;
+    if (unsettledT > 12) {
+      for (const p of marbles) {
+        const sp = Math.abs(p.x - p.px) + Math.abs(p.y - p.py);
+        if (sp < R * 0.08) { p.frozen = true; p.sleep = true; }
+      }
+    }
+    if (unsettledT > 16) {
+      for (const p of marbles) { p.px = p.x; p.py = p.y; p.frozen = true; p.sleep = true; }
+      stillT = 0.5;
+    }
+  } else if (settled) unsettledT = 0;
+
+  // particles (draw-only)
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const c = parts[i];
+    c.vy += GRAV * STEP * c.grav;
+    c.x += c.vx * STEP; c.y += c.vy * STEP;
+    c.life -= c.dec * STEP;
+    if (c.life <= 0) parts.splice(i, 1);
+  }
+  for (const b of bins) if (b.glow > 0) b.glow = Math.max(0, b.glow - STEP * 2);
+  if (bannerT >= 0) bannerT += STEP;
+
+  if (stepCount % 10 === 0) runCheck();
+
+  if (phase === 'win') {
+    winT += STEP;
+    if (winT >= 1.2) buildLevel(level >= 3 ? 1 : level + 1);
+  }
+}
+
+/* ---------------- quota / win / fail ---------------- */
+function runCheck() {
+  if (prerolling) return;
+  for (const b of bins) { b.count = 0; b.have = 0; }
+  let lostNew = false;
+  for (const p of marbles) {
+    if (p.lostT > 0) continue;
+    const sp = Math.abs(p.x - p.px) + Math.abs(p.y - p.py);
+    let inB = false;
+    for (const b of bins) {
+      if (p.x > b.x0 + R * 0.2 && p.x < b.x1 - R * 0.2 &&
+          p.y > b.topY - 6 * D && p.y < floorY + R) {
+        inB = true;
+        if (sp < R * 0.3) {
+          b.count++;
+          if (b.colorNeed === 'any' || p.c === b.colorNeed) b.have++;
+        }
+        break;
+      }
+    }
+    if (!inB && p.contact && sp < R * 0.12 && p.y > floorY - R * 2.2) {
+      p.lostT = 0.001;
+      lost++;
+      lostNew = true;
+    }
+  }
+  if (lostNew) { sndLost(); updateHUD(); }
+  for (const b of bins) {
+    if (b.have > b.lastHave) { sndPip(Math.min(1, b.have / b.need)); b.glow = 1; }
+    b.lastHave = b.have;
+    const met = b.have >= b.need;
+    if (met && !b.met) { sndMet(); b.glow = 1; }
+    b.met = met;
+  }
+  // dam pressure yield: a resting crowd grinds a cracked dam down (no softlock)
+  for (const dm of dams) {
+    if (dm.broken || dm.hits === 0) continue;
+    let near = 0;
+    for (const p of marbles) {
+      if (p.lostT > 0) continue;
+      if (Math.abs(p.x - dm.x) < 1.6 * D && p.y > dm.yTop && p.y < dm.yBot + D) near++;
+    }
+    if (near >= 5) {
+      dm.pressT += 10 * STEP;
+      if (dm.pressT > 2.5) breakDam(dm);
+    } else dm.pressT = 0;
+  }
+  if (phase === 'play' && settled && stillT > 0.9) {
+    if (bins.every(b => b.met)) doWin();
+    else if (gatesUsed >= gates.length && gates.every(g => !g.open || g.t >= 1) &&
+             dams.every(dm => dm.broken || dm.pressT === 0)) {
+      doFail();
+    }
+  }
+}
+/* ---------------- drawing ---------------- */
+function beam(ax, ay, bx, by, th, fill, edge) {
+  const dx = bx - ax, dy = by - ay;
+  const len = Math.hypot(dx, dy) || 1;
+  let nxv = -dy / len, nyv = dx / len;
+  if (nyv < 0) { nxv = -nxv; nyv = -nyv; }
+  if (nyv === 0 && nxv < 0) { nxv = -nxv; }
+  ctx.beginPath();
+  ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+  ctx.lineTo(bx + nxv * th, by + nyv * th); ctx.lineTo(ax + nxv * th, ay + nyv * th);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+}
+function drawGate(g, t) {
+  const tipx = g.px + Math.cos(g.a) * g.len;
+  const tipy = g.py + Math.sin(g.a) * g.len;
+  if (!g.open && phase === 'play') {
+    const pulse = settled ? 0.7 + 0.3 * Math.sin(t * 4.5) : 0.35;
+    ctx.shadowColor = MCOL.a;
+    ctx.shadowBlur = 16 * pulse;
+    ctx.strokeStyle = hexA(MCOL.a, 0.5 * pulse);
+    ctx.lineWidth = D * 0.62;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(g.px, g.py); ctx.lineTo(tipx, tipy); ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  ctx.strokeStyle = '#9a7648';
+  ctx.lineWidth = D * 0.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(g.px, g.py); ctx.lineTo(tipx, tipy); ctx.stroke();
+  ctx.strokeStyle = '#c79a63';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(g.px, g.py); ctx.lineTo(tipx, tipy); ctx.stroke();
+  ctx.fillStyle = '#5a4630';
+  ctx.beginPath(); ctx.arc(g.px, g.py, R * 0.5, 0, TAU); ctx.fill();
+  ctx.fillStyle = g.open ? '#8f9ab8' : '#ffe2a8';
+  ctx.beginPath();
+  ctx.arc(g.px + Math.cos(g.a) * g.len * 0.86, g.py + Math.sin(g.a) * g.len * 0.86, R * 0.42, 0, TAU);
+  ctx.fill();
+}
+function drawDam(dm) {
+  if (dm.broken) return;
+  const xo = dm.shake > 0 ? Math.sin(stepCount * 0.9) * 2.4 * dm.shake : 0;
+  const x = dm.x + xo;
+  ctx.strokeStyle = '#8a6a4a';
+  ctx.lineWidth = D * 0.6;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, dm.yTop); ctx.lineTo(x, dm.yBot); ctx.stroke();
+  ctx.strokeStyle = '#b08a58';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x, dm.yTop); ctx.lineTo(x, dm.yBot); ctx.stroke();
+  // cracks grow as hp drains
+  const dmg = dm.maxHp - dm.hp;
+  ctx.strokeStyle = 'rgba(20,14,8,0.85)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < dmg; i++) {
+    const yy = dm.yTop + (dm.yBot - dm.yTop) * ((i * 0.37 + 0.13) % 1);
+    const s = (i % 2 ? 1 : -1) * D * 0.26;
+    ctx.beginPath();
+    ctx.moveTo(x - D * 0.28, yy);
+    ctx.lineTo(x, yy + s * 0.4);
+    ctx.lineTo(x + D * 0.28, yy - s * 0.3);
+    ctx.stroke();
+  }
+  // hp pips
+  for (let i = 0; i < dm.maxHp; i++) {
+    ctx.fillStyle = i < dm.hp ? hexA('#ffce6b', 0.8) : 'rgba(255,255,255,0.12)';
+    ctx.beginPath();
+    ctx.arc(x + D * 0.75, dm.yTop + 4 + i * 7, 2.2, 0, TAU);
+    ctx.fill();
+  }
+}
+function drawBins() {
+  for (const b of bins) {
+    const col = b.colorNeed === 'any' ? ANYC : MCOL[b.colorNeed];
+    const rim = b.met ? MINT : col;
+    ctx.fillStyle = hexA(col, 0.05);
+    ctx.fillRect(b.x0, b.topY, b.x1 - b.x0, floorY - b.topY);
+    ctx.strokeStyle = hexA(rim, b.met ? 0.8 : 0.32 + 0.4 * b.glow);
+    ctx.lineWidth = 2.5;
+    if (b.met || b.glow > 0.02) { ctx.shadowColor = rim; ctx.shadowBlur = 12 * Math.max(b.met ? 0.7 : 0, b.glow); }
+    ctx.beginPath();
+    ctx.moveTo(b.x0 + 2, floorY - 2);
+    ctx.lineTo(b.x1 - 2, floorY - 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // quota pips
+    const pr = clamp(R * 0.42, 2.5, 6);
+    const spx = pr * 2.6;
+    const perRow = Math.max(4, Math.floor((b.x1 - b.x0 - pr * 2) / spx));
+    for (let i = 0; i < b.need; i++) {
+      const row = (i / perRow) | 0, ci = i % perRow;
+      const rowN = Math.min(perRow, b.need - row * perRow);
+      const x = (b.x0 + b.x1) / 2 + (ci - (rowN - 1) / 2) * spx;
+      const y = b.topY - pr * 1.6 - row * (pr * 2.6);
+      if (i < b.have) {
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(x, y, pr, 0, TAU); ctx.fill();
+      } else {
+        ctx.strokeStyle = hexA(col, 0.4);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(x, y, pr - 0.75, 0, TAU); ctx.stroke();
+      }
+    }
+    if (b.have > b.need) {
+      ctx.fillStyle = hexA(MINT, 0.9);
+      ctx.font = '700 ' + Math.max(9, R) + 'px system-ui,sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('+' + (b.have - b.need), b.x1 - R * 2, b.topY - pr * 1.1);
+    }
+  }
+}
+function drawBanner() {
+  if (bannerT < 0) return;
+  const a = Math.min(1, bannerT * 5) * (bannerT > 0.9 ? Math.max(0, 1 - (bannerT - 0.9) / 0.3) : 1);
+  const sc = 0.5 + 0.5 * easeOutBack(Math.min(1, bannerT / 0.35));
+  ctx.save();
+  ctx.translate(W / 2, H * 0.33);
+  ctx.scale(sc, sc);
+  ctx.globalAlpha = Math.max(0, a);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '800 ' + Math.round(Math.min(pfW * 0.11, 46)) + 'px system-ui,sans-serif';
+  ctx.shadowColor = bannerCol;
+  ctx.shadowBlur = 26;
+  ctx.fillStyle = '#eaffee';
+  ctx.fillText(bannerMsg, 0, 0);
+  ctx.shadowBlur = 0;
+  ctx.font = '600 ' + Math.round(Math.min(pfW * 0.045, 18)) + 'px system-ui,sans-serif';
+  ctx.fillStyle = hexA(bannerCol, 0.9);
+  ctx.fillText(bannerSub, 0, Math.min(pfW * 0.09, 36));
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+function drawFail(t) {
+  ctx.fillStyle = 'rgba(11,13,18,0.55)';
+  ctx.fillRect(0, 0, W, H);
+  const pulse = 0.75 + 0.25 * Math.sin(t * 4);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '800 ' + Math.round(Math.min(pfW * 0.10, 40)) + 'px system-ui,sans-serif';
+  ctx.shadowColor = CORAL;
+  ctx.shadowBlur = 22 * pulse;
+  ctx.fillStyle = '#ffd9d9';
+  ctx.fillText('TAP TO RETRY', W / 2, H * 0.33);
+  ctx.shadowBlur = 0;
+  ctx.font = '600 ' + Math.round(Math.min(pfW * 0.045, 17)) + 'px system-ui,sans-serif';
+  ctx.fillStyle = hexA(CORAL, 0.85);
+  ctx.fillText('quotas missed', W / 2, H * 0.33 + Math.min(pfW * 0.09, 34));
+}
+function draw() {
+  const t = performance.now() / 1000;
+  ctx.fillStyle = bgGrad || '#0b0d12';
+  ctx.fillRect(0, 0, W, H);
+  if (pfX > 1) {  // letterbox rails on wide screens
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, pfX, H);
+    ctx.fillRect(pfX + pfW, 0, W - pfX - pfW, H);
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pfX + 0.5, 0); ctx.lineTo(pfX + 0.5, H);
+    ctx.moveTo(pfX + pfW - 0.5, 0); ctx.lineTo(pfX + pfW - 0.5, H);
+    ctx.stroke();
+  }
+  for (const s of terr) {
+    beam(s.ax, s.ay, s.bx, s.by, s.kind === 'f' ? H - floorY + 2 : D * 0.55,
+      s.kind === 'w' ? '#2a3149' : '#222941', '#4a5578');
+  }
+  for (const peg of pegs) {
+    ctx.fillStyle = '#39415c';
+    ctx.beginPath(); ctx.arc(peg.x, peg.y, peg.r, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#5a6584';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.beginPath(); ctx.arc(peg.x - peg.r * 0.3, peg.y - peg.r * 0.3, peg.r * 0.3, 0, TAU); ctx.fill();
+  }
+  drawBins();
+  for (const dm of dams) drawDam(dm);
+  for (const g of gates) drawGate(g, t);
+  // marbles
+  const vr = R - 0.5;
+  for (const p of marbles) {
+    const a = p.lostT > 0 ? Math.max(0, 1 - p.lostT) : 1;
+    if (a <= 0) continue;
+    if (a < 1) ctx.globalAlpha = a * 0.9;
+    ctx.fillStyle = p.style;
+    ctx.beginPath();
+    if (p.squash > 0.04) ctx.ellipse(p.x, p.y, vr * (1 + 0.3 * p.squash), vr * (1 - 0.3 * p.squash), 0, 0, TAU);
+    else ctx.arc(p.x, p.y, vr, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath();
+    ctx.arc(p.x - vr * 0.32, p.y - vr * 0.32, vr * 0.3, 0, TAU);
+    ctx.fill();
+    if (a < 1) ctx.globalAlpha = 1;
+  }
+  for (const c of parts) {
+    ctx.globalAlpha = clamp(c.life, 0, 1);
+    ctx.fillStyle = c.col;
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.size * (0.4 + 0.6 * c.life), 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  if (phase === 'fail') drawFail(t);
+  drawBanner();
+}
+
+/* ---------------- input ---------------- */
+function hitGate(x, y) {
+  let best = -1, bd = Math.max(D * 1.9, 34);
+  for (let i = 0; i < gates.length; i++) {
+    const g = gates[i];
+    if (g.open) continue;
+    const tipx = g.px + Math.cos(g.a) * g.len;
+    const tipy = g.py + Math.sin(g.a) * g.len;
+    const d = pointSegD(x, y, g.px, g.py, tipx, tipy);
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
+}
+canvas.addEventListener('pointerdown', e => {
+  initAudio();
+  if (AC && AC.state !== 'running') AC.resume();
+  e.preventDefault();
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  if (phase === 'fail') { buildLevel(level); return; }
+  if (phase !== 'play') return;
+  const gi = hitGate(e.clientX, e.clientY);
+  if (gi >= 0) openGate(gi);
+});
+canvas.addEventListener('pointermove', e => { e.preventDefault(); });
+canvas.addEventListener('pointerup', e => {
+  try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+});
+canvas.addEventListener('pointercancel', () => {});
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+restartBtn.addEventListener('click', () => {
+  initAudio();
+  if (AC && AC.state !== 'running') AC.resume();
+  buildLevel(level);
+});
+
+/* ---------------- resize / main loop ---------------- */
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+  canvas.width = Math.round(w * DPR);
+  canvas.height = Math.round(h * DPR);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (w !== W || h !== H) {
+    W = w; H = h;
+    pfW = Math.min(W, H * 0.62);
+    pfX = (W - pfW) / 2;
+    R = Math.max(4.5, pfW / 34);
+    D = R * 2;
+    GRAV = H * 1.6;
+    bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, '#0b0d12');
+    bgGrad.addColorStop(1, '#131725');
+    buildLevel(level);
+  }
+}
+window.addEventListener('resize', resize);
+resize();
+
+let last = performance.now(), acc = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  let dt = now - last;
+  last = now;
+  if (dt > 50) dt = 50;
+  if (dt < 0) dt = 0;
+  acc += dt / 1000;
+  while (acc >= STEP) { physStep(); acc -= STEP; }
+  draw();
+}
+requestAnimationFrame(frame);
+
+/* ---------------- verification hooks (headless, no rAF needed) ---------------- */
+window.__game = {
+  state: () => ({
+    level: level,
+    gatesUsed: gatesUsed,
+    gatesTotal: gates.length,
+    bins: bins.map(b => ({ colorNeed: b.colorNeed, need: b.need, have: b.have })),
+    lost: lost,
+    settled: settled,
+    phase: phase
+  }),
+  stepN: n => {
+    for (let i = 0; i < n; i++) physStep();
+    draw();
+  },
+  reset: () => buildLevel(level),
+  goto: l => buildLevel(l),
+  openGate: i => openGate(i)
+};
+</script>
+</body>
+</html>

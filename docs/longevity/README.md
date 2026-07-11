@@ -1,13 +1,15 @@
-# Content-longevity playbook + three implementable designs
+# Content-longevity playbook + eight implementable designs
 
-**Purpose of this folder:** give a fresh session everything it needs to build a jfun physics game that stays fun for *hundreds* of levels — not just a demo. It captures (1) the research-backed playbook of "longevity levers," and (2) three concrete, implementable content-system designs built on our physics cores.
+**Purpose of this folder:** give a fresh session everything it needs to build a jfun physics game that stays fun for *hundreds* of levels — not just a demo. It captures (1) the research-backed playbook of "longevity levers," and (2) eight concrete, implementable content-system designs built on our physics cores.
+
+> **Starting a product? Read [`ROADMAP.md`](ROADMAP.md) first** — the full portfolio ranking, feel-test verdicts, and the decided sequence: **Quarter (Tilt 2) next, Rattle after** (building the reusable physics-faithful verifier inside Quarter).
 
 Read this README first (the shared principles), then the design you're implementing:
 - [`design-1-cut.md`](design-1-cut.md) — **Cut** (rope-cutting). Handcrafted, Cut-the-Rope path. Ceiling ~300–360. Highest feasibility (app already exists at `apps/cut`).
 - [`design-2-sort.md`](design-2-sort.md) — **Physics-sort**, now built on **Pluck** (`prototypes/03-pluck.html`, discrete pebbles). Procedural, Water-Sort scale. Ceiling ~1,500–2,500. The granular-sand "Sort" core-check was dropped (it jumbled + duplicated Pour) and folded into Pluck — **use discrete units, not loose sand.**
 - [`design-3-slingshaft.md`](design-3-slingshaft.md) — **Slingshaft** (drag-release launch). Procedural, small verifiable action space. Ceiling ~500–800. **Prototype verified working** at `prototypes/12-slingshaft.html`.
 
-Round 2 (2026-07-10, from a 30-idea ideation → dedup → 3-lens judge panel; design-only, no prototypes yet):
+Round 2 (2026-07-10, from a 30-idea ideation → dedup → 3-lens judge panel). **All five core-check prototypes are BUILT, solve-verified, and passed Qi's feel-test (2026-07-11)** — `prototypes/13-rattle.html`, `14-sluice.html`, `15-tuck.html`, `16-quarter.html`, `17-poise.html`:
 - [`design-4-rattle.md`](design-4-rattle.md) — **Rattle** (physics tap-blast; Toon Blast with the grid ripped out — pop a cluster, the pile avalanches and re-clusters). Natively discrete action space (the clusters ARE the moves). Ceiling ~2,000–5,000 — highest in the portfolio. Judge 24.9/30.
 - [`design-5-sluice.md`](design-5-sluice.md) — **Sluice** (terraced marble cascade — tap gates open in the right order, the marbles avalanche to bin quotas). Action space = finite gate permutations → exhaustive certification. Ceiling ~1,500–2,500. Judge 24.6/30.
 - [`design-6-tuck.md`](design-6-tuck.md) — **Tuck** (Verlet cloth drape — release pins so the sheet falls, folds, and covers the goal). Peak cozy-brand fit; ~250–350 hand + 800–1,500 procedural. Judge 24.2/30.
