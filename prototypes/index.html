@@ -119,7 +119,7 @@ const DATA = [
     diff:"Sheep a Sheep hit 60M players in two weeks and spawned 100+ stack-elimination clones — ALL on painted, fake piles. Jenga-style physical extraction (tug one item, the pile responds, easy picks run out) is the biggest gap between real-world love and digital exploitation; near-zero credible digital takes exist.",
     comp:["Sheep a Sheep","Triple Match 3D","Jenga","Part Time UFO"],
     growth:"One-glance goal (color → tray) carries the proven sort loop; the physical heap adds honest tension clones can't copy-paste. Time-attack + best-times give a clean score axis; haptics on every clack is the App-Store-review quote waiting to happen.",
-    score:null, verdict:"A proven-appetite verb (pluck-from-pile) upgraded with the one thing the 60M-player incumbents faked — worth feeling on device." },
+    score:null, verdict:"A proven-appetite verb (pluck-from-pile) upgraded with the one thing the 60M-player incumbents faked. NOW ALSO the studio's SORT core (longevity design B): discrete pebbles hold clean, sortable layers where granular sand jumbled — the granular 'Sort' prototype was folded in here. See docs/longevity/design-2-sort.md." },
   { n:4, file:'04-unblur.html', title:'Unblur', badge:'kept',
     pitch:"Tap where the photo looks clearest, sharpen it region-by-region, and guess what it is in the fewest focuses.",
     diff:"Aiming a limited focus budget at where detail hides is a genuine but thin feel-twist — nearly every rival sharpens the whole frame (unblur.app, Blur, What's Blurry). Free-text guessing is a UX liability (punishing on synonyms), not a moat.",
@@ -174,16 +174,10 @@ const DATA = [
     comp:["Desert Golfing","Angry Birds","Peglin","OK Golf"],
     growth:"Small discretizable action space (~aim×power) makes procedural levels solver-verifiable → ~500-800 levels for a solo dev. 3-star by shots + daily seeds. Verified in-browser: launch→arc→sink works, elements render.",
     score:null, verdict:"Core is real and feels like a game in 10 seconds. The strongest content-per-effort NEW core — a launch engine whose variety is largely procedural + verifiable." },
-  { n:13, file:'13-sort.html', title:'Sort', badge:'new',
-    pitch:"CORE CHECK (longevity design B): tip a glass to pour granular sand between glasses until each holds one pure color, using an empty buffer. 3 hand-made sort levels. The scalable 'Water Sort you can feel' bet.",
-    diff:"Water-Sort/Ball-Sort ship THOUSANDS of procedural levels; this keeps a real granular-pour feel on top. BUT feel-test caveat: free-flowing sand jumbles at the interface, so clean 'pour the top color' is fuzzy — the scalable sort may want DISCRETE stackable units (beads — closer to our Pluck) than loose sand.",
-    comp:["Water Sort","Ball Sort","Zen Match","(our) Pluck"],
-    growth:"Tiny level spec {glasses,colors,layers,buffers} → nearly-free procedural content IF the sort reads cleanly. Ceiling 1,500-2,500 with a physics-faithful verifier. Rougher than Slingshaft today — your hands decide if granular sort feels good or wants beads.",
-    score:null, verdict:"WIP core: renders and pours, but the granular-vs-clean-layers tension is real. Feel it, then tell me — retune to discrete beads / clean layers, or evaluate Pluck as the sort core." },
 ];
 
 // per-prototype [differentiation, growth] scores (1-5), from the market-research pass
-const SCORES = {1:[3,2], 2:[4.5,4], 3:[4,3.5], 4:[2,2], 5:[2,2], 6:[3,3.5], 7:[3,2], 8:[4,3], 9:[4,4.5], 10:[4,3.5], 11:[4,4.5], 12:[4,4], 13:[3.5,4]};
+const SCORES = {1:[3,2], 2:[4.5,4], 3:[4,3.5], 4:[2,2], 5:[2,2], 6:[3,3.5], 7:[3,2], 8:[4,3], 9:[4,4.5], 10:[4,3.5], 11:[4,4.5], 12:[4,4]};
 
 const esc = s => String(s==null?'':s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const pad = n => String(n).padStart(2,'0');
