@@ -35,6 +35,14 @@ A new session starting "the product": read `README.md` (playbook) → `design-7-
 
 **Tier C — recommend archiving:** Fold, Unblur, Restore, Cascade (`09/04/05/07`) — 2/5 differentiation, expensive content pipelines, no enthusiasm signal across three rounds.
 
+## Board prune — EXECUTED (2026-07-11, decided by Qi)
+
+The board went 17 → 8 cards; every remaining card is a live candidate.
+- **Graduated** (not cuts — they live in `apps/` now): **Excavate** (`apps/excavate`, shipped), **Cut** (`apps/cut`, 53-level campaign).
+- **Dropped:** Pour, Unblur, Restore, Sling, Cascade, Topple, **Drop** (Qi took the stricter line and cut the roguelite too). **Fold was kept** (Qi's call — not in the drop list).
+- **Remaining 8:** Pluck (03), Fold (09), Slingshaft (12), Rattle (13), Sluice (14), Tuck (15), Quarter (16), Poise (17).
+- Recovery: every dropped file is in git history — `git show 6030402:prototypes/<file>` (the last commit with all 17). Per studio rule, if a dropped concept returns, PORT the old prototype, don't reimplement.
+
 ## Verification learnings from the round-2 core-checks (why the verifier is non-negotiable)
 
 Of five fresh physics prototypes, **three shipped with unwinnable or mistuned levels**, all caught by driving the real engine headlessly through each game's `__game` hooks:
