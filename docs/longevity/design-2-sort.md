@@ -2,14 +2,12 @@
 
 > Read [`README.md`](README.md) first (the levers + anti-patterns this design applies).
 
-**Status:** two prototypes exist — `prototypes/02-pour.html` (freeform granular pour) and `prototypes/13-sort.html` (the sort-puzzle framing, built as a core-check). Core-check verdict below is important. Sibling: `prototypes/03-pluck.html` (discrete pebbles → color bowls).
+**Status — DECIDED (2026-07-09): the sort core is Pluck, not granular sand.** The granular-sand core-check (`13-sort.html`) played too close to `02-pour.html` (same engine, same sloshing feel) AND the loose sand jumbled, so it was **dropped** and its role **folded into Pluck** (`prototypes/03-pluck.html`, discrete pebbles → color bowls). Implement the sort core as the **discrete-unit** design below, starting from `03-pluck.html`. Keep `02-pour.html` only as a separate cozy pour "feel toy" — it is NOT the sort puzzle.
 
-**Path & ceiling:** procedural (Water-Sort / Ball-Sort ship thousands). **~1,500–2,500 levels** with the physics-faithful verifier. The tiny level spec makes content nearly free — *if* the sort reads cleanly.
+**Path & ceiling:** procedural (Water-Sort / Ball-Sort ship thousands). **~1,500–2,500 levels** with the physics-faithful verifier. The tiny level spec makes content nearly free — *if* the sort reads cleanly (which discrete units guarantee and loose sand did not).
 
-## ⚠️ Critical feel-test finding (read before building)
-The `13-sort.html` core-check used **free-flowing granular sand**. In-browser testing showed the fatal tension: **loose sand jumbles at the color interface, so "pour the top color" and "one pure glass" become fuzzy** — clean sorting is imprecise and frustrating, and purity is hard to reach. (The prototype's headless `pour(from,to)` helper is also buggy — it tips at the glass's home x without translating over the target, so sand spills; that's a separate fixable bug, but the granular fuzziness is the real problem.)
-
-**Recommendation:** the scalable sort core should use **discrete, stackable units** (beads / marbles / liquid *bands*) that hold clean layers and pour as chunks — keeping a physical feel while making the sort clean and verifiable. This is essentially our existing **Pluck** (`03-pluck.html`, discrete pebbles into color bowls). So: **either retune Sort to discrete beads/clean-layers, or adopt Pluck as the sort core.** The design below is written for the *discrete-unit* version; the granular pour is best kept as a separate "feel toy" (02-pour), not the sort puzzle.
+## ⚠️ Why discrete units, not granular sand (the finding that drove the decision)
+The `13-sort.html` core-check used **free-flowing granular sand** and showed the fatal tension: **loose sand jumbles at the color interface, so "pour the top color" and "one pure glass" are fuzzy** — clean sorting is imprecise and frustrating, purity is hard to reach, and it looked/played almost identically to `02-pour`. **Discrete, stackable units** (beads / marbles / pebbles / liquid *bands*) hold clean layers and pour/place as chunks — keeping a physical feel while making the sort unambiguous and verifiable. Our **Pluck** prototype already IS this (discrete pebbles, one-glance color→bowl), so it is the sort core. The design below is the discrete-unit version.
 
 ## Core (discrete-unit version; one verb, no second control)
 Several glasses on a shelf, some pre-filled with **stacked layers of colored beads**. Grab a glass, hover it over another, tip to pour its **top color layer** across as a clean chunk; release to set it upright. Win = every non-empty glass holds ONE pure color (upright), with minimal spill. Physically simulated (beads have real collision/settle) but the units stay discrete so layers stay clean — Water Sort you can *feel*.
@@ -49,8 +47,8 @@ Client-side daily seed (`mulberry32(day*7919+13)`, verified in-app, everyone get
 ~**1,500–2,500** shippable. Proven thousands-genre; content is a tiny spec `{containers, colors, layers/counts, empties, flags}` so the wall is verifier throughput + procedural sameness, not authoring. Hand-author ~150 backbone across the 8 tiers, then the generator + headless physics verifier carry the tail (containers 3–7 × colors 2–6 × layers × ~12 flags × gravity/shape/mirror). Stars ×3 + collection multiply perceived content ~3–5×.
 
 ## Solo-dev feasibility: HIGH (best procedural fit)
-Two working prototypes on the exact stack; `mulberry32` + headless `__game` hooks already present. **Build order:**
-1. Retune the core to discrete beads / clean layers (or fork from `03-pluck.html`); make "top color" unambiguous and purity clean.
+Start from `03-pluck.html` (discrete-pebble sort already on the exact stack; `mulberry32` + headless `__game` hooks present). **Build order:**
+1. Take Pluck's discrete-pebble sort as the core; add stacked-layer glasses / clean "top color" so purity is unambiguous (Pluck's bowls already are).
 2. Hand-author the ~150-level backbone across the 8 tiers (Levers 1–3).
 3. Build the **verifier** (the whole ballgame): Node headless, a greedy/beam pour policy over the discrete action space (which glass → which glass, when to stop), accept if PURE-SORT reached in ≥2 of K within budget with no exploit; tag by effort for sawtooth. Add to `scripts/dev/test.sh` as the regression net.
 4. Capacitor-wrap like Tilt/Cut/Excavate.

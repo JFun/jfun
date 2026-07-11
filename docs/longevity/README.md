@@ -4,8 +4,15 @@
 
 Read this README first (the shared principles), then the design you're implementing:
 - [`design-1-cut.md`](design-1-cut.md) — **Cut** (rope-cutting). Handcrafted, Cut-the-Rope path. Ceiling ~300–360. Highest feasibility (app already exists at `apps/cut`).
-- [`design-2-sort.md`](design-2-sort.md) — **Physics-sort** (Pour/Pluck family). Procedural, Water-Sort scale. Ceiling ~1,500–2,500. **Contains a critical feel-test finding: use discrete beads, not loose sand.**
+- [`design-2-sort.md`](design-2-sort.md) — **Physics-sort**, now built on **Pluck** (`prototypes/03-pluck.html`, discrete pebbles). Procedural, Water-Sort scale. Ceiling ~1,500–2,500. The granular-sand "Sort" core-check was dropped (it jumbled + duplicated Pour) and folded into Pluck — **use discrete units, not loose sand.**
 - [`design-3-slingshaft.md`](design-3-slingshaft.md) — **Slingshaft** (drag-release launch). Procedural, small verifiable action space. Ceiling ~500–800. **Prototype verified working** at `prototypes/12-slingshaft.html`.
+
+Round 2 (2026-07-10, from a 30-idea ideation → dedup → 3-lens judge panel; design-only, no prototypes yet):
+- [`design-4-rattle.md`](design-4-rattle.md) — **Rattle** (physics tap-blast; Toon Blast with the grid ripped out — pop a cluster, the pile avalanches and re-clusters). Natively discrete action space (the clusters ARE the moves). Ceiling ~2,000–5,000 — highest in the portfolio. Judge 24.9/30.
+- [`design-5-sluice.md`](design-5-sluice.md) — **Sluice** (terraced marble cascade — tap gates open in the right order, the marbles avalanche to bin quotas). Action space = finite gate permutations → exhaustive certification. Ceiling ~1,500–2,500. Judge 24.6/30.
+- [`design-6-tuck.md`](design-6-tuck.md) — **Tuck** (Verlet cloth drape — release pins so the sheet falls, folds, and covers the goal). Peak cozy-brand fit; ~250–350 hand + 800–1,500 procedural. Judge 24.2/30.
+- [`design-7-quarter.md`](design-7-quarter.md) — **Quarter / Tilt 2** (tap left/right to rotate the whole world 90°; everything tumbles). Forks the shipped Tilt engine+shell; action space = {L,R} sequences → **exhaustive full-engine tree search** (the definitive fix for the discrete-solver scar). Ceiling ~1,500–2,500. Judge 24.1/30.
+- [`design-8-poise.md`](design-8-poise.md) — **Poise** (Calder hanging-mobile balancing — hang weights on snap-hooks; the whole mobile swings and settles). Total white space; runs on Cut's rope/pin-joint solver; snap-hooks make player and verifier action spaces IDENTICAL. Ceiling ~1,500–2,500. Judge 23.8/30.
 
 > Source: an 11-agent research + design workflow (2026-07-06) over how Royal Match, Candy Crush, Cut the Rope, Where's My Water, Flow Free, Arrow Fest, Vita Mahjong, etc. sustain long content. Studio DNA it must respect: real physics, one-glance goals, one-thumb input, feel-first, **solo developer**, no-build vanilla-JS canvas + Capacitor.
 
