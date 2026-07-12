@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy to .asc-config.json (gitignored) and fill in. Create the key at App Store Connect → Users and Access → Integrations → Team Keys → generate (App Manager). Put the downloaded AuthKey_<keyId>.p8 at ~/.appstoreconnect/private_keys/ (chmod 600).",
+  "keyId": "YOUR_KEY_ID",
+  "issuerId": "YOUR_ISSUER_ID",
+  "appId": "YOUR_ASC_APP_ID"
+}

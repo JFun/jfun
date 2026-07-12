@@ -4,3 +4,6 @@ build/
 dist/
 *.log
 .env
+# App Store Connect API — never commit the private key or per-account IDs
+*.p8
+.asc-config.json
