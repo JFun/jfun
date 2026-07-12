@@ -253,8 +253,36 @@ async function pricing() {
   console.log('✓ price schedule: Free (base territory USA, point', free.id + ')');
 }
 
+async function finalize() {
+  const { verId } = await discover();
+  // Copyright — version-level attribute.
+  await api('PATCH', `/v1/appStoreVersions/${verId}`, {
+    data: { type: 'appStoreVersions', id: verId, attributes: { copyright: '2026 Cut' } },
+  });
+  console.log('✓ copyright: 2026 Cut');
+  // App Review contact + notes. PATCH email if a detail already exists (account
+  // may have pre-filled name/phone); otherwise report what's still needed.
+  const attrs = {
+    contactFirstName: 'Qili',
+    contactLastName: 'Chen',
+    contactPhone: '+1 4086217503',
+    contactEmail: 'jayfunlin@gmail.com',
+    demoAccountRequired: false,
+    notes: 'No login, accounts, or in-app purchases. Single-player offline puzzle game. External services: Firebase Analytics (Google) only - anonymous gameplay events (level_start / level_complete). No backend, ads, payment, or AI services. English-only UI, consistent across all regions.',
+  };
+  let detail = null;
+  try { detail = (await api('GET', `/v1/appStoreVersions/${verId}/appStoreReviewDetail`)).json.data; } catch (e) { /* none yet */ }
+  if (detail) {
+    await api('PATCH', `/v1/appStoreReviewDetails/${detail.id}`, { data: { type: 'appStoreReviewDetails', id: detail.id, attributes: attrs } });
+    console.log('✓ review contact updated:', attrs.contactFirstName, attrs.contactLastName, '·', attrs.contactPhone, '·', attrs.contactEmail);
+  } else {
+    await api('POST', '/v1/appStoreReviewDetails', { data: { type: 'appStoreReviewDetails', attributes: attrs, relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: verId } } } } });
+    console.log('✓ review contact created:', attrs.contactFirstName, attrs.contactLastName, '·', attrs.contactPhone, '·', attrs.contactEmail);
+  }
+}
+
 const cmd = process.argv[2] || 'orient';
-const fns = { orient, metadata, screenshots, categories, build, pricing };
+const fns = { orient, metadata, screenshots, categories, build, pricing, finalize };
 (async () => {
   try {
     if (!fns[cmd]) { console.error('unknown command:', cmd, '\navailable:', Object.keys(fns).join(', ')); process.exit(1); }

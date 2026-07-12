@@ -425,7 +425,8 @@ modules (unlike Tilt). Keep it one file.
   destination=upload, no API key — uses Xcode's signed-in Apple ID).
 - ✅ **Full App Store listing STAGED via the direct ASC API** — `scripts/dev/asc-api.cjs`
   (zero-dep Node: built-in `crypto` ES256 JWT + `https`; commands
-  `orient|metadata|screenshots|categories|build|pricing`). Pushed metadata,
+  `orient|metadata|screenshots|categories|build|pricing|finalize`, the last =
+  copyright + App Review contact/notes). Pushed metadata,
   10 screenshots, categories, build-attach, Free pricing. App Privacy (Product
   Interaction / not-linked / not-tracking / Analytics), Age Rating (4+), and
   Content Rights were done in the ASC web UI (no API for those). Auth = an ASC API
