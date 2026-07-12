@@ -281,8 +281,46 @@ async function finalize() {
   }
 }
 
+// Submit the version for App Review. IRREVERSIBLE-ish (enters Apple's queue).
+async function submit() {
+  const { verId } = await discover();
+  // MANUAL release = the app does NOT auto-go-live on approval; you click Release.
+  // Changeable anytime before release. Pass `submit auto` for AFTER_APPROVAL.
+  const releaseType = process.argv[3] === 'auto' ? 'AFTER_APPROVAL' : 'MANUAL';
+  await api('PATCH', `/v1/appStoreVersions/${verId}`, { data: { type: 'appStoreVersions', id: verId, attributes: { releaseType } } });
+  console.log('✓ release type:', releaseType);
+  // One open review submission per app — create, or reuse an existing open one.
+  let subId;
+  try {
+    const s = await api('POST', '/v1/reviewSubmissions', {
+      data: { type: 'reviewSubmissions', attributes: { platform: 'IOS' }, relationships: { app: { data: { type: 'apps', id: APP_ID } } } },
+    });
+    subId = s.json.data.id;
+    console.log('✓ review submission created:', subId);
+  } catch (e) {
+    const ex = await api('GET', `/v1/apps/${APP_ID}/reviewSubmissions?filter[platform]=IOS`);
+    const open = (ex.json.data || []).find((r) => !['COMPLETE', 'CANCELING'].includes(r.attributes.state));
+    if (!open) throw e;
+    subId = open.id;
+    console.log('  reusing open review submission:', subId, '(' + open.attributes.state + ')');
+  }
+  // Add the version to the submission (ignore if already present).
+  try {
+    await api('POST', '/v1/reviewSubmissionItems', {
+      data: { type: 'reviewSubmissionItems', relationships: { reviewSubmission: { data: { type: 'reviewSubmissions', id: subId } }, appStoreVersion: { data: { type: 'appStoreVersions', id: verId } } } },
+    });
+    console.log('✓ version added to submission');
+  } catch (e) {
+    if (!/already/i.test(e.message)) throw e;
+    console.log('  version already in submission');
+  }
+  // Finalize — this is the actual submit.
+  await api('PATCH', `/v1/reviewSubmissions/${subId}`, { data: { type: 'reviewSubmissions', id: subId, attributes: { submitted: true } } });
+  console.log('✓✓ SUBMITTED FOR REVIEW');
+}
+
 const cmd = process.argv[2] || 'orient';
-const fns = { orient, metadata, screenshots, categories, build, pricing, finalize };
+const fns = { orient, metadata, screenshots, categories, build, pricing, finalize, submit };
 (async () => {
   try {
     if (!fns[cmd]) { console.error('unknown command:', cmd, '\navailable:', Object.keys(fns).join(', ')); process.exit(1); }
