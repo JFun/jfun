@@ -180,7 +180,7 @@ const IN_PAGE = `(function(){
   // the launch phase flings it up-and-over into the basket. Release phase must
   // matter (a mistimed cut misses) — a real timing puzzle, not a free drop.
   pins.l21 = [0,30,60,90,110,130,160,190,220].map(dl=>{
-    g.setLevel(20); g.stepN(dl);
+    g.setLevel(21); g.stepN(dl); // elastic intro — moved to L22 (case 21) by the sawtooth reorder
     const rs=g.ropes(); if(!rs.length) return 'norope';
     let top=rs[0],by=1e9; for(const r of rs){ if(r.my<by){by=r.my;top=r;} } // cut near the anchor
     const dx=top.x2-top.x1, dy=top.y2-top.y1, L=Math.hypot(dx,dy)||1, e=Math.max(14,L);
@@ -190,7 +190,7 @@ const IN_PAGE = `(function(){
   // L22 (idx21, post-trim) ELASTIC × PULSE: fling through the timed gate — needs
   // BOTH the bounce phase and the gate's open window (two timings compose).
   pins.l22 = [0,60,100,120,140,160,180].map(dl=>{
-    g.setLevel(21); g.stepN(dl);
+    g.setLevel(27); g.stepN(dl); // elastic × pulse — moved to L28 (case 27) by the sawtooth reorder
     const rs=g.ropes(); if(!rs.length) return 'norope';
     let top=rs[0],by=1e9; for(const r of rs){ if(r.my<by){by=r.my;top=r;} }
     const dx=top.x2-top.x1, dy=top.y2-top.y1, L=Math.hypot(dx,dy)||1, e=Math.max(14,L);
@@ -200,7 +200,7 @@ const IN_PAGE = `(function(){
   // L23 (idx22, post-trim) ELASTIC mirror: the leftward fling — launch phase must
   // still matter (mistimed = miss/off-field).
   pins.l23 = [0,60,110,130,150,170,200].map(dl=>{
-    g.setLevel(22); g.stepN(dl);
+    g.setLevel(33); g.stepN(dl); // elastic mirror — moved to L34 (case 33) by the sawtooth reorder
     const rs=g.ropes(); if(!rs.length) return 'norope';
     let top=rs[0],by=1e9; for(const r of rs){ if(r.my<by){by=r.my;top=r;} }
     const dx=top.x2-top.x1, dy=top.y2-top.y1, L=Math.hypot(dx,dy)||1, e=Math.max(14,L);
@@ -250,13 +250,13 @@ const IN_PAGE = `(function(){
     pins.l35cap = [];
     const cutTop = () => { const rs=g.ropes(); if(!rs.length) return; let t=rs[0],by=1e9; for(const r of rs){ if(r.my<by){by=r.my;t=r;} }
       const dx=t.x2-t.x1, dy=t.y2-t.y1, L=Math.hypot(dx,dy)||1, e=Math.max(14,L); g.cutAt(t.mx+dy/L*e,t.my-dx/L*e,t.mx-dy/L*e,t.my+dx/L*e); };
-    for (let dl=0; dl<=240; dl+=30) { g.setLevel(34); g.stepN(dl); cutTop(); pins.l35cap.push(runOut(3200)); }
+    for (let dl=0; dl<=240; dl+=30) { g.setLevel(28); g.stepN(dl); cutTop(); pins.l35cap.push(runOut(3200)); } // magnet×gate → L29 (case 28) post-reorder
     // STAR-MISS guard: landing in the basket WITHOUT the star must FAIL (retry),
     // never hang in 'play' (win is star-gated + stall watchdog is !all-guarded —
     // the L43 dead-end hit on device). Sweep cut delays on L43 (trolley × star):
     // every outcome terminal.
     pins.l43miss = [];
-    for (let dl=0; dl<=360; dl+=40) { g.setLevel(42); g.stepN(dl); cutTop(); pins.l43miss.push(runOut(3200)); }
+    for (let dl=0; dl<=360; dl+=40) { g.setLevel(44); g.stepN(dl); cutTop(); pins.l43miss.push(runOut(3200)); } // trolley×star → L45 (case 44) post-reorder
   }
   // L7 (idx6) swing pin: release phase must matter across the mid-gap spike shelf.
   pins.l7 = [];
