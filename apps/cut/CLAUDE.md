@@ -419,8 +419,20 @@ modules (unlike Tilt). Keep it one file.
   scenes via `?level=N&freeze=1` / `?panel=howto` + `__game`) →
   `screenshots/appstore/{iphone-6.9,iphone-6.7,ipad-13}/*.png` at exact Apple
   sizes (1320×2868 / 1290×2796 / 2048×2732). The iPad shots showcase the framing.
-- ⏳ **TestFlight** — bump `CURRENT_PROJECT_VERSION`, archive, upload per
-  `docs/handbook/07-app-store-release.md#7`. Then ASC forms (§8) + submit.
+- ✅ **TestFlight** — build `1.0 (1)` uploaded, processed (VALID), and attached to
+  the App Store version. Use `scripts/dev/testflight.sh archive` then `… upload`
+  (2-stage so the OUTWARD upload is a separate command; `ExportOptions.plist`
+  destination=upload, no API key — uses Xcode's signed-in Apple ID).
+- ✅ **Full App Store listing STAGED via the direct ASC API** — `scripts/dev/asc-api.cjs`
+  (zero-dep Node: built-in `crypto` ES256 JWT + `https`; commands
+  `orient|metadata|screenshots|categories|build|pricing`). Pushed metadata,
+  10 screenshots, categories, build-attach, Free pricing. App Privacy (Product
+  Interaction / not-linked / not-tracking / Analytics), Age Rating (4+), and
+  Content Rights were done in the ASC web UI (no API for those). Auth = an ASC API
+  key; IDs live in **gitignored `scripts/dev/.asc-config.json`** (copy
+  `.asc-config.example.json`), the `.p8` in `~/.appstoreconnect/private_keys/`
+  (chmod 600, never committed). **REMAINING: Qi feel-tests the TestFlight build,
+  then clicks "Add for Review" (enabled — held deliberately).**
 
 - **Firebase — WIRED (2026-07-10), native-only.** Project `cut-jfun` (created via
   `firebase` CLI; app `com.jfun.cut`, App ID `1:1061025053555:ios:0658a42bccdb407d136306`).
