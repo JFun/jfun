@@ -319,8 +319,18 @@ async function submit() {
   console.log('✓✓ SUBMITTED FOR REVIEW');
 }
 
+// Change the release type without re-submitting (editable while in review /
+// before release). `release auto` = AFTER_APPROVAL, `release manual` = MANUAL.
+async function release() {
+  const { verId } = await discover();
+  const t = process.argv[3] === 'manual' ? 'MANUAL' : 'AFTER_APPROVAL';
+  await api('PATCH', `/v1/appStoreVersions/${verId}`, { data: { type: 'appStoreVersions', id: verId, attributes: { releaseType: t } } });
+  const v = await api('GET', `/v1/appStoreVersions/${verId}?fields[appStoreVersions]=releaseType,appVersionState`);
+  console.log('✓ release type now:', v.json.data.attributes.releaseType, '| state:', v.json.data.attributes.appVersionState);
+}
+
 const cmd = process.argv[2] || 'orient';
-const fns = { orient, metadata, screenshots, categories, build, pricing, finalize, submit };
+const fns = { orient, metadata, screenshots, categories, build, pricing, finalize, submit, release };
 (async () => {
   try {
     if (!fns[cmd]) { console.error('unknown command:', cmd, '\navailable:', Object.keys(fns).join(', ')); process.exit(1); }
