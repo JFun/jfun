@@ -8,16 +8,21 @@
   src: url(fonts/space-grotesk.woff2) format('woff2');
 }
 
-html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#090b11;
+/* page bg = the canvas sky gradient (#16203a→#0c1017→#090b11), so on wide screens
+   (iPad) the aspect-capped canvas is centered and its side margins read as the
+   same night sky continuing to the edges — framed, not letterboxed. */
+html,body{margin:0;padding:0;height:100%;overflow:hidden;
+  background:linear-gradient(180deg,#16203a 0%,#0c1017 55%,#090b11 100%);
   font-family:'Space Grotesk',-apple-system,system-ui,Segoe UI,Roboto,sans-serif;
   -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
-#cv{position:fixed;inset:0;display:block;touch-action:none}
-#lvl{position:fixed;top:calc(max(env(safe-area-inset-top,0px),var(--sat,0px)) + 14px);left:15px;color:#e4ebf7;
+/* left is set by resize() to center the capped canvas; page bg fills the margins */
+#cv{position:fixed;top:0;left:0;display:block;touch-action:none}
+#lvl{position:fixed;top:calc(max(env(safe-area-inset-top,0px),var(--sat,0px)) + 14px);left:calc(var(--ox,0px) + 15px);color:#e4ebf7;
   font-size:13.5px;font-weight:600;letter-spacing:2px;pointer-events:none;z-index:5;
   background:rgba(14,18,28,.58);border:1px solid rgba(255,255,255,.12);
   border-radius:999px;padding:9px 17px 8px;
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-#setBtn{position:fixed;top:calc(max(env(safe-area-inset-top,0px),var(--sat,0px)) + 10px);right:13px;
+#setBtn{position:fixed;top:calc(max(env(safe-area-inset-top,0px),var(--sat,0px)) + 10px);right:calc(var(--ox,0px) + 13px);
   width:47px;height:47px;border-radius:50%;
   border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#e8eefb;
   display:flex;align-items:center;justify-content:center;z-index:5;cursor:pointer;padding:0;
@@ -48,7 +53,7 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#090b11;
 #howto.hidden{display:none}
 #howtoTitle{position:fixed;top:calc(max(env(safe-area-inset-top,0px),var(--sat,0px)) + 24px);left:0;right:0;text-align:center;
   font:600 15px 'Space Grotesk',sans-serif;letter-spacing:4px;text-transform:uppercase;color:#e8eefb}
-#howtoClose{position:fixed;top:calc(max(env(safe-area-inset-top,0px),var(--sat,0px)) + 10px);right:13px;
+#howtoClose{position:fixed;top:calc(max(env(safe-area-inset-top,0px),var(--sat,0px)) + 10px);right:calc(var(--ox,0px) + 13px);
   width:47px;height:47px;border-radius:50%;
   border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#e8eefb;
   display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;pointer-events:auto;

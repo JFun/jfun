@@ -76,6 +76,11 @@
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 const DT=1/120;
 let W=0,H=0,DPR=1,G=0,S=40,SP=8,FLOORY=0;
+// fullW = the FULL screen width (canvas + atmospheric background span); W = the
+// aspect-capped PLAY field width (all gameplay/physics — byte-identical to phone).
+// OX = horizontal offset that centers the play field in the full canvas. On every
+// phone fullW===W and OX===0, so the framing is a pure no-op there.
+let fullW=0,OX=0;
 let level=0;
 // 20 levels, 0..19 — the design's 12 restructured per pacing research (each new
 // mechanic gets intro → develop → twist before the next; combos late; breathers
@@ -677,7 +682,13 @@ function makeBlade(cx,cy,r,speed){ blades.push({cx,cy,r,ang:0,speed:speed===unde
 // Wind zone (T6): a rect region that adds a constant acceleration (ax,ay in units
 // of H, like gravity) to any particle inside — carries the crate somewhere a
 // plain drop can't reach. Applied in physCore.
-function makeWind(x,y,w,h,ax,ay){ winds.push({x,y,w,h,ax:ax*H,ay:(ay||0)*H,t:0}); }
+// HORIZONTAL wind scales with W (calibrated to the phone aspect 844/390 so phone
+// behavior is byte-IDENTICAL to the old ax*H), making the crate's sideways reach
+// a constant fraction of the width at ANY aspect — so wind levels certified on
+// iPhone also hold on the squarer iPad (where ax*H died at <half the reach).
+// VERTICAL wind keeps ay*H (it should track gravity, which is H-scaled).
+const WIND_ASPECT_REF = 844/390;
+function makeWind(x,y,w,h,ax,ay){ winds.push({x,y,w,h,ax:ax*W*WIND_ASPECT_REF,ay:(ay||0)*H,t:0}); }
 // Magnet (T6): a point that pulls particles with a normalized inverse-square
 // force (curves the crate's fall). strength is in gravities AT the reference
 // distance 0.25W (so strength≈2 ≈ gravity there); range in W. Applied in physCore.
@@ -936,7 +947,14 @@ function buildLevel(i){
       segs.push({x1:0.18*W,y1:0.58*H,x2:0.82*W,y2:0.58*H,kind:'spike',pulse:true,period:1.5,duty:0.5,off:0});
       setBasket(0.5*W,0.90*H);
     }break;
-    case 20:{ // ELASTIC intro — the crate bounces on a stretchy cord; cut it at
+    case 20:{ // ROTOR intro — the anchor ORBITS a hub; the crate swings in a
+              // circle. Cut when it swings over the basket to drop it in.
+      const cx=0.5*W, cy=0.27*H;
+      const b=makeBox(cx,cy+0.26*H,s,0.25,'crate');
+      makeRotor(b,cx,cy,0.12*W,Math.PI/2,1.5);
+      setBasket(0.5*W,0.90*H);
+    }break;
+    case 21:{ // ELASTIC intro — the crate bounces on a stretchy cord; cut it at
               // the bottom of a bounce (moving up) to fling the crate up-and-over
               // into the basket. Timing teach: the cord stores energy, the cut
               // releases it. (GEOMETRY UNDER TUNING — probing launch landing.)
@@ -945,7 +963,44 @@ function buildLevel(i){
       makeElasticRope([[0.66*W,0.055*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'},{stiff:0.16,restScale:0.66});
       setBasket(0.70*W,0.90*H);
     }break;
-    case 21:{ // ELASTIC × PULSE twist — the cord flings the crate through a timed
+    case 22:{ // MAGNET intro — the crate falls past a magnet that curves its path
+              // sideways into the offset basket.
+      beams.push({x:0.40*W,y:0.03*H,w:0.16*W,h:0.024*H});
+      const b=makeBox(0.44*W,0.27*H,s,0.25,'crate');
+      makeRope([[0.44*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeMagnet(0.72*W,0.54*H,2.2,0.55);
+      setBasket(0.74*W,0.90*H);
+    }break;
+    case 23:{ // ROTOR develop — faster orbit + an OFFSET basket: release on the
+              // swing so momentum flings the crate sideways into it.
+      const cx=0.40*W, cy=0.30*H;
+      const b=makeBox(cx,cy+0.24*H,s,0.25,'crate');
+      makeRotor(b,cx,cy,0.14*W,Math.PI/2,2.2);
+      setBasket(0.74*W,0.90*H);
+    }break;
+    case 24:{ // MAGNET mirror — the pull curves the crate the other way.
+      beams.push({x:0.50*W,y:0.03*H,w:0.16*W,h:0.024*H});
+      const b=makeBox(0.54*W,0.27*H,s,0.25,'crate');
+      makeRope([[0.54*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeMagnet(0.26*W,0.54*H,2.2,0.55);
+      setBasket(0.24*W,0.90*H);
+    }break;
+    case 25:{ // WIND intro — cut the rope; the crate drops into a rightward gale
+              // that carries it across into a basket a straight drop would miss.
+      beams.push({x:0.20*W,y:0.03*H,w:0.16*W,h:0.024*H});
+      const b=makeBox(0.26*W,0.27*H,s,0.25,'crate');
+      makeRope([[0.26*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeWind(0.20*W,0.42*H,0.64*W,0.40*H,3.2,0);
+      setBasket(0.74*W,0.90*H);
+    }break;
+    case 26:{ // STAR intro — grab the star on the way down before landing home.
+      beams.push({x:0.42*W,y:0.03*H,w:0.16*W,h:0.024*H});
+      const b=makeBox(0.5*W,0.30*H,s,0.25,'crate');
+      makeRope([[0.5*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeStar(0.5*W,0.62*H);
+      setBasket(0.5*W,0.90*H);
+    }break;
+    case 27:{ // ELASTIC × PULSE twist — the cord flings the crate through a timed
               // GATE: two timings compose — release on the bounce AND when the
               // gate is open, or the fling is shredded. (first elastic combo.)
       beams.push({x:0.50*W,y:0.03*H,w:0.20*W,h:0.024*H});
@@ -954,103 +1009,7 @@ function buildLevel(i){
       segs.push({x1:0.56*W,y1:0.48*H,x2:0.56*W,y2:0.90*H,kind:'spike',pulse:true,period:1.4,duty:0.5,off:0}); // VERTICAL gate/doorway
       setBasket(0.84*W,0.90*H);
     }break;
-    case 22:{ // ELASTIC mirror — the cord flings the crate LEFT into the basket.
-      beams.push({x:0.20*W,y:0.03*H,w:0.20*W,h:0.024*H});
-      const b=makeBox(0.66*W,0.60*H,s,0.25,'crate');
-      makeElasticRope([[0.34*W,0.055*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'},{stiff:0.16,restScale:0.66});
-      setBasket(0.30*W,0.90*H);
-    }break;
-    case 23:{ // ROTOR intro — the anchor ORBITS a hub; the crate swings in a
-              // circle. Cut when it swings over the basket to drop it in.
-      const cx=0.5*W, cy=0.27*H;
-      const b=makeBox(cx,cy+0.26*H,s,0.25,'crate');
-      makeRotor(b,cx,cy,0.12*W,Math.PI/2,1.5);
-      setBasket(0.5*W,0.90*H);
-    }break;
-    case 24:{ // ROTOR develop — faster orbit + an OFFSET basket: release on the
-              // swing so momentum flings the crate sideways into it.
-      const cx=0.40*W, cy=0.30*H;
-      const b=makeBox(cx,cy+0.24*H,s,0.25,'crate');
-      makeRotor(b,cx,cy,0.14*W,Math.PI/2,2.2);
-      setBasket(0.74*W,0.90*H);
-    }break;
-    case 25:{ // ROTOR × SAWBLADE twist — a spinning blade waits below the orbit;
-              // an early/wrong release drops the crate onto it — time the fling to
-              // arc past it into the offset basket.
-      const cx=0.40*W, cy=0.30*H;
-      const b=makeBox(cx,cy+0.24*H,s,0.25,'crate');
-      makeRotor(b,cx,cy,0.14*W,Math.PI/2,2.2);
-      makeBlade(0.40*W,0.66*H,0.07*W,5);
-      setBasket(0.74*W,0.90*H);
-    }break;
-    case 26:{ // WIND intro — cut the rope; the crate drops into a rightward gale
-              // that carries it across into a basket a straight drop would miss.
-      beams.push({x:0.20*W,y:0.03*H,w:0.16*W,h:0.024*H});
-      const b=makeBox(0.26*W,0.27*H,s,0.25,'crate');
-      makeRope([[0.26*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      makeWind(0.20*W,0.42*H,0.64*W,0.40*H,3.2,0);
-      setBasket(0.74*W,0.90*H);
-    }break;
-    case 27:{ // UPDRAFT — a gentle up-and-right draft lofts the crate across a
-              // longer hang than the flat gales. (gentle-carry rule)
-      beams.push({x:0.16*W,y:0.03*H,w:0.14*W,h:0.024*H});
-      const b=makeBox(0.22*W,0.30*H,s,0.25,'crate');
-      makeRope([[0.22*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      makeWind(0.16*W,0.36*H,0.66*W,0.44*H,1.5,-0.5);
-      setBasket(0.66*W,0.90*H);
-    }break;
-    case 28:{ // WIND × PULSE — ride the gale across, but the gate must be open.
-      beams.push({x:0.16*W,y:0.03*H,w:0.14*W,h:0.024*H});
-      const b=makeBox(0.22*W,0.24*H,s,0.25,'crate');
-      makeRope([[0.22*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      makeWind(0.16*W,0.40*H,0.66*W,0.44*H,3.4,0);
-      segs.push({x1:0.56*W,y1:0.40*H,x2:0.56*W,y2:0.86*H,kind:'spike',pulse:true,period:1.5,duty:0.5,off:0});
-      setBasket(0.78*W,0.90*H);
-    }break;
-    case 29:{ // WIND × star — ride the gale through a star into the basket.
-              // (gentle-carry rule: soft gravity + soft gale = readable arc;
-              // hot arrivals ricochet off the basket and read as unfair)
-      G=H*1.5;
-      beams.push({x:0.18*W,y:0.03*H,w:0.14*W,h:0.024*H});
-      const b=makeBox(0.24*W,0.26*H,s,0.25,'crate');
-      makeRope([[0.24*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      makeWind(0.18*W,0.36*H,0.62*W,0.42*H,1.3,0);
-      makeStar(0.42*W,0.62*H);
-      setBasket(0.60*W,0.90*H);
-    }break;
-    case 30:{ // WIND × GATE mirror — ride the leftward gale through the doorway.
-      beams.push({x:0.82*W,y:0.03*H,w:0.14*W,h:0.024*H});
-      const b=makeBox(0.78*W,0.24*H,s,0.25,'crate');
-      makeRope([[0.78*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      makeWind(0.18*W,0.40*H,0.66*W,0.44*H,-3.4,0);
-      segs.push({x1:0.44*W,y1:0.40*H,x2:0.44*W,y2:0.86*H,kind:'spike',pulse:true,period:1.5,duty:0.5,off:0});
-      setBasket(0.22*W,0.90*H);
-    }break;
-    case 31:{ // MAGNET intro — the crate falls past a magnet that curves its path
-              // sideways into the offset basket.
-      beams.push({x:0.40*W,y:0.03*H,w:0.16*W,h:0.024*H});
-      const b=makeBox(0.44*W,0.27*H,s,0.25,'crate');
-      makeRope([[0.44*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      makeMagnet(0.72*W,0.54*H,2.2,0.55);
-      setBasket(0.74*W,0.90*H);
-    }break;
-    case 32:{ // MAGNET mirror — the pull curves the crate the other way.
-      beams.push({x:0.50*W,y:0.03*H,w:0.16*W,h:0.024*H});
-      const b=makeBox(0.54*W,0.27*H,s,0.25,'crate');
-      makeRope([[0.54*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      makeMagnet(0.26*W,0.54*H,2.2,0.55);
-      setBasket(0.24*W,0.90*H);
-    }break;
-    case 33:{ // MAGNET × SWING — a pendulum crate + a magnet: the pull bends the
-              // release arc; time the cut so the curve lands home.
-      beams.push({x:0.28*W,y:0.03*H,w:0.16*W,h:0.024*H});
-      const b=makeBox(0.62*W,0.24*H,s,0.25,'crate');
-      makeRope([[0.32*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      pushBox(b,-0.14*H,0);
-      makeMagnet(0.72*W,0.60*H,1.8,0.55);
-      setBasket(0.72*W,0.90*H);
-    }break;
-    case 34:{ // MAGNET × GATE — the pull curves the fall through a VERTICAL pulse
+    case 28:{ // MAGNET × GATE — the pull curves the fall through a VERTICAL pulse
               // gate on the way to the basket: cut so the curve arrives on the
               // open beat. Horseshoe + vertical gate bar = visually unmistakable,
               // and the timing is legible. (was a plain left-curve clone of L32 —
@@ -1065,7 +1024,46 @@ function buildLevel(i){
       segs.push({x1:0.38*W,y1:0.55*H,x2:0.38*W,y2:0.90*H,kind:'spike',pulse:true,period:1.5,duty:0.45,off:0});
       setBasket(0.24*W,0.90*H);
     }break;
-    case 35:{ // MAGNET × spike — the pull curves you clear of a spike that sits
+    case 29:{ // ROTOR × SAWBLADE twist — a spinning blade waits below the orbit;
+              // an early/wrong release drops the crate onto it — time the fling to
+              // arc past it into the offset basket.
+      const cx=0.40*W, cy=0.30*H;
+      const b=makeBox(cx,cy+0.24*H,s,0.25,'crate');
+      makeRotor(b,cx,cy,0.14*W,Math.PI/2,2.2);
+      makeBlade(0.40*W,0.66*H,0.07*W,5);
+      setBasket(0.74*W,0.90*H);
+    }break;
+    case 30:{ // UPDRAFT — a gentle up-and-right draft lofts the crate across a
+              // longer hang than the flat gales. (gentle-carry rule)
+      beams.push({x:0.16*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      const b=makeBox(0.22*W,0.30*H,s,0.25,'crate');
+      makeRope([[0.22*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeWind(0.16*W,0.36*H,0.66*W,0.44*H,1.5,-0.5);
+      setBasket(0.66*W,0.90*H);
+    }break;
+    case 31:{ // MAGNET × SWING — a pendulum crate + a magnet: the pull bends the
+              // release arc; time the cut so the curve lands home.
+      beams.push({x:0.28*W,y:0.03*H,w:0.16*W,h:0.024*H});
+      const b=makeBox(0.62*W,0.24*H,s,0.25,'crate');
+      makeRope([[0.32*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      pushBox(b,-0.14*H,0);
+      makeMagnet(0.72*W,0.60*H,1.8,0.55);
+      setBasket(0.72*W,0.90*H);
+    }break;
+    case 32:{ // TWO STARS — grab both on the straight drop before landing.
+      beams.push({x:0.42*W,y:0.03*H,w:0.16*W,h:0.024*H});
+      const b=makeBox(0.5*W,0.24*H,s,0.25,'crate');
+      makeRope([[0.5*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeStar(0.5*W,0.50*H); makeStar(0.5*W,0.70*H);
+      setBasket(0.5*W,0.90*H);
+    }break;
+    case 33:{ // ELASTIC mirror — the cord flings the crate LEFT into the basket.
+      beams.push({x:0.20*W,y:0.03*H,w:0.20*W,h:0.024*H});
+      const b=makeBox(0.66*W,0.60*H,s,0.25,'crate');
+      makeElasticRope([[0.34*W,0.055*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'},{stiff:0.16,restScale:0.66});
+      setBasket(0.30*W,0.90*H);
+    }break;
+    case 34:{ // MAGNET × spike — the pull curves you clear of a spike that sits
               // under the straight drop. (Magnet strong enough that ANY cut
               // height clears — cut height must never silently decide; Qi hit
               // the shallow-curve miss on device.)
@@ -1078,7 +1076,32 @@ function buildLevel(i){
       segs.push({x1:0.34*W,y1:0.66*H,x2:0.50*W,y2:0.66*H,kind:'spike'});
       setBasket(0.76*W,0.90*H);
     }break;
-    case 36:{ // MAGNET × LEDGE — a solid shelf sits under the straight drop: cut
+    case 35:{ // WIND × PULSE — ride the gale across, but the gate must be open.
+      beams.push({x:0.16*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      const b=makeBox(0.22*W,0.24*H,s,0.25,'crate');
+      makeRope([[0.22*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeWind(0.16*W,0.40*H,0.66*W,0.44*H,3.4,0);
+      segs.push({x1:0.56*W,y1:0.40*H,x2:0.56*W,y2:0.86*H,kind:'spike',pulse:true,period:1.5,duty:0.5,off:0});
+      setBasket(0.78*W,0.90*H);
+    }break;
+    case 36:{ // WIND × star — ride the gale through a star into the basket.
+              // (gentle-carry rule: soft gravity + soft gale = readable arc;
+              // hot arrivals ricochet off the basket and read as unfair)
+      G=H*1.5;
+      beams.push({x:0.18*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      const b=makeBox(0.24*W,0.26*H,s,0.25,'crate');
+      makeRope([[0.24*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeWind(0.18*W,0.36*H,0.62*W,0.42*H,1.3,0);
+      makeStar(0.42*W,0.62*H);
+      setBasket(0.60*W,0.90*H);
+    }break;
+    case 37:{ // ROTOR mirror-slow — a gentle reverse orbit to a left basket.
+      const cx=0.62*W, cy=0.29*H;
+      const b=makeBox(cx,cy+0.24*H,s,0.25,'crate');
+      makeRotor(b,cx,cy,0.13*W,Math.PI/2,-2.0);
+      setBasket(0.28*W,0.90*H);
+    }break;
+    case 38:{ // MAGNET × LEDGE — a solid shelf sits under the straight drop: cut
               // cold and the crate cracks on it; the pull carries you past its
               // edge into the far basket. Shelf + horseshoe = visually distinct
               // from the bare-curve levels (L31 sibling de-dup).
@@ -1092,7 +1115,16 @@ function buildLevel(i){
       segs.push({x1:0.50*W,y1:0.72*H,x2:0.90*W,y2:0.72*H,kind:'spike',pulse:true,period:1.5,duty:0.45,off:0});
       setBasket(0.74*W,0.90*H);
     }break;
-    case 37:{ // MAGNET × 2 stars — the curve threads both on its way home.
+    case 39:{ // STAR × pendulum — the star hangs in the swing path; release so the
+              // crate sweeps through it into the far basket.
+      beams.push({x:0.33*W,y:0.028*H,w:0.24*W,h:0.024*H});
+      const b=makeBox(0.75*W,0.28*H,s,0.25,'crate');
+      makeRope([[0.45*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      pushBox(b,-0.15*H,0);
+      makeStar(0.32*W,0.66*H);
+      setBasket(0.15*W,0.90*H);
+    }break;
+    case 40:{ // MAGNET × 2 stars — the curve threads both on its way home.
       beams.push({x:0.44*W,y:0.03*H,w:0.14*W,h:0.024*H});
       const b=makeBox(0.48*W,0.25*H,s,0.25,'crate');
       makeRope([[0.48*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
@@ -1100,7 +1132,12 @@ function buildLevel(i){
       makeStar(0.60*W,0.46*H); makeStar(0.70*W,0.68*H);
       setBasket(0.74*W,0.90*H);
     }break;
-    case 38:{ // MAGNET far — a long cross-field pull to the far corner.
+    case 41:{ // TROLLEY diagonal mirror.
+      const b=makeBox(0.72*W,0.42*H,s,0.25,'crate');
+      makeTrolley(b,0.80*W,0.10*H,0.30*W,0.35*H,0.40,0.15);
+      setBasket(0.18*W,0.90*H);
+    }break;
+    case 42:{ // MAGNET far — a long cross-field pull to the far corner.
       beams.push({x:0.66*W,y:0.03*H,w:0.14*W,h:0.024*H});
       // TROLLEY × MAGNET — ride the rail, cut over the pull: the magnet curves
       // your drop into the corner basket. Rail + horseshoe = distinct tableau,
@@ -1112,41 +1149,7 @@ function buildLevel(i){
       makeMagnet(0.26*W,0.62*H,2.2,0.55);
       setBasket(0.24*W,0.90*H);
     }break;
-    case 39:{ // STAR intro — grab the star on the way down before landing home.
-      beams.push({x:0.42*W,y:0.03*H,w:0.16*W,h:0.024*H});
-      const b=makeBox(0.5*W,0.30*H,s,0.25,'crate');
-      makeRope([[0.5*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      makeStar(0.5*W,0.62*H);
-      setBasket(0.5*W,0.90*H);
-    }break;
-    case 40:{ // STAR × pendulum — the star hangs in the swing path; release so the
-              // crate sweeps through it into the far basket.
-      beams.push({x:0.33*W,y:0.028*H,w:0.24*W,h:0.024*H});
-      const b=makeBox(0.75*W,0.28*H,s,0.25,'crate');
-      makeRope([[0.45*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      pushBox(b,-0.15*H,0);
-      makeStar(0.32*W,0.66*H);
-      setBasket(0.15*W,0.90*H);
-    }break;
-    case 41:{ // TWO STARS — grab both on the straight drop before landing.
-      beams.push({x:0.42*W,y:0.03*H,w:0.16*W,h:0.024*H});
-      const b=makeBox(0.5*W,0.24*H,s,0.25,'crate');
-      makeRope([[0.5*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      makeStar(0.5*W,0.50*H); makeStar(0.5*W,0.70*H);
-      setBasket(0.5*W,0.90*H);
-    }break;
-    case 42:{ // TROLLEY revisit — a mid-speed patrol to an offset basket + star.
-      const b=makeBox(0.30*W,0.42*H,s,0.25,'crate');
-      makeTrolley(b,0.18*W,0.13*H,0.74*W,0.13*H,0.40,0.2);
-      makeStar(0.5*W,0.62*H);
-      setBasket(0.80*W,0.90*H);
-    }break;
-    case 43:{ // TROLLEY diagonal mirror.
-      const b=makeBox(0.72*W,0.42*H,s,0.25,'crate');
-      makeTrolley(b,0.80*W,0.10*H,0.30*W,0.35*H,0.40,0.15);
-      setBasket(0.18*W,0.90*H);
-    }break;
-    case 44:{ // TWO STARS × tip — tip the crate through two stars into the basket.
+    case 43:{ // TWO STARS × tip — tip the crate through two stars into the basket.
       beams.push({x:0.36*W,y:0.028*H,w:0.28*W,h:0.024*H});
       const cx=0.5*W,cy=0.38*H; const b=makeBox(cx,cy,s,0.25,'crate');
       makeRope([[cx-s/2,0.052*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0});
@@ -1154,52 +1157,21 @@ function buildLevel(i){
       makeStar(0.5*W,0.58*H); makeStar(0.5*W,0.74*H);
       setBasket(0.5*W,0.90*H);
     }break;
-    case 45:{ // TIP-ORDER × gate — two ropes; tip toward the offset basket, then
-              // drop the second rope through a NARROW gate on the beat. (was a
-              // straight-drop full-gate clone of L16 — Qi spotted the dup)
-      beams.push({x:0.5*W-s*0.9,y:0.028*H,w:s*1.8,h:0.024*H});
-      const cx=0.5*W,cy=0.34*H; const b=makeBox(cx,cy,s,0.25,'crate');
-      makeRope([[cx-s/2,0.052*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0});
-      makeRope([[cx+s/2,0.052*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1});
-      segs.push({x1:0.48*W,y1:0.62*H,x2:0.82*W,y2:0.62*H,kind:'spike',pulse:true,period:1.5,duty:0.45,off:0});
-      setBasket(0.64*W,0.90*H);
+    case 44:{ // TROLLEY revisit — a mid-speed patrol to an offset basket + star.
+      const b=makeBox(0.30*W,0.42*H,s,0.25,'crate');
+      makeTrolley(b,0.18*W,0.13*H,0.74*W,0.13*H,0.40,0.2);
+      makeStar(0.5*W,0.62*H);
+      setBasket(0.80*W,0.90*H);
     }break;
-    case 46:{ // HEAVY GRAVITY, LOW HANG — the crate dangles just above a short,
-              // fast gate: a snap drop with a razor window. Visually a compressed
-              // bottom-half tableau, nothing like the high full-gate drops.
-      G=H*2.7;
-      beams.push({x:0.40*W,y:0.36*H,w:0.20*W,h:0.024*H});
-      const b=makeBox(0.5*W,0.56*H,s,0.25,'crate');
-      makeRope([[0.5*W,0.384*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      segs.push({x1:0.32*W,y1:0.74*H,x2:0.68*W,y2:0.74*H,kind:'spike',pulse:true,period:1.1,duty:0.45,off:0});
-      setBasket(0.5*W,0.90*H);
+    case 45:{ // WIND × GATE mirror — ride the leftward gale through the doorway.
+      beams.push({x:0.82*W,y:0.03*H,w:0.14*W,h:0.024*H});
+      const b=makeBox(0.78*W,0.24*H,s,0.25,'crate');
+      makeRope([[0.78*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      makeWind(0.18*W,0.40*H,0.66*W,0.44*H,-3.4,0);
+      segs.push({x1:0.44*W,y1:0.40*H,x2:0.44*W,y2:0.86*H,kind:'spike',pulse:true,period:1.5,duty:0.5,off:0});
+      setBasket(0.22*W,0.90*H);
     }break;
-    case 47:{ // ROTOR mirror-slow — a gentle reverse orbit to a left basket.
-      const cx=0.62*W, cy=0.29*H;
-      const b=makeBox(cx,cy+0.24*H,s,0.25,'crate');
-      makeRotor(b,cx,cy,0.13*W,Math.PI/2,-2.0);
-      setBasket(0.28*W,0.90*H);
-    }break;
-    case 48:{ // STAGGERED HALF-GATES — a left half-gate up high, a right half-gate
-              // below, anti-phase: the drop weaves the staircase. (was a full-gate
-              // clone)
-      beams.push({x:0.30*W,y:0.028*H,w:0.20*W,h:0.024*H});
-      const b=makeBox(0.40*W,0.26*H,s,0.25,'crate');
-      makeRope([[0.40*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      segs.push({x1:0.10*W,y1:0.50*H,x2:0.52*W,y2:0.50*H,kind:'spike',pulse:true,period:1.6,duty:0.42,off:0});
-      segs.push({x1:0.30*W,y1:0.70*H,x2:0.72*W,y2:0.70*H,kind:'spike',pulse:true,period:1.6,duty:0.42,off:0.5});
-      setBasket(0.40*W,0.90*H);
-    }break;
-    case 49:{ // DIAGONAL GATE — a slanted pulse bar across the field; the drop
-              // threads it on the beat. A tilted strip reads nothing like the
-              // flat gates. (was a full-gate clone of L16 — Qi spotted the dups)
-      beams.push({x:0.40*W,y:0.028*H,w:0.20*W,h:0.024*H});
-      const b=makeBox(0.5*W,0.24*H,s,0.25,'crate');
-      makeRope([[0.5*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
-      segs.push({x1:0.14*W,y1:0.50*H,x2:0.86*W,y2:0.68*H,kind:'spike',pulse:true,period:1.6,duty:0.42,off:0});
-      setBasket(0.5*W,0.90*H);
-    }break;
-    case 50:{ // DOUBLE GATE 2 — two staggered gates, tighter windows.
+    case 46:{ // DOUBLE GATE 2 — two staggered gates, tighter windows.
       beams.push({x:0.40*W,y:0.028*H,w:0.20*W,h:0.024*H});
       const b=makeBox(0.5*W,0.22*H,s,0.25,'crate');
       makeRope([[0.5*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
@@ -1209,6 +1181,45 @@ function buildLevel(i){
       segs.push({x1:0.30*W,y1:0.62*H,x2:0.70*W,y2:0.62*H,kind:'spike',pulse:true,period:1.6,duty:0.4,off:0.33});
       segs.push({x1:0.36*W,y1:0.78*H,x2:0.64*W,y2:0.78*H,kind:'spike',pulse:true,period:1.6,duty:0.4,off:0.66});
       setBasket(0.5*W,0.92*H);
+    }break;
+    case 47:{ // STAGGERED HALF-GATES — a left half-gate up high, a right half-gate
+              // below, anti-phase: the drop weaves the staircase. (was a full-gate
+              // clone)
+      beams.push({x:0.30*W,y:0.028*H,w:0.20*W,h:0.024*H});
+      const b=makeBox(0.40*W,0.26*H,s,0.25,'crate');
+      makeRope([[0.40*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      segs.push({x1:0.10*W,y1:0.50*H,x2:0.52*W,y2:0.50*H,kind:'spike',pulse:true,period:1.6,duty:0.42,off:0});
+      segs.push({x1:0.30*W,y1:0.70*H,x2:0.72*W,y2:0.70*H,kind:'spike',pulse:true,period:1.6,duty:0.42,off:0.5});
+      setBasket(0.40*W,0.90*H);
+    }break;
+    case 48:{ // HEAVY GRAVITY, LOW HANG — the crate dangles just above a short,
+              // fast gate: a snap drop with a razor window. Visually a compressed
+              // bottom-half tableau, nothing like the high full-gate drops.
+      G=H*2.7;
+      beams.push({x:0.40*W,y:0.36*H,w:0.20*W,h:0.024*H});
+      const b=makeBox(0.5*W,0.56*H,s,0.25,'crate');
+      makeRope([[0.5*W,0.384*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      segs.push({x1:0.32*W,y1:0.74*H,x2:0.68*W,y2:0.74*H,kind:'spike',pulse:true,period:1.1,duty:0.45,off:0});
+      setBasket(0.5*W,0.90*H);
+    }break;
+    case 49:{ // TIP-ORDER × gate — two ropes; tip toward the offset basket, then
+              // drop the second rope through a NARROW gate on the beat. (was a
+              // straight-drop full-gate clone of L16 — Qi spotted the dup)
+      beams.push({x:0.5*W-s*0.9,y:0.028*H,w:s*1.8,h:0.024*H});
+      const cx=0.5*W,cy=0.34*H; const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[cx-s/2,0.052*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0});
+      makeRope([[cx+s/2,0.052*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1});
+      segs.push({x1:0.48*W,y1:0.62*H,x2:0.82*W,y2:0.62*H,kind:'spike',pulse:true,period:1.5,duty:0.45,off:0});
+      setBasket(0.64*W,0.90*H);
+    }break;
+    case 50:{ // DIAGONAL GATE — a slanted pulse bar across the field; the drop
+              // threads it on the beat. A tilted strip reads nothing like the
+              // flat gates. (was a full-gate clone of L16 — Qi spotted the dups)
+      beams.push({x:0.40*W,y:0.028*H,w:0.20*W,h:0.024*H});
+      const b=makeBox(0.5*W,0.24*H,s,0.25,'crate');
+      makeRope([[0.5*W,0.052*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'});
+      segs.push({x1:0.14*W,y1:0.50*H,x2:0.86*W,y2:0.68*H,kind:'spike',pulse:true,period:1.6,duty:0.42,off:0});
+      setBasket(0.5*W,0.90*H);
     }break;
     case 51:{ // MAGNET × spike × star — curve clear of the spike, grab the star.
               // (retuned like L54: strong enough that any cut height clears)
@@ -2818,7 +2829,7 @@ function drawHowto(now){
   ctx.save();
   // fully opaque: the how-to is a self-contained teaching overlay; any bleed of
   // the paused level behind (busy levels ghost through even at 0.97) reads as a glitch
-  ctx.fillStyle='#080b12'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#080b12'; ctx.fillRect(-OX,0,fullW,H); // full-screen scrim (drawn inside the OX translate)
   ctx.lineCap='round'; ctx.lineJoin='round';
   HOWTO[howtoPage].draw(Math.max(0,now-howtoT0));
   ctx.restore();
@@ -3419,14 +3430,9 @@ function draw(now){
   // (the crate smears into a tall tower, confetti leave trails — the "render bug"
   // hit on device after an overnight background). This fillRect guarantees a clean
   // frame regardless of bgCv's state; makeBgCache on resume restores the pretty bg.
-  ctx.fillStyle='#090b11'; ctx.fillRect(0,0,W,H);
-  if(bgCv) ctx.drawImage(bgCv,0,0,W,H);
-  if(basket){
-    const pool=ctx.createRadialGradient(basket.x,FLOORY,0,basket.x,FLOORY,S*2.4);
-    pool.addColorStop(0,'rgba(255,183,99,0.13)'); pool.addColorStop(1,'rgba(255,183,99,0)');
-    ctx.fillStyle=pool;
-    ctx.beginPath(); ctx.ellipse(basket.x,FLOORY+2,S*2.4,S*0.55,0,0,7); ctx.fill();
-  }
+  ctx.fillStyle='#090b11'; ctx.fillRect(0,0,fullW,H);
+  if(bgCv) ctx.drawImage(bgCv,0,0,fullW,H);
+  // fireflies drift across the FULL width (atmosphere, not gameplay)
   ctx.globalCompositeOperation='lighter';
   for(const f of fireflies){
     const a=0.16+0.38*(0.5+0.5*Math.sin(f.t*1.8+f.p));
@@ -3439,6 +3445,14 @@ function draw(now){
     ctx.fillRect(f.x-0.7,f.y-0.7,1.5,1.5);
   }
   ctx.globalCompositeOperation='source-over';
+  // GAMEPLAY + overlays render in the centered play field (OX offset)
+  ctx.save(); ctx.translate(OX,0);
+  if(basket){
+    const pool=ctx.createRadialGradient(basket.x,FLOORY,0,basket.x,FLOORY,S*2.4);
+    pool.addColorStop(0,'rgba(255,183,99,0.13)'); pool.addColorStop(1,'rgba(255,183,99,0)');
+    ctx.fillStyle=pool;
+    ctx.beginPath(); ctx.ellipse(basket.x,FLOORY+2,S*2.4,S*0.55,0,0,7); ctx.fill();
+  }
   drawBeams();
   drawSegs();
   drawWinds();
@@ -3456,11 +3470,12 @@ function draw(now){
   drawBasketFront();
   drawStarBadges();
   drawFX(now);
-  if(vgCv) ctx.drawImage(vgCv,0,0,W,H);
+  if(vgCv) ctx.drawImage(vgCv,-OX,0,fullW,H); // full-width vignette (drawn at -OX inside the OX translate → screen 0..fullW)
   drawGestureHint(now);
   drawCue(now);
   if(phase==='end') drawEndCrates(now);
   drawHowto(now);
+  ctx.restore();
   if(crate&&phase==='play'&&!paused){
     const v=boxVel(crate);
     updateWhoosh(Math.hypot(v.vx,v.vy));
@@ -3468,8 +3483,9 @@ function draw(now){
 }
 /* ============================== input ============================== */
 function evtPos(e){
+  // canvas is full-screen; subtract OX so pointer maps into the centered play field
   const r=cv.getBoundingClientRect();
-  return [e.clientX-r.left,e.clientY-r.top];
+  return [e.clientX-r.left-OX,e.clientY-r.top];
 }
 // One heal path for every user gesture: rebuild a known-dead engine while we
 // hold gesture privileges; resume anything not running (incl. iOS
@@ -3597,55 +3613,83 @@ function initSettings(){
 /* ============================== boot ============================== */
 function seededRng(seed){ let s=seed; return ()=>{ s=(s*16807+11)%2147483647; return (s&0xffff)/0xffff; }; }
 function makeBgCache(){
+  // background spans the FULL screen width (fullW), so on wide screens the sky,
+  // stars, moon, mist and floor continue seamlessly into the play field's margins
+  // — no visible panel edge. Star/mound density scales with fullW/W so the margins
+  // are as starry as the centered play column.
+  const fw=fullW||W, dens=fw/W;
   const floorY=H*0.985;
   bgCv=document.createElement('canvas');
-  bgCv.width=Math.round(W*DPR); bgCv.height=Math.round(H*DPR);
+  bgCv.width=Math.round(fw*DPR); bgCv.height=Math.round(H*DPR);
   const c=bgCv.getContext('2d');
   c.scale(DPR,DPR);
   const bg=c.createLinearGradient(0,0,0,H);
   bg.addColorStop(0,'#16203a'); bg.addColorStop(0.55,'#0c1017'); bg.addColorStop(1,'#090b11');
-  c.fillStyle=bg; c.fillRect(0,0,W,H);
-  const moon=c.createRadialGradient(W*0.38,H*0.09,0,W*0.38,H*0.09,Math.max(W,H)*0.55);
+  c.fillStyle=bg; c.fillRect(0,0,fw,H);
+  const moon=c.createRadialGradient(fw*0.5-W*0.12,H*0.09,0,fw*0.5-W*0.12,H*0.09,Math.max(fw,H)*0.55);
   moon.addColorStop(0,'rgba(140,165,215,0.16)'); moon.addColorStop(1,'rgba(140,165,215,0)');
-  c.fillStyle=moon; c.fillRect(0,0,W,H*0.62);
+  c.fillStyle=moon; c.fillRect(0,0,fw,H*0.62);
   const r=seededRng(3);
   c.fillStyle='#cfd8ea';
-  for(let i=0;i<52;i++){ c.globalAlpha=0.1+r()*0.45; c.fillRect(r()*W,r()*H*0.5,0.7+r(),0.7+r()); }
+  for(let i=0;i<Math.round(52*dens);i++){ c.globalAlpha=0.1+r()*0.45; c.fillRect(r()*fw,r()*H*0.5,0.7+r(),0.7+r()); }
   c.globalAlpha=1;
   c.fillStyle='#0d1220';
-  c.beginPath(); c.ellipse(W*0.2,floorY+H*0.05,W*0.56,H*0.076,0,0,7); c.fill();
+  c.beginPath(); c.ellipse(fw*0.2,floorY+H*0.05,fw*0.56,H*0.076,0,0,7); c.fill();
   c.fillStyle='#0b0f1a';
-  c.beginPath(); c.ellipse(W*0.85,floorY+H*0.06,W*0.64,H*0.085,0,0,7); c.fill();
+  c.beginPath(); c.ellipse(fw*0.85,floorY+H*0.06,fw*0.64,H*0.085,0,0,7); c.fill();
   const mist=c.createLinearGradient(0,floorY-H*0.06,0,floorY);
   mist.addColorStop(0,'rgba(150,170,215,0)'); mist.addColorStop(1,'rgba(150,170,215,0.07)');
-  c.fillStyle=mist; c.fillRect(0,floorY-H*0.06,W,H*0.06);
-  c.fillStyle='#06080d'; c.fillRect(0,floorY,W,H-floorY);
+  c.fillStyle=mist; c.fillRect(0,floorY-H*0.06,fw,H*0.06);
+  c.fillStyle='#06080d'; c.fillRect(0,floorY,fw,H-floorY);
   c.strokeStyle='#2a3350'; c.lineWidth=2;
-  c.beginPath(); c.moveTo(0,floorY); c.lineTo(W,floorY); c.stroke();
+  c.beginPath(); c.moveTo(0,floorY); c.lineTo(fw,floorY); c.stroke();
   vgCv=document.createElement('canvas');
-  vgCv.width=Math.round(W*DPR); vgCv.height=Math.round(H*DPR);
+  vgCv.width=Math.round(fw*DPR); vgCv.height=Math.round(H*DPR);
   const v=vgCv.getContext('2d');
   v.scale(DPR,DPR);
-  const vg=v.createRadialGradient(W/2,H*0.45,H*0.25,W/2,H*0.45,H*0.8);
+  const vg=v.createRadialGradient(fw/2,H*0.45,H*0.25,fw/2,H*0.45,Math.max(fw,H)*0.8);
   vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.32)');
-  v.fillStyle=vg; v.fillRect(0,0,W,H);
+  v.fillStyle=vg; v.fillRect(0,0,fw,H);
   const ts=v.createLinearGradient(0,0,0,H*0.11);
   ts.addColorStop(0,'rgba(0,0,0,0.28)'); ts.addColorStop(1,'rgba(0,0,0,0)');
-  v.fillStyle=ts; v.fillRect(0,0,W,H*0.11);
+  v.fillStyle=ts; v.fillRect(0,0,fw,H*0.11);
 }
 function initFireflies(){
   fireflies=[];
-  for(let i=0;i<7;i++){
-    fireflies.push({x:(0.06+0.88*Math.random())*W,y:(0.16+0.55*Math.random())*H,
+  const fw=fullW||W, n=Math.round(7*fw/W);
+  for(let i=0;i<n;i++){
+    fireflies.push({x:(0.03+0.94*Math.random())*fw,y:(0.16+0.55*Math.random())*H,
       t:Math.random()*20,p:Math.random()*6.3});
   }
 }
+// The game is feel-tuned at phone aspect (~0.46). On a much wider screen (iPad
+// portrait ~0.75) filling edge-to-edge would change every trajectory, so we CAP
+// the play field's aspect at MAX_ASPECT: the canvas is sized to the capped field
+// and CENTERED, and the page's night-gradient background fills the side margins
+// (the "Night Rig" sits framed in a moonlit hall). Every phone is <=~0.563 so
+// none is capped — phones are byte-identical to before. Input is canvas-relative
+// (getBoundingClientRect), so centering needs no coordinate offset.
+// = the phone aspect the whole campaign is certified + feel-tuned at (390/844).
+// A wider screen (iPad, and even some older phones) renders at THIS aspect,
+// centered, sky in the margins — so every device plays the exact tuned game.
+// (L6's 3-rope order solve is razor-thin and breaks past ~0.47, which forces
+// this anyway; capping here also fixes it on wide older phones.)
+const MAX_ASPECT=390/844;
 function resize(){
-  const w=Math.max(200,window.innerWidth), h=Math.max(300,window.innerHeight);
+  const sw=Math.max(200,window.innerWidth), sh=Math.max(300,window.innerHeight);
   DPR=Math.min(window.devicePixelRatio||1,3);
-  cv.width=Math.round(w*DPR); cv.height=Math.round(h*DPR);
-  cv.style.width=w+'px'; cv.style.height=h+'px';
-  if(w!==W||h!==H){ W=w; H=h; makeBgCache(); initFireflies(); buildLevel(level); }
+  let w=sw; if(w/sh>MAX_ASPECT) w=Math.round(sh*MAX_ASPECT);
+  const h=sh, ox=Math.round((sw-w)/2);
+  // The CANVAS fills the whole screen (so the night sky/stars/mist span full
+  // width); GAMEPLAY renders in the centered w-wide play field (translated by OX
+  // in draw, offset by OX in input). corner HUD hugs the play field via --ox.
+  cv.width=Math.round(sw*DPR); cv.height=Math.round(h*DPR);
+  cv.style.width=sw+'px'; cv.style.height=h+'px'; cv.style.left='0px';
+  document.documentElement.style.setProperty('--ox', ox+'px');
+  const changed=(w!==W||h!==H||sw!==fullW);
+  fullW=sw; OX=ox;
+  if(w!==W||h!==H){ W=w; H=h; buildLevel(level); }
+  if(changed){ makeBgCache(); initFireflies(); }
 }
 window.addEventListener('resize',resize);
 // Recover the canvas after a long background: iOS purges the MAIN canvas + the
@@ -3654,8 +3698,8 @@ window.addEventListener('resize',resize);
 // level (progress kept) — only the render surfaces. Also reset the frame clock so
 // the accumulator doesn't dump a huge catch-up burst on the first resumed frame.
 function refreshRender(){
-  cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
-  cv.style.width=W+'px'; cv.style.height=H+'px';
+  cv.width=Math.round(fullW*DPR); cv.height=Math.round(H*DPR); // canvas is full-screen width
+  cv.style.width=fullW+'px'; cv.style.height=H+'px'; cv.style.left='0px';
   makeBgCache();
   lastT=performance.now(); acc=0;
   draw(performance.now());

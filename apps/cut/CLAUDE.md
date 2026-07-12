@@ -88,12 +88,39 @@ levels?"):**
   pulse gate; L96 triple-gate gauntlet; L73 heavy-G pendulum × star (was a
   star-drop clone of L36).
 
-**Still NOT done (Qi's "fine tune later"):** difficulty is NOT sawtooth-ordered
-(bands are all over — reorder by the harness's band output); remaining
-permutation levels could still use a feel pass. Authoring gotchas learned: combos (wind+magnet,
-rotor+gate, elastic+spike) are finicky — favor single-mechanic + gravity/mirror/
-star; stars must sit ON a deterministic path (drops, magnet curves) not narrow
-fling arcs; **case N = level N+1** (watch the off-by-one when fixing a failure).
+**SAWTOOTH ORDERING DONE (2026-07-11).** L1-20 (the hand-designed verb campaign)
+was already well-paced; L21-53 opened with 3 hard elastic levels then sagged into
+6 easy magnet/star levels. Reordered cases 20-52 (keeping L1-20 + the finale case
+52 fixed) into a clean easy↔hard sawtooth — new band curve
+`1 3 1 3 1 2 1 3 1 3 1 3 1 3 1 4 1 3 1 4 1 3 1 2 4 1 2 3 1 2 1 3 3`, the three
+v.hard peaks spread far apart, ramp to the finale. **Teaching is carried by the
+first-encounter CUES** (each mechanic's cue fires on first appearance), so the
+reorder introduces mechanics faster (~5 in the first 7) but each is still taught;
+the trade was Qi-approved over chapter-grouped teaching. Reorder = a python
+case-block splice (`/tmp/reorder_sawtooth.py` pattern, same as the trim);
+`NEWORDER` is the permutation of old cases. **Renumber gotcha: every pin that
+setLevel()s a moved level had to be remapped** — l21/l22/l23 elastic (→ cases
+21/27/33), l35cap magnet-capture (→ case 28), l43miss star-miss (→ case 44). The
+full suite is the safety net (reorder can't change solvability, only sequence).
+Authoring gotchas: combos (wind+magnet, rotor+gate, elastic+spike) are finicky —
+favor single-mechanic + gravity/mirror/star; stars must sit ON a deterministic
+path (drops, magnet curves) not narrow fling arcs; **case N = level N+1**.
+
+**UNIVERSAL iPad (2026-07-11) — aspect-capped framing, not a re-tune.** Cut fills
+the screen and mixes W-scaled sizes with H-scaled gravity, so a squarer iPad
+aspect (~0.75) changes trajectories. Rather than re-tune 53 levels, the play field
+is CAPPED at the phone aspect (`MAX_ASPECT=390/844`): the CANVAS is full-screen so
+the sky/stars/moon/mist/fireflies/floor span the whole width (seamless, no
+letterbox), and GAMEPLAY renders in a centered `W`-wide field translated by `OX`
+(see draw()). `fullW`=screen width, `W`=capped play width; **on every phone
+fullW===W and OX===0 → a pure no-op, phone byte-identical** (verified by suite +
+screenshot). Input subtracts OX (`evtPos`); corner HUD hugs the field via CSS
+`--ox`; the howto scrim + vignette draw at full width. Harness: `node
+fairness.cjs ipad` certifies at the capped iPad aspect (all 53 pass). Also fixed:
+horizontal WIND now scales with W (calibrated to phone aspect so phone is
+identical) — reach is aspect-consistent, so wind levels hold on iPad. L6's 3-rope
+order is razor-thin to aspect (breaks past ~0.47), which is what forced the
+phone-exact cap — capping there also fixes it on wide older phones.
 
 ## The game
 
@@ -378,7 +405,22 @@ modules (unlike Tilt). Keep it one file.
   `xcrun devicectl device info processes --device <ID> --json-output /tmp/x.json`
   then grep the file — devicectl `--filter` predicates on `executable` throw.
 
-## Status / follow-ons (not done yet)
+## Status / follow-ons
+
+**Release engineering (App Store, name "Cut: Night Rig", Universal):**
+- ✅ **Firebase** wired + GA enabled (see below).
+- ✅ **Universal iPad** — aspect-capped seamless framing (see the UNIVERSAL iPad
+  block above). `TARGETED_DEVICE_FAMILY="1,2"` + `UIRequiresFullScreen` already set.
+- ✅ **Support + privacy pages** — `docs/cut/{index,support,privacy}.html` (Night
+  Rig palette, same analytics disclosure as Tilt). Serve at
+  `https://jfun.github.io/jfun/cut/support.html` + `/privacy.html` once merged →
+  the ASC Support URL + Privacy Policy URL.
+- ✅ **Screenshots** — `scripts/dev/shots.cjs` (self-contained CDP harness; poses
+  scenes via `?level=N&freeze=1` / `?panel=howto` + `__game`) →
+  `screenshots/appstore/{iphone-6.9,iphone-6.7,ipad-13}/*.png` at exact Apple
+  sizes (1320×2868 / 1290×2796 / 2048×2732). The iPad shots showcase the framing.
+- ⏳ **TestFlight** — bump `CURRENT_PROJECT_VERSION`, archive, upload per
+  `docs/handbook/07-app-store-release.md#7`. Then ASC forms (§8) + submit.
 
 - **Firebase — WIRED (2026-07-10), native-only.** Project `cut-jfun` (created via
   `firebase` CLI; app `com.jfun.cut`, App ID `1:1061025053555:ios:0658a42bccdb407d136306`).

@@ -2,7 +2,15 @@
 
 > Read [`README.md`](README.md) first (the levers + anti-patterns this design applies).
 
-**Status:** core-check **BUILT + VERIFIED + FEEL-PASSED** (2026-07-11) at `prototypes/14-sluice.html` — gate→avalanche→quota-fill→win verified across all 3 levels via `__game.openGate`; passed Qi's feel-test ("high quality"). Judged 24.6/30 of 30 candidates. **Verification war story (why the verifier pipeline must come FIRST for this game):** 2 of its 3 core-check levels shipped mistuned — L1's splitter peg sat outside the ballistic stream (18/2 bin split, unwinnable; peg moved into the stream → 13/7 win) and L2's delivery shelf was too shallow (5.5°, half the pool stalled; steepened + quota matched to verified flow). Sluice's levels are geometry-sensitive; never author without the solve check. Reusable code: `prototypes/02-pour.html` (marble medium), `11-drop.html` (pegs/bins), `apps/cut/scripts/dev/fairness.cjs` (certifier pattern), `apps/moraine` (shared engine module).
+**Status:** core-check **BUILT + FEEL-PASSED** (2026-07-11) at `prototypes/14-sluice.html`; **all 3 levels re-verified 2026-07-12 after Qi found L2 unsolvable by hand.** Judged 24.6/30 of 30 candidates.
+
+**Verification war story — read this before authoring ANY Sluice level (it is the whole design's thesis):**
+1. **Stale-page verification burned us.** The original "verified" pass ran against a browser page that had silently failed to reload — it certified geometry that never existed. Rule: before trusting any in-browser verification, **assert the loaded state matches the current file** (e.g., read a quota/param you just changed out of `__game.state()`).
+2. **Containment, not aim.** With this engine's floaty gravity (GRAV=900, ~1s falls) a lip-launched marble drifts ~0.3–0.6 playfield-widths, so free-fall aiming and knife-edge splitters can never be robust. Working levels put a **walled shaft** under every drop (L2: floor-to-0.30H divider — flyers physically cannot reach the wrong bin) and set quotas **below the worst verified delivery** (L1: 7/13 split → quotas 5/8; L2: 16→9, 22→15).
+3. **Timing is part of solvability.** L2 is verified as a **matrix**: both gate orders × six tap delays (30–2400 steps) = 12/12 wins, plus single-gate-open must stay in 'play'. A single-timing pass proves nothing a player will experience.
+4. **Pressure must substitute for impact.** The dam's hit counter never fired for slow queues (they lean, they don't strike); the pressure-yield watchdog was gated on `hits>0` and dead. A leaning crowd now grinds any dam down in ~2.5s — no softlock is possible.
+
+Sluice's levels are the most geometry-sensitive in the portfolio; never author one without the same-engine solve check. Reusable code: `prototypes/02-pour.html` (marble medium), `11-drop.html` (pegs/bins), `apps/cut/scripts/dev/fairness.cjs` (certifier pattern), `apps/moraine` (shared engine module).
 
 **Path & ceiling:** procedural, Water-Sort-scale. **~1,500–2,500 levels** realistic for a solo dev. The cheapest verification on the roster — the action space is a *finite permutation set*, so certification is exhaustive, not sampled. Market angle: the sort/screw genre's physics evolution (sort/screw IAP ≈ $87M in Q1 2025), with no owner of the cascade fantasy since Maxis's *Marble Drop* (1997).
 

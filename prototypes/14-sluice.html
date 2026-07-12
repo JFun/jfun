@@ -227,29 +227,39 @@ function buildLevel(l) {
     addSeg(basin.ax, basin.ay, basin.bx, basin.by);
     addSeg(nx(0.345), ny(0.215), nx(0.88), ny(0.33));            // shelf A (down-right)
     addSeg(nx(0.96), ny(0.435), nx(0.40), ny(0.56));             // shelf B (down-left)
-    pegs.push({ x: nx(0.22), y: ny(0.68), r: D * 1.05 });   // sits in the ballistic stream, above the bin divider — splits the avalanche
+    pegs.push({ x: nx(0.255), y: ny(0.66), r: D * 1.2 });   // in the stream's midline above the divider — splits the avalanche
     addWall(0.015, 5); addWall(0.26, 3.2); addWall(0.50, 5);
-    mkBin(0.015, 0.26, 'any', 6, 3.2);
-    mkBin(0.26, 0.50, 'any', 6, 3.2);
+    mkBin(0.015, 0.26, 'any', 5, 3.2);   // deterministic split delivers 7 — margin 2
+    mkBin(0.26, 0.50, 'any', 8, 3.2);    // deterministic split delivers 13 — margin 5
     mkGate(0.34, ny(0.212), 5.2, -1.745, nx(0.88) - nx(0.345), ny(0.33) - ny(0.215));
     spawnPool(0.04, 0.325, basin, 24, i => (i % 2 ? 's' : 'a'), rng);
   } else if (level === 2) {
-    // ORDER matters: open HIGH gate first (sky fills near bin), then LOW (amber
-    // overflows the crest into the far bin). Low-first buries the near bin in amber.
-    const basin = { ax: nx(0.03), ay: ny(0.15), bx: nx(0.29), by: ny(0.175) };
-    addSeg(basin.ax, basin.ay, basin.bx, basin.by);
-    addSeg(nx(0.30), ny(0.18), nx(0.50), ny(0.235));             // shelf A (short, drops mid)
-    const sB = { ax: nx(0.96), ay: ny(0.40), bx: nx(0.24), by: ny(0.525) };
-    addSeg(sB.ax, sB.ay, sB.bx, sB.by);                          // shelf B (down-left; steep enough that the released pool actually delivers)
-    addSeg(nx(0.605), ny(0.235), nx(0.605), ny(0.39), 'w');      // baffle: drops sky onto shelf B
-    addWall(0.04, 6); addWall(0.34, 3.2); addWall(0.62, 5.5);
-    mkBin(0.04, 0.34, 's', 10, 3.2);
-    mkBin(0.34, 0.62, 'a', 9, 3.2);   // flow reliably delivers ~10 of 22 — quota below that; extras piling elsewhere is fine
-    mkGate(0.295, ny(0.178), 5.0, -1.745, nx(0.50) - nx(0.30), ny(0.235) - ny(0.18));  // HIGH
-    const gy = segYat(sB.ax, sB.ay, sB.bx, sB.by, nx(0.615));
-    mkGate(0.615, gy, 6.0, -1.396, nx(0.24) - nx(0.615), ny(0.47) - gy);               // LOW
-    spawnPool(0.035, 0.288, basin, 16, () => 's', rng);
-    spawnPool(0.645, 0.945, sB, 22, () => 'a', rng);
+    // TWO gates, TWO independent paths (rebuilt 2026-07-11 — the original
+    // order-matters geometry funneled the sky through a one-marble-wide slot
+    // and was unsolvable; see docs/longevity/design-5-sluice.md).
+    // Sky: high-left basin -> gate -> ride the mid shelf down-left into bin 1.
+    // Amber: mid-right basin -> gate -> free fall into bin 2. Any tap order wins.
+    // fully separated paths with GUIDED chutes: each pool drains over its gate
+    // onto a near-vertical chute that delivers just above its own bin — no
+    // free-fall ballistics (GRAV=900 + ~0.5H drops made aim drift ~0.3·pfW).
+    const basinS = { ax: nx(0.60), ay: ny(0.115), bx: nx(0.22), by: ny(0.175) };
+    addSeg(basinS.ax, basinS.ay, basinS.bx, basinS.by);          // sky basin (~19° — drains, no stall)
+    const basinA = { ax: nx(0.95), ay: ny(0.26), bx: nx(0.64), by: ny(0.325) };
+    addSeg(basinA.ax, basinA.ay, basinA.bx, basinA.by);          // amber basin (~24°)
+    // CONTAINMENT, not aim: with GRAV=900 a lip exit drifts ~0.3-0.6 pfW, so each
+    // drop zone is a walled shaft. Sky lip (0.21) drops between the tall 0.05 wall
+    // and a floor-to-0.30H divider at 0.38; amber lip (0.63) drops right of that
+    // divider (its top stands ABOVE the amber lip, so leftward flyers slam it and
+    // fall into bin 2). No marble can physically reach the wrong bin.
+    addWall(0.05, 8);
+    addSeg(nx(0.38), floorY, nx(0.38), ny(0.30), 'w');           // tall divider shaft wall
+    addWall(0.78, 6);
+    mkBin(0.05, 0.38, 's', 9, 3.2);    // 16 spawn — wide margin (worst observed delivery: 10)
+    mkBin(0.38, 0.78, 'a', 15, 3.2);   // 22 spawn — worst observed delivery: 20
+    mkGate(0.21, ny(0.176), 4.0, -1.396, nx(0.15) - nx(0.21), ny(0.24) - ny(0.176));   // sky gate: steep open ramp onto the chute
+    mkGate(0.63, ny(0.326), 4.0, -1.396, nx(0.57) - nx(0.63), ny(0.39) - ny(0.326));   // amber gate: steep open ramp onto the chute
+    spawnPool(0.24, 0.58, basinS, 16, () => 's', rng);
+    spawnPool(0.66, 0.93, basinA, 22, () => 'a', rng);
   } else {
     // breakable dam mid-slope; breaking it also unseals the trapped violet side-pool
     const basin = { ax: nx(0.68), ay: ny(0.16), bx: nx(0.96), by: ny(0.14) };
@@ -636,16 +646,18 @@ function runCheck() {
     if (met && !b.met) { sndMet(); b.glow = 1; }
     b.met = met;
   }
-  // dam pressure yield: a resting crowd grinds a cracked dam down (no softlock)
+  // dam pressure yield: a leaning crowd grinds the dam down even without hard
+  // impacts (slow queues never clear the hit threshold — no softlock, ever)
   for (const dm of dams) {
-    if (dm.broken || dm.hits === 0) continue;
+    if (dm.broken) continue;
     let near = 0;
     for (const p of marbles) {
       if (p.lostT > 0) continue;
-      if (Math.abs(p.x - dm.x) < 1.6 * D && p.y > dm.yTop && p.y < dm.yBot + D) near++;
+      if (Math.abs(p.x - dm.x) < 3.5 * D && p.y > dm.yTop && p.y < dm.yBot + D) near++;
     }
-    if (near >= 5) {
+    if (near >= 3) {
       dm.pressT += 10 * STEP;
+      dm.shake = Math.max(dm.shake, 0.4);
       if (dm.pressT > 2.5) breakDam(dm);
     } else dm.pressT = 0;
   }

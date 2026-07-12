@@ -134,6 +134,11 @@ const landProbe = (idx) => `(function(){
 (async () => {
   const mode = process.argv[2];
   const args = process.argv.slice(2).map(Number).filter(n => !isNaN(n));
+  // `ipad` token → certify at iPad-portrait aspect (~0.75) instead of phone
+  // (~0.46). Cut fills the screen and mixes W-scaled sizes with H-scaled gravity,
+  // so the aspect ratio changes trajectories — this measures which levels survive.
+  const ipad = process.argv.includes('ipad');
+  const VW = ipad ? 1024 : 390, VH = ipad ? 1366 : 844;
   // range | single | all (all → 0..LAST, queried live so new levels are covered)
   let lo = 0, hi = null, fine = false;
   if (args.length === 1) { lo = hi = args[0] - 1; fine = true; }
@@ -152,7 +157,8 @@ const landProbe = (idx) => `(function(){
   if (!client) { chrome.kill(); server.close(); throw new Error('no Chrome on ' + CDP_PORT); }
   const { Page, Runtime, Emulation } = client;
   await Runtime.enable(); await Page.enable();
-  await Emulation.setDeviceMetricsOverride({ width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+  await Emulation.setDeviceMetricsOverride({ width: VW, height: VH, deviceScaleFactor: 2, mobile: true });
+  if (ipad) console.log(`  [iPad aspect ${VW}x${VH} = ${(VW/VH).toFixed(2)}]`);
   await Page.navigate({ url: `http://localhost:${HTTP_PORT}/?sat=0&sab=0` });
   await Page.loadEventFired();
   for (let i = 0; i < 40; i++) { const r = await Runtime.evaluate({ expression: 'typeof window.__game', returnByValue: true }); if (r.result.value === 'object') break; await sleep(150); }
