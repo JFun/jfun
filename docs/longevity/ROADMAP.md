@@ -11,6 +11,10 @@
 
 A new session starting "the product": read `README.md` (playbook) → `design-7-quarter.md` (spec) → play `prototypes/16-quarter.html` (the verified core) → follow the design's build order. The Tilt app (`apps/tilt`) is the engine/shell to fork; its memory-worthy gotchas live in the app's CLAUDE.md and the design doc.
 
+## Live-app depth track (2026-07-12): Tilt 1.x
+
+Qi flagged that shipped **Tilt** lacks longevity depth and proposed slopes / floors / planets — all adopted in adapted form. The full plan is [`tilt-depth.md`](tilt-depth.md): 7-element world ladder (ice → sand → wind → bumpers → bowls/domes → wells+grates → plates), planets as one-element-per-chapter structure, Qi's **wells** multi-floor design, a physics-bot certifier (`certify.cjs`), board-free meta (feats/gems/diamond/daily), and a hard Tilt-vs-Quarter split (Tilt = continuous dexterity + field elements; Quarter keeps commitment puzzles + undo + thousands-scale). **Quarter remains the next product** — only Tilt Phases 0–2 (meta + plumbing + certifier) run before/between Quarter milestones.
+
 ## Feel-test verdicts (Qi, on device/browser)
 
 - **2026-07-11 — all five round-2 core-checks PASSED**: Rattle, Sluice, Tuck, Quarter, Poise — "high quality ones." First round ever with zero cuts (round 3 lost 6 of 11). What changed: longevity-led, verifier-first design docs BEFORE building, and every level solve-checked with the real engine before the feel-test.
