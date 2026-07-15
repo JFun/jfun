@@ -1,0 +1,125 @@
+/* QUARTER (Tilt 2) — "cool-blue-led" sibling to Tilt's Arcade Night.
+   Tilt is warm-gold-led ("steady hands"); Quarter is periwinkle-led
+   ("clever turns"). Gold survives only as the goal + win colour (soul
+   continuity). Per apps/quarter/design/design_handoff/README.md. */
+:root {
+  --ink: #eef1ff; --dim: #a99fe0; --dim2: #8b84b8;
+  --peri: #8fb2ff; --peri-d: #5c7fe0;
+  --gold: #ffce6b;
+  --card1: #241f4c; --card2: #161232; --border: #3d3770;
+  --chip: #1c1940; --chipb: #34305e; --tile: #100d28;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; padding: 0; height: 100%; overflow: hidden;
+  background: radial-gradient(130% 100% at 50% -18%, #2a2650, #17142f 55%, #0a081c);
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  overscroll-behavior: none;
+  font-family: Nunito, system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+}
+#c { position: fixed; inset: 0; display: block; touch-action: none; z-index: 1; }
+
+/* header */
+#top {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 3;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: max(10px, env(safe-area-inset-top)) 14px 6px;
+  pointer-events: none;
+}
+#top .ic, #ctrl button { pointer-events: auto; }
+.ic {
+  width: 42px; height: 42px; border-radius: 50%;
+  border: 1px solid var(--chipb); background: rgba(28,25,64,.72);
+  color: var(--dim); display: grid; place-items: center;
+  cursor: pointer; transition: transform .12s, color .15s;
+}
+.ic:active { transform: scale(.9); color: var(--peri); }
+#hud { text-align: center; }
+#hudLine {
+  font-family: "Lilita One", Nunito, sans-serif; font-size: 20px; letter-spacing: .04em;
+  color: var(--ink); text-shadow: 0 1px 6px rgba(0,0,0,.5);
+}
+#hudLine .dot { color: var(--dim2); }
+#pips { display: flex; gap: 5px; justify-content: center; margin-top: 5px; min-height: 9px; }
+.pip {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #2a2652; border: 1px solid #3a3568;
+}
+.pip.on { background: var(--peri); border-color: var(--peri); box-shadow: 0 0 7px rgba(143,178,255,.7); }
+.pip.par { box-shadow: 0 0 0 2px rgba(255,206,107,.7); }
+
+/* hint pill */
+#hint {
+  position: fixed; left: 50%; z-index: 2; transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom) + 108px);
+  background: rgba(28,25,64,.8); border: 1px solid var(--chipb);
+  color: var(--dim); font: 700 13px Nunito, sans-serif; letter-spacing: .02em;
+  padding: 8px 15px; border-radius: 999px; white-space: nowrap;
+  pointer-events: none; transition: opacity .6s;
+}
+#hint.off { opacity: 0; }
+
+/* bottom control cluster */
+#ctrl {
+  position: fixed; left: 0; right: 0; z-index: 3;
+  bottom: calc(env(safe-area-inset-bottom) + 20px);
+  display: flex; align-items: center; justify-content: center; gap: 18px;
+}
+.turnb {
+  width: 78px; height: 78px; border-radius: 24px; border: none;
+  background: linear-gradient(180deg, var(--peri), var(--peri-d));
+  color: #14163a; cursor: pointer;
+  display: grid; place-items: center;
+  box-shadow: 0 6px 0 #3a56a8, 0 10px 18px rgba(0,0,0,.4);
+  transition: transform .1s, box-shadow .1s;
+}
+.turnb:active { transform: translateY(4px); box-shadow: 0 2px 0 #3a56a8, 0 5px 10px rgba(0,0,0,.4); }
+#undoBtn {
+  min-width: 84px; height: 52px; border-radius: 16px;
+  border: 1px solid var(--chipb); background: var(--chip);
+  color: var(--dim); font: 900 15px Nunito, sans-serif; letter-spacing: .1em;
+  cursor: pointer; transition: transform .1s, opacity .15s, color .15s;
+}
+#undoBtn:active { transform: translateY(2px); }
+#undoBtn:disabled { opacity: .38; }
+
+/* overlay card (solved / no-way-home) */
+#ov {
+  position: fixed; inset: 0; z-index: 5; display: none;
+  align-items: center; justify-content: center;
+  background: rgba(8,6,22,.62); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  padding: 24px;
+}
+#ov.show { display: flex; }
+#card {
+  width: min(92vw, 380px);
+  background: linear-gradient(180deg, var(--card1), var(--card2));
+  border: 1px solid var(--border); border-radius: 26px;
+  padding: 26px 22px 22px; text-align: center;
+  box-shadow: 0 24px 60px rgba(0,0,0,.55);
+  animation: qpop .36s cubic-bezier(.2, 1.4, .4, 1);
+}
+@keyframes qpop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+#card h2 { font-family: "Lilita One", sans-serif; font-size: 46px; margin: 4px 0 2px; letter-spacing: .02em; }
+#card .sub { color: var(--dim); font-weight: 800; font-size: 15px; margin-bottom: 16px; }
+#card .stars { display: flex; gap: 10px; justify-content: center; margin: 2px 0 12px; }
+#card .stars svg { filter: drop-shadow(0 0 8px rgba(255,206,107,.55)); }
+#card .stats { display: flex; gap: 10px; margin: 4px 0 18px; }
+#card .stat {
+  flex: 1; background: var(--tile); border: 1px solid var(--chipb); border-radius: 14px; padding: 10px 4px;
+}
+#card .stat .lab { color: var(--dim2); font-weight: 800; font-size: 11px; letter-spacing: .12em; }
+#card .stat .val { font-family: "Lilita One", sans-serif; font-size: 26px; margin-top: 2px; }
+#card .stat .val.gold { color: var(--gold); }
+#card .msg { color: var(--dim); font-weight: 700; font-size: 15px; line-height: 1.45; margin: 0 4px 18px; }
+#card .row { display: flex; gap: 10px; }
+#card button {
+  flex: 1; height: 54px; border-radius: 16px; border: none; cursor: pointer;
+  font: 900 16px Nunito, sans-serif; letter-spacing: .04em;
+  transition: transform .1s;
+}
+#card button:active { transform: translateY(2px); }
+#card .primary { background: linear-gradient(180deg, var(--peri), var(--peri-d)); color: #14163a; }
+#card .ghost { background: var(--chip); border: 1px solid var(--chipb); color: var(--dim); flex: 0 0 auto; min-width: 64px; }
+#card .foot { color: var(--dim2); font-size: 11.5px; font-weight: 700; margin-top: 14px; letter-spacing: .02em; }

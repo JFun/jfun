@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; background: #0a0812; }
+    @keyframes qpop { from { transform: scale(.85); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+    @keyframes qfloat { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-5px) } }
+  </style>
+</helmet>
+
+<section style="display:flex; flex-direction:column; gap:30px; padding:56px 56px 8px; width:max-content">
+  <div style="display:flex; flex-direction:column; gap:8px">
+    <div style="display:flex; align-items:center; gap:12px">
+      <div style="font-family:'Lilita One'; font-size:30px; letter-spacing:.14em; background:linear-gradient(90deg,#8fb2ff,#c6a8ff,#ffce6b); -webkit-background-clip:text; background-clip:text; color:transparent">QUARTER</div>
+      <div style="font:800 11px/1 ui-monospace,Menlo,monospace; color:#0a0812; background:#8fb2ff; border-radius:6px; padding:6px 8px; letter-spacing:.08em">TILT&nbsp;2</div>
+    </div>
+    <div style="font:12px/1.6 ui-monospace,Menlo,monospace; color:#6b6788; max-width:900px">tap left / right → the whole square board turns 90° and everything tumbles live · par is <b style="color:#c9c3ea">turns</b>, not time · it has what Tilt never can: <b style="color:#c9c3ea">undo</b> + an exhaustive solver that knows when you're stuck · boards below run the <b style="color:#c9c3ea">real ported prototype physics</b> (design-7-quarter.md · prototypes/16-quarter.html) · sibling to Tilt's Arcade Night: cool violet world + periwinkle turn accent, gold goal kept for soul</div>
+  </div>
+
+  <div style="display:flex; gap:44px; align-items:flex-start; flex-wrap:wrap">
+
+    <!-- ============================ 1a — PLAY (live) ============================ -->
+    <div id="1a" style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:flex-start; gap:11px">
+        <a href="#1a" style="font:700 12px/1 ui-monospace,Menlo,monospace; color:#0a0812; background:#8fb2ff; border-radius:8px; padding:7px 9px; text-decoration:none">1a</a>
+        <div style="display:flex; flex-direction:column; gap:3px">
+          <div style="font:700 15px/1.2 -apple-system,sans-serif; color:#eef1ff">Play — the rotation verb (live)</div>
+          <div style="font:12px/1.5 -apple-system,sans-serif; color:#6b6788; max-width:320px">Tap a side, the world turns. Turn-pips + par are the hero readout; the two arrow zones are the whole verb, and UNDO sits between them — Quarter's signature.</div>
+        </div>
+      </div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" status-bar="{{ false }}" dark="{{ true }}" hint-size="402px,874px">
+        <div style="width:100%; height:100%; position:relative; overflow:hidden; background:radial-gradient(130% 100% at 50% -18%, #2a2650 0%, #17142f 46%, #0a081c 100%); color:#eef1ff; font-family:'Nunito',-apple-system,sans-serif; user-select:none">
+          <!-- teach: the two tap halves -->
+          <div style="position:absolute; inset:0; display:flex; pointer-events:none">
+            <div style="flex:1; background:linear-gradient(90deg,#8fb2ff14,transparent 60%)"></div>
+            <div style="flex:1; background:linear-gradient(270deg,#8fb2ff14,transparent 60%)"></div>
+          </div>
+          <div style="position:relative; width:100%; height:100%; display:flex; flex-direction:column; padding:60px 18px 30px; gap:12px">
+            <!-- header -->
+            <div style="display:flex; align-items:center; justify-content:space-between; flex:0 0 auto">
+              <button style="width:40px; height:40px; padding:0; border-radius:13px; border:1px solid #34305e; background:#1c1940; color:#a99fe0; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px -4px #000" style-active="transform:scale(.94)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>
+              </button>
+              <div style="display:flex; flex-direction:column; align-items:center; gap:5px">
+                <div style="font-weight:900; font-size:11px; letter-spacing:.2em; color:#8b84b8"><span id="qTurnNum">TURN 0</span> · PAR 5</div>
+                <div style="display:flex; gap:7px; align-items:center">
+                  <div id="qPip0" style="width:11px; height:11px; border-radius:50%; background:#332e5a"></div>
+                  <div id="qPip1" style="width:11px; height:11px; border-radius:50%; background:#332e5a"></div>
+                  <div id="qPip2" style="width:11px; height:11px; border-radius:50%; background:#332e5a"></div>
+                  <div id="qPip3" style="width:11px; height:11px; border-radius:50%; background:#332e5a"></div>
+                  <div id="qPip4" style="width:13px; height:13px; border-radius:50%; background:#332e5a; box-shadow:0 0 0 2px #ffce6b"></div>
+                </div>
+              </div>
+              <button style="width:40px; height:40px; padding:0; border-radius:13px; border:1px solid #34305e; background:#1c1940; color:#a99fe0; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px -4px #000" style-active="transform:scale(.94)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+              </button>
+            </div>
+            <!-- board -->
+            <div style="flex:1 1 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; min-height:0">
+              <canvas id="qHero" width="660" height="660" style="display:block; width:330px; height:330px"></canvas>
+              <div style="font-weight:800; font-size:12.5px; color:#8fb2ff; height:16px; letter-spacing:.02em">tap a side — the whole world turns</div>
+            </div>
+            <!-- controls: the verb + undo -->
+            <div style="flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:14px">
+              <button style="flex:1; height:60px; border-radius:20px; border:1px solid #3a5fd0; background:linear-gradient(180deg,#3a4d8f,#2b3a70); color:#dbe6ff; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 5px 16px -8px #000" style-active="transform:translateY(2px)">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#bcd0ff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a9 9 0 1 1-1.4 6"></path><polyline points="2.5 3.5 2 8.2 6.7 8"></polyline></svg>
+              </button>
+              <button style="width:88px; height:60px; border-radius:20px; border:1px solid #34305e; background:#1c1940; color:#a99fe0; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; box-shadow:0 5px 16px -8px #000" style-active="transform:translateY(2px)">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"></path><path d="M4 9h11a5 5 0 0 1 0 10h-1"></path></svg>
+                <span style="font-weight:900; font-size:10px; letter-spacing:.12em">UNDO</span>
+              </button>
+              <button style="flex:1; height:60px; border-radius:20px; border:1px solid #3a5fd0; background:linear-gradient(180deg,#3a4d8f,#2b3a70); color:#dbe6ff; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 5px 16px -8px #000" style-active="transform:translateY(2px)">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#bcd0ff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a9 9 0 1 0 1.4 6"></path><polyline points="21.5 3.5 22 8.2 17.3 8"></polyline></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============================ 1b — THE TUMBLE (sequel hero) ============================ -->
+    <div id="1b" style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:flex-start; gap:11px">
+        <a href="#1b" style="font:700 12px/1 ui-monospace,Menlo,monospace; color:#0a0812; background:#8fb2ff; border-radius:8px; padding:7px 9px; text-decoration:none">1b</a>
+        <div style="display:flex; flex-direction:column; gap:3px">
+          <div style="font:700 15px/1.2 -apple-system,sans-serif; color:#eef1ff">The tumble — reads as Tilt 2 in 5s</div>
+          <div style="font:12px/1.5 -apple-system,sans-serif; color:#6b6788; max-width:320px">Mid-turn frame: the board caught at 40°, marble + boulder airborne. Live physics through the whole 0.35s turn is the moat.</div>
+        </div>
+      </div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" status-bar="{{ false }}" dark="{{ true }}" hint-size="402px,874px">
+        <div style="width:100%; height:100%; position:relative; overflow:hidden; background:radial-gradient(120% 90% at 50% -12%, #34285c 0%, #1a1433 48%, #0a081c 100%); color:#eef1ff; font-family:'Nunito',-apple-system,sans-serif; user-select:none; display:flex; flex-direction:column; align-items:center; padding:62px 20px 40px">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:3px; flex:0 0 auto">
+            <div style="font-family:'Lilita One'; font-size:30px; letter-spacing:.16em; background:linear-gradient(90deg,#8fb2ff,#c6a8ff,#ffce6b); -webkit-background-clip:text; background-clip:text; color:transparent">QUARTER</div>
+            <div style="font-weight:900; font-size:10px; letter-spacing:.34em; color:#8fb2ff; text-indent:.34em">TILT&nbsp;·&nbsp;2</div>
+          </div>
+          <div style="flex:1 1 auto; display:flex; align-items:center; justify-content:center; min-height:0; animation:qfloat 4s ease-in-out infinite">
+            <canvas id="qTumble" width="680" height="680" style="display:block; width:300px; height:300px"></canvas>
+          </div>
+          <div style="flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:14px">
+            <div style="text-align:center">
+              <div style="font-family:'Lilita One'; font-size:25px; line-height:1.1; color:#fff; text-shadow:0 3px 0 #140f2c">THE WHOLE WORLD TURNS</div>
+              <div style="font-weight:700; font-size:13px; color:#a99fe0; margin-top:4px">Tap left or right — everything tumbles at once</div>
+            </div>
+            <button style="border:none; background:linear-gradient(180deg,#8fb2ff,#5c7fe0); color:#0d1330; font-family:inherit; font-weight:900; font-size:15px; letter-spacing:.04em; padding:15px 46px; border-radius:18px; cursor:pointer; box-shadow:0 8px 20px -8px #000000c0" style-active="transform:translateY(2px)">PLAY ▸</button>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============================ 1c — WIN ============================ -->
+    <div id="1c" style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:flex-start; gap:11px">
+        <a href="#1c" style="font:700 12px/1 ui-monospace,Menlo,monospace; color:#0a0812; background:#8fb2ff; border-radius:8px; padding:7px 9px; text-decoration:none">1c</a>
+        <div style="display:flex; flex-direction:column; gap:3px">
+          <div style="font:700 15px/1.2 -apple-system,sans-serif; color:#eef1ff">Solved — turns, par, stars</div>
+          <div style="font:12px/1.5 -apple-system,sans-serif; color:#6b6788; max-width:320px">Score is turns vs par (stars: finish / ≤par+1 / ≤par). No timer anywhere — the turn budget is the whole challenge.</div>
+        </div>
+      </div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" status-bar="{{ false }}" dark="{{ true }}" hint-size="402px,874px">
+        <div style="width:100%; height:100%; position:relative; overflow:hidden; background:radial-gradient(130% 100% at 50% -18%, #2a2650 0%, #17142f 46%, #0a081c 100%); color:#eef1ff; font-family:'Nunito',-apple-system,sans-serif; user-select:none">
+          <div style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 18px; gap:12px; opacity:.35">
+            <canvas id="qWin" width="620" height="620" style="display:block; width:300px; height:300px"></canvas>
+          </div>
+          <div style="position:absolute; inset:0; background:#0a0818cc; backdrop-filter:blur(7px); display:flex; align-items:center; justify-content:center; z-index:20; padding:22px">
+            <div style="width:100%; max-width:352px; position:relative; overflow:hidden; background:linear-gradient(180deg,#241f4c,#161232); border:2px solid #3d3770; border-radius:26px; padding:26px 22px 22px; text-align:center; box-shadow:0 30px 80px -20px #000, inset 0 1px 0 #ffffff1e; animation:qpop .36s cubic-bezier(.2,1.4,.4,1)">
+              <div style="position:absolute; top:-56px; left:50%; transform:translateX(-50%); width:300px; height:230px; background:radial-gradient(50% 50% at 50% 50%, #ffce6b33 0%, transparent 70%); pointer-events:none"></div>
+              <div style="display:flex; align-items:flex-end; justify-content:center; gap:7px; margin-bottom:6px; position:relative">
+                <span style="font-size:40px; line-height:1; color:#ffce6b; text-shadow:0 3px 0 #9a6a12; transform:rotate(-12deg)">★</span>
+                <span style="font-size:56px; line-height:1; color:#ffce6b; text-shadow:0 4px 0 #9a6a12; margin-bottom:5px">★</span>
+                <span style="font-size:40px; line-height:1; color:#ffce6b; text-shadow:0 3px 0 #9a6a12; transform:rotate(12deg)">★</span>
+              </div>
+              <h2 style="font-family:'Lilita One'; font-weight:400; font-size:44px; margin:0; color:#fff; text-shadow:0 4px 0 #100c26; letter-spacing:.04em">IN!</h2>
+              <div style="font-weight:800; font-size:13px; color:#8fb2ff; margin:2px 0 16px">5 turns · par 5 · <span style="color:#5fe0a8">on par!</span></div>
+              <div style="display:flex; gap:10px; justify-content:center; margin-bottom:18px">
+                <div style="flex:1; background:#100d28; border:1px solid #322c5c; border-radius:14px; padding:11px 8px">
+                  <div style="font-weight:900; font-size:10px; letter-spacing:.16em; color:#8b84b8">TURNS</div>
+                  <div style="font-family:'Lilita One'; font-size:21px; color:#fff">5</div>
+                </div>
+                <div style="flex:1; background:#100d28; border:1px solid #322c5c; border-radius:14px; padding:11px 8px">
+                  <div style="font-weight:900; font-size:10px; letter-spacing:.16em; color:#8b84b8">PAR</div>
+                  <div style="font-family:'Lilita One'; font-size:21px; color:#ffce6b">5</div>
+                </div>
+                <div style="flex:1; background:#100d28; border:1px solid #322c5c; border-radius:14px; padding:11px 8px">
+                  <div style="font-weight:900; font-size:10px; letter-spacing:.16em; color:#8b84b8">BEST</div>
+                  <div style="font-family:'Lilita One'; font-size:21px; color:#fff">5</div>
+                </div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:10px">
+                <button style="border:none; background:linear-gradient(180deg,#8fb2ff,#5c7fe0); color:#0d1330; font-family:inherit; font-weight:900; font-size:15px; letter-spacing:.04em; padding:15px; border-radius:16px; cursor:pointer; box-shadow:0 6px 16px -8px #000" style-active="transform:translateY(2px)">NEXT ▸</button>
+                <div style="display:flex; gap:10px">
+                  <button style="flex:1; border:1px solid #34305e; background:#1c1940; color:#a99fe0; font-family:inherit; font-weight:800; font-size:14px; padding:13px; border-radius:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px" style-active="transform:translateY(2px)">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a9 9 0 1 0 1.4 6"></path><polyline points="21.5 3.5 22 8.2 17.3 8"></polyline></svg>Replay
+                  </button>
+                  <button style="flex:1; border:1px solid #34305e; background:#1c1940; color:#a99fe0; font-family:inherit; font-weight:800; font-size:14px; padding:13px; border-radius:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px" style-active="transform:translateY(2px)">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>Levels
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============================ 1d — UNDO / DEAD-END ============================ -->
+    <div id="1d" style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:flex-start; gap:11px">
+        <a href="#1d" style="font:700 12px/1 ui-monospace,Menlo,monospace; color:#0a0812; background:#8fb2ff; border-radius:8px; padding:7px 9px; text-decoration:none">1d</a>
+        <div style="display:flex; flex-direction:column; gap:3px">
+          <div style="font:700 15px/1.2 -apple-system,sans-serif; color:#eef1ff">Stuck? The solver knows</div>
+          <div style="font:12px/1.5 -apple-system,sans-serif; color:#6b6788; max-width:320px">The same exhaustive engine that certifies every level runs from your current state (~1s on device) — provably no path to win → a gentle nudge + undo. Tilt could never do this.</div>
+        </div>
+      </div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" status-bar="{{ false }}" dark="{{ true }}" hint-size="402px,874px">
+        <div style="width:100%; height:100%; position:relative; overflow:hidden; background:radial-gradient(130% 100% at 50% -18%, #2a2650 0%, #17142f 46%, #0a081c 100%); color:#eef1ff; font-family:'Nunito',-apple-system,sans-serif; user-select:none">
+          <div style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 18px; gap:12px; opacity:.32">
+            <canvas id="qDead" width="620" height="620" style="display:block; width:300px; height:300px"></canvas>
+          </div>
+          <div style="position:absolute; inset:0; background:#0a0818cc; backdrop-filter:blur(7px); display:flex; align-items:center; justify-content:center; z-index:20; padding:22px">
+            <div style="width:100%; max-width:352px; background:linear-gradient(180deg,#241f4c,#161232); border:2px solid #3d3770; border-radius:26px; padding:26px 22px 22px; text-align:center; box-shadow:0 30px 80px -20px #000, inset 0 1px 0 #ffffff1e; animation:qpop .36s cubic-bezier(.2,1.4,.4,1)">
+              <div style="width:66px; height:66px; margin:0 auto 12px; border-radius:20px; background:#100d28; border:1px solid #322c5c; display:flex; align-items:center; justify-content:center">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8fb2ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 9.5a3.5 3.5 0 0 1 6.9.8c0 2.3-3.4 3-3.4 3"></path><line x1="12" y1="17.5" x2="12" y2="17.51"></line></svg>
+              </div>
+              <h2 style="font-family:'Lilita One'; font-weight:400; font-size:24px; margin:0 0 4px; color:#fff; text-shadow:0 3px 0 #100c26; letter-spacing:.02em">NO WAY HOME</h2>
+              <div style="font-weight:700; font-size:13px; color:#a99fe0; line-height:1.5; margin-bottom:16px">From here the marble can't reach the goal, no matter how you turn. Take back your last move?</div>
+              <div style="display:flex; flex-direction:column; gap:10px">
+                <button style="border:none; background:linear-gradient(180deg,#8fb2ff,#5c7fe0); color:#0d1330; font-family:inherit; font-weight:900; font-size:15px; letter-spacing:.04em; padding:15px; border-radius:16px; cursor:pointer; box-shadow:0 6px 16px -8px #000; display:flex; align-items:center; justify-content:center; gap:8px" style-active="transform:translateY(2px)">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#0d1330" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"></path><path d="M4 9h11a5 5 0 0 1 0 10h-1"></path></svg>UNDO LAST TURN
+                </button>
+                <button style="border:1px solid #34305e; background:#1c1940; color:#a99fe0; font-family:inherit; font-weight:800; font-size:14px; padding:13px; border-radius:16px; cursor:pointer" style-active="transform:translateY(2px)">↺ Restart level</button>
+              </div>
+              <div style="font-weight:700; font-size:10.5px; color:#615c85; margin-top:14px; letter-spacing:.02em">powered by the on-device solver · provably fair</div>
+            </div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 2100, &quot;height&quot;: 1180}}">
+class Component extends DCLogic {
+  componentDidMount() {
+    // physics constants (board space, ported from prototypes/16-quarter.html)
+    const CS = 40, N = 9;
+    this.P = {
+      DT: 1/120, HP: Math.PI/2, N, CS, S: N*CS,
+      MR: CS*0.30, BOR: CS*0.42, GRAV: CS*55, MAXV: CS*26,
+      WELLR: CS*0.85, WELLK: CS*26, CAPR: CS*0.45, CAPSP: CS*7, TWEEN: 0.35,
+    };
+    // levels: '#' wall · '.' open · 'I' ice · 'M' marble · 'G' goal · 'B' boulder · 'Q' boulder-on-goal
+    this.LV = {
+      corridor: ["#########","##M###G##","##.###.##","##.###.##","##.###.##","##.###.##","##.....##","#########","#########"],
+      boulder:  ["#########","##M######","##.######","##.######","##.######","##.######","##....Q##","#####.###","#########"],
+    };
+    this._t0 = Date.now();
+    this._poll = setInterval(() => {
+      if (document.getElementById("qHero") && document.getElementById("qDead")) {
+        clearInterval(this._poll); this._poll = null;
+        try { this.boot(); } catch (e) { console.error("quarter boot failed", e); }
+      } else if (Date.now() - this._t0 > 15000) { clearInterval(this._poll); this._poll = null; }
+    }, 60);
+  }
+  componentWillUnmount() {
+    if (this._poll) clearInterval(this._poll);
+    this._on = false;
+    if (this._raf) cancelAnimationFrame(this._raf);
+  }
+  renderVals() { return {}; }
+
+  /* ---------------- world build ---------------- */
+  makeBody(kind, c, r) {
+    const P = this.P, rad = kind === "boulder" ? P.BOR : P.MR;
+    return { kind, x: (c+0.5)*P.CS, y: (r+0.5)*P.CS, spawnX:(c+0.5)*P.CS, spawnY:(r+0.5)*P.CS,
+      vx:0, vy:0, r:rad, m: kind==="boulder"?3:1, rot:0, contact:false, restT:0, resting:false };
+  }
+  makeWorld(rows, par) {
+    const P = this.P, walls = new Uint8Array(P.N*P.N);
+    let goal = {x:0,y:0}, mS=null, bS=null;
+    for (let r=0;r<P.N;r++){ const row=rows[r]||""; for (let c=0;c<P.N;c++){
+      const ch=row.charAt(c), i=r*P.N+c;
+      if (ch==="#") walls[i]=1; else if (ch==="I") walls[i]=2;
+      else if (ch==="M") mS=[c,r]; else if (ch==="G") goal={x:(c+0.5)*P.CS,y:(r+0.5)*P.CS};
+      else if (ch==="B") bS=[c,r]; else if (ch==="Q"){ bS=[c,r]; goal={x:(c+0.5)*P.CS,y:(r+0.5)*P.CS}; }
+    }}
+    const bodies=[ this.makeBody("marble", mS[0], mS[1]) ];
+    if (bS) bodies.push(this.makeBody("boulder", bS[0], bS[1]));
+    return { walls, goal, bodies, par, theta:0, qCount:0, rot:null, queue:[], turns:0,
+      phase:"play", winT:0, capT:0, sink:null, time:0, rings:[], idleAt:0 };
+  }
+  cellOf(w,b){ const P=this.P; const c=Math.max(0,Math.min(P.N-1,Math.floor(b.x/P.CS))), r=Math.max(0,Math.min(P.N-1,Math.floor(b.y/P.CS))); return w.walls[r*P.N+c]; }
+
+  /* ---------------- physics (ported) ---------------- */
+  collide(w,b,h,quiet){
+    const P=this.P;
+    const c0=Math.max(0,Math.floor((b.x-b.r)/P.CS)), c1=Math.min(P.N-1,Math.floor((b.x+b.r)/P.CS));
+    const r0=Math.max(0,Math.floor((b.y-b.r)/P.CS)), r1=Math.min(P.N-1,Math.floor((b.y+b.r)/P.CS));
+    const ice = this.cellOf(w,b)===2;
+    for (let r=r0;r<=r1;r++) for (let c=c0;c<=c1;c++){
+      if (w.walls[r*P.N+c]!==1) continue;
+      const bx=c*P.CS, by=r*P.CS;
+      const px=Math.max(bx,Math.min(b.x,bx+P.CS)), py=Math.max(by,Math.min(b.y,by+P.CS));
+      let dx=b.x-px, dy=b.y-py, d=Math.hypot(dx,dy);
+      if (d>=b.r) continue;
+      if (d<1e-9){ dx=-Math.sin(w.theta); dy=-Math.cos(w.theta); d=1; }
+      const nx=dx/d, ny=dy/d;
+      b.x=px+nx*b.r; b.y=py+ny*b.r;
+      const vn=b.vx*nx+b.vy*ny;
+      if (vn<0){
+        const rest=b.kind==="boulder"?0.08:0.25;
+        b.vx-=(1+rest)*vn*nx; b.vy-=(1+rest)*vn*ny;
+        const scr=b.kind==="boulder"?5:(ice?0.25:3);
+        const tx=-ny, ty=nx, vt=b.vx*tx+b.vy*ty, k=Math.max(0,1-scr*h);
+        b.vx+=tx*vt*(k-1); b.vy+=ty*vt*(k-1);
+      }
+      b.contact=true;
+    }
+    const lo=b.r, hi=P.S-b.r;
+    if (b.x<lo){ b.x=lo; if(b.vx<0)b.vx=-b.vx*0.25; b.contact=true; }
+    else if (b.x>hi){ b.x=hi; if(b.vx>0)b.vx=-b.vx*0.25; b.contact=true; }
+    if (b.y<lo){ b.y=lo; if(b.vy<0)b.vy=-b.vy*0.25; b.contact=true; }
+    else if (b.y>hi){ b.y=hi; if(b.vy>0)b.vy=-b.vy*0.25; b.contact=true; }
+  }
+  dimple(w,b){
+    const P=this.P, dx=w.goal.x-b.x, dy=w.goal.y-b.y, d=Math.hypot(dx,dy);
+    if (d<P.WELLR && d>1e-6){ const a=P.WELLK*(1-d/P.WELLR)*P.DT; b.vx+=dx/d*a; b.vy+=dy/d*a; }
+  }
+  integrate(w,b,gx,gy){
+    const P=this.P, sp0=Math.hypot(b.vx,b.vy);
+    const sub=Math.max(1,Math.min(6,Math.ceil((sp0+P.GRAV*P.DT)*P.DT/(b.r*0.5))));
+    const h=P.DT/sub;
+    for (let k=0;k<sub;k++){
+      b.vx+=gx*h; b.vy+=gy*h;
+      const sp=Math.hypot(b.vx,b.vy); if (sp>P.MAXV){ const s=P.MAXV/sp; b.vx*=s; b.vy*=s; }
+      b.x+=b.vx*h; b.y+=b.vy*h;
+      this.collide(w,b,h,false);
+    }
+    if (b.kind==="marble") this.dimple(w,b);
+    const ux=Math.sin(w.theta), uy=Math.cos(w.theta), vt=-b.vx*uy+b.vy*ux;
+    b.rot+=vt/b.r*P.DT;
+  }
+  pair(w){
+    if (w.bodies.length<2) return;
+    const a=w.bodies[0], b=w.bodies[1];
+    let dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy); const minD=a.r+b.r;
+    if (d>=minD) return; if (d<1e-9){ dx=1; dy=0; d=1; }
+    const nx=dx/d, ny=dy/d, overlap=minD-d, ima=1/a.m, imb=1/b.m, s=ima+imb;
+    a.x-=nx*overlap*(ima/s); a.y-=ny*overlap*(ima/s);
+    b.x+=nx*overlap*(imb/s); b.y+=ny*overlap*(imb/s);
+    const rvn=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+    if (rvn<0){ const P=this.P; const e=Math.abs(rvn)<P.CS*1.2?0:0.2; const j=-(1+e)*rvn/s;
+      a.vx-=j*ima*nx; a.vy-=j*ima*ny; b.vx+=j*imb*nx; b.vy+=j*imb*ny; }
+    a.contact=true; b.contact=true;
+  }
+  post(w,b){
+    const P=this.P, ice=this.cellOf(w,b)===2; let fk,fc;
+    if (b.kind==="boulder"){ fk=1.5; fc=ice?P.CS*1.5:P.CS*10; }
+    else { fk=ice?0.12:0.5; fc=ice?P.CS*0.15:P.CS*4; }
+    if (!b.contact){ fk=0.05; fc=0; }
+    const sp=Math.hypot(b.vx,b.vy);
+    if (sp>0){ const drop=(fk*sp+fc)*P.DT, ns=Math.max(0,sp-drop), k=ns/sp; b.vx*=k; b.vy*=k; }
+    const sp2=Math.hypot(b.vx,b.vy);
+    if (b.contact && sp2<P.CS*0.5){ const damp=ice?(sp2<P.CS*0.1?2:0):8; if (damp>0){ const k2=Math.max(0,1-damp*P.DT); b.vx*=k2; b.vy*=k2; } }
+    if (sp2<P.CS*0.3) b.restT+=P.DT; else b.restT=0;
+    b.resting=b.restT>0.2;
+  }
+  winCheck(w){
+    const P=this.P, m=w.bodies[0], d=Math.hypot(m.x-w.goal.x,m.y-w.goal.y), sp=Math.hypot(m.vx,m.vy);
+    if (d<P.CAPR && sp<P.CAPSP){ w.capT+=P.DT; const k=Math.max(0,1-6*P.DT); m.vx*=k; m.vy*=k; if (w.capT>=0.3) this.doWin(w); }
+    else w.capT=0;
+  }
+  watchdog(w){
+    const P=this.P;
+    for (const b of w.bodies){ if (!isFinite(b.x)||!isFinite(b.y)||!isFinite(b.vx)||!isFinite(b.vy)||b.x<-P.CS||b.x>P.S+P.CS||b.y<-P.CS||b.y>P.S+P.CS){ b.x=b.spawnX; b.y=b.spawnY; b.vx=0; b.vy=0; b.restT=0; } }
+  }
+  doWin(w){
+    if (w.phase==="won") return; const P=this.P, m=w.bodies[0];
+    w.phase="won"; w.winT=0; w.winTurns=w.turns; w.winStars=w.turns<=w.par?3:(w.turns<=w.par+1?2:1);
+    w.sink={fx:m.x,fy:m.y,t:0}; m.vx=0; m.vy=0; w.queue.length=0;
+    w.rings.push({x:w.goal.x,y:w.goal.y,r0:P.CAPR,r1:P.CS*2.6,t:0,life:0.6});
+  }
+  settled(w){ for (const b of w.bodies) if (!b.resting) return false; return true; }
+
+  startTurn(w,d){
+    const P=this.P, dq=d==="R"?1:-1, from=w.qCount*P.HP;
+    w.qCount+=dq; w.rot={from,to:w.qCount*P.HP,t:0,dur:P.TWEEN}; w.turns++;
+  }
+  doTurn(w,d){
+    if (w.phase!=="play") return; if (w.rot){ if (w.queue.length<1) w.queue.push(d); return; } this.startTurn(w,d);
+  }
+  step(w){
+    const P=this.P; w.time+=P.DT;
+    for (let i=w.rings.length-1;i>=0;i--){ w.rings[i].t+=P.DT; if (w.rings[i].t>=w.rings[i].life) w.rings.splice(i,1); }
+    if (w.rot){
+      w.rot.t+=P.DT; const p=Math.max(0,Math.min(1,w.rot.t/w.rot.dur));
+      const e=p<0.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;
+      w.theta=w.rot.from+(w.rot.to-w.rot.from)*e;
+      if (w.rot.t>=w.rot.dur){ w.theta=w.rot.to; w.rot=null; if (w.queue.length && w.phase==="play") this.startTurn(w,w.queue.shift()); }
+    }
+    if (w.phase==="won"){ w.winT+=P.DT; if (w.sink) w.sink.t+=P.DT; return; }
+    const gx=Math.sin(w.theta)*P.GRAV, gy=Math.cos(w.theta)*P.GRAV;
+    for (const b of w.bodies){ b.contact=false; this.integrate(w,b,gx,gy); }
+    for (let pass=0;pass<2;pass++){ this.pair(w); for (const b of w.bodies) this.collide(w,b,P.DT*0.5,true); }
+    for (const b of w.bodies) this.post(w,b);
+    this.winCheck(w); this.watchdog(w);
+  }
+  presettle(w,secs){ const n=Math.round((secs||1.6)/this.P.DT); for (let i=0;i<n;i++) this.step(w); }
+
+  /* ---------------- render ---------------- */
+  rr(c,x,y,w,h,r){ r=Math.min(r,w/2,h/2); c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
+  drawPlate(c,w){
+    const P=this.P;
+    this.rr(c,0,0,P.S,P.S,P.CS*0.3); c.fillStyle="#0d0a1c"; c.fill();
+    c.strokeStyle="rgba(150,140,210,0.06)"; c.lineWidth=1.5; c.beginPath();
+    for (let i=1;i<P.N;i++){ c.moveTo(i*P.CS,4); c.lineTo(i*P.CS,P.S-4); c.moveTo(4,i*P.CS); c.lineTo(P.S-4,i*P.CS); } c.stroke();
+    for (let r=0;r<P.N;r++) for (let cc=0;cc<P.N;cc++){
+      const v=w.walls[r*P.N+cc], x=cc*P.CS, y=r*P.CS;
+      if (v===1){
+        const g=c.createLinearGradient(0,y,0,y+P.CS); g.addColorStop(0,"#2a2752"); g.addColorStop(1,"#1c1a3c");
+        c.fillStyle=g; this.rr(c,x+2.5,y+2.5,P.CS-5,P.CS-5,10); c.fill();
+        c.fillStyle="rgba(255,255,255,0.06)"; this.rr(c,x+6,y+5,P.CS-12,5,2.5); c.fill();
+      } else if (v===2){
+        c.fillStyle="rgba(120,175,255,0.15)"; this.rr(c,x+3,y+3,P.CS-6,P.CS-6,9); c.fill();
+        c.strokeStyle="rgba(200,230,255,0.38)"; c.lineWidth=2; c.beginPath();
+        c.moveTo(x+P.CS*0.24,y+P.CS*0.70); c.lineTo(x+P.CS*0.46,y+P.CS*0.30);
+        c.moveTo(x+P.CS*0.55,y+P.CS*0.74); c.lineTo(x+P.CS*0.78,y+P.CS*0.34); c.stroke();
+      }
+    }
+  }
+  drawGoal(c,w){
+    const P=this.P, R=P.CS*0.5, pulse=w.phase==="play"?0.5+0.5*Math.sin(w.time*3.2):1;
+    const g=c.createRadialGradient(w.goal.x,w.goal.y,R*0.1,w.goal.x,w.goal.y,R);
+    g.addColorStop(0,"#03040a"); g.addColorStop(0.75,"#0a0d18"); g.addColorStop(1,"rgba(255,206,107,0.26)");
+    c.fillStyle=g; c.beginPath(); c.arc(w.goal.x,w.goal.y,R,0,6.2832); c.fill();
+    c.strokeStyle="rgba(255,206,107,"+(0.55+0.35*pulse).toFixed(3)+")"; c.lineWidth=3.5;
+    c.beginPath(); c.arc(w.goal.x,w.goal.y,R,0,6.2832); c.stroke();
+    c.strokeStyle="rgba(255,206,107,"+(0.12+0.16*pulse).toFixed(3)+")"; c.lineWidth=2;
+    c.beginPath(); c.arc(w.goal.x,w.goal.y,R+6+pulse*3,0,6.2832); c.stroke();
+  }
+  drawMarble(c,w,m){
+    const P=this.P; let x=m.x,y=m.y,sc=1;
+    if (w.sink){ const p=Math.min(1,w.sink.t/0.25), e=1-Math.pow(1-p,3); x=m.x+(w.goal.x-w.sink.fx)*0+(w.goal.x-x)*e; y=y+(w.goal.y-y)*e; x=w.sink.fx+(w.goal.x-w.sink.fx)*e; y=w.sink.fy+(w.goal.y-w.sink.fy)*e; sc=1-0.45*e; }
+    c.save(); c.translate(x,y); c.rotate(-w.theta); c.scale(sc,sc);
+    c.shadowColor="rgba(120,175,255,0.6)"; c.shadowBlur=14;
+    const g=c.createRadialGradient(-m.r*0.35,-m.r*0.4,m.r*0.12,0,0,m.r);
+    g.addColorStop(0,"#ffffff"); g.addColorStop(0.55,"#d9e4f8"); g.addColorStop(1,"#7f92c2");
+    c.fillStyle=g; c.beginPath(); c.arc(0,0,m.r,0,6.2832); c.fill(); c.shadowBlur=0;
+    c.rotate(w.theta+m.rot); c.fillStyle="rgba(90,110,160,0.5)";
+    for (let i=0;i<3;i++){ const a=i*2.094; c.beginPath(); c.arc(Math.cos(a)*m.r*0.55,Math.sin(a)*m.r*0.55,m.r*0.13,0,6.2832); c.fill(); }
+    c.rotate(-w.theta-m.rot); c.fillStyle="rgba(255,255,255,0.78)"; c.beginPath(); c.arc(-m.r*0.3,-m.r*0.34,m.r*0.26,0,6.2832); c.fill();
+    c.restore();
+  }
+  drawBoulder(c,b){
+    c.save(); c.translate(b.x,b.y); c.rotate(b.rot);
+    const g=c.createRadialGradient(-b.r*0.3,-b.r*0.35,b.r*0.15,0,0,b.r);
+    g.addColorStop(0,"#9c8a78"); g.addColorStop(0.65,"#6f6155"); g.addColorStop(1,"#463d34");
+    c.fillStyle=g; c.beginPath(); c.arc(0,0,b.r,0,6.2832); c.fill();
+    c.strokeStyle="rgba(20,16,12,0.5)"; c.lineWidth=3; c.beginPath();
+    c.moveTo(-b.r*0.55,-b.r*0.15); c.lineTo(-b.r*0.05,-b.r*0.5);
+    c.moveTo(b.r*0.15,b.r*0.05); c.lineTo(b.r*0.55,-b.r*0.28);
+    c.moveTo(-b.r*0.3,b.r*0.42); c.lineTo(b.r*0.12,b.r*0.5); c.stroke();
+    c.fillStyle="rgba(255,255,255,0.10)"; c.beginPath(); c.arc(-b.r*0.28,-b.r*0.32,b.r*0.22,0,6.2832); c.fill();
+    c.strokeStyle="rgba(0,0,0,0.35)"; c.lineWidth=2.5; c.beginPath(); c.arc(0,0,b.r-1.2,0,6.2832); c.stroke();
+    c.restore();
+  }
+  drawRings(c,w){ for (const r of w.rings){ const q=Math.max(0,Math.min(1,r.t/r.life)), e=q*(2-q); c.globalAlpha=(1-q)*0.9; c.strokeStyle="#ffce6b"; c.lineWidth=Math.max(1.5,6*(1-q)); c.beginPath(); c.arc(r.x,r.y,r.r0+(r.r1-r.r0)*e,0,6.2832); c.stroke(); } c.globalAlpha=1; }
+  renderBoard(cv,w){
+    const P=this.P, c=cv.getContext("2d"), size=cv.width;
+    c.clearRect(0,0,size,size);
+    const ft=Math.round(size*0.05), inner=size-ft*2, ix=ft, iy=ft;
+    // recess
+    this.rr(c,ix,iy,inner,inner,inner*0.07); c.save(); c.clip();
+    c.fillStyle="#07060f"; c.fillRect(ix,iy,inner,inner);
+    const rg=c.createRadialGradient(size/2,size/2,inner*0.1,size/2,size/2,inner*0.75);
+    rg.addColorStop(0,"rgba(120,175,255,0.06)"); rg.addColorStop(1,"rgba(0,0,0,0)");
+    c.fillStyle=rg; c.fillRect(ix,iy,inner,inner);
+    c.translate(size/2,size/2); const s=inner/P.S; c.scale(s,s); c.rotate(w.theta); c.translate(-P.S/2,-P.S/2);
+    this.drawPlate(c,w); this.drawGoal(c,w); this.drawRings(c,w);
+    for (let i=w.bodies.length-1;i>=0;i--){ const b=w.bodies[i]; if (b.kind==="boulder") this.drawBoulder(c,b); else this.drawMarble(c,w,b); }
+    c.restore();
+    // fixed frame
+    this.rr(c,ix,iy,inner,inner,inner*0.07); c.lineWidth=ft; c.strokeStyle="#221d44"; c.stroke();
+    this.rr(c,ix-1,iy-1,inner+2,inner+2,inner*0.07+1); c.lineWidth=1.5; c.strokeStyle="rgba(150,140,210,0.25)"; c.stroke();
+  }
+
+  updateHeroHUD(w){
+    const el=document.getElementById("qTurnNum"); if (el) el.textContent="TURN "+w.turns;
+    for (let i=0;i<5;i++){ const p=document.getElementById("qPip"+i); if (!p) continue;
+      p.style.background = i<w.turns ? "#8fb2ff" : "#332e5a"; }
+  }
+
+  /* ---------------- boot: 1 live hero + 3 static frames ---------------- */
+  boot() {
+    // hero — live auto-play of the boulder level (par 5), shows the tumble loop
+    this.hero = this.makeWorld(this.LV.boulder, 5);
+    this.presettle(this.hero, 1.4);
+    this.heroSeq = ["R","L","L","L","L"]; this.heroI = 0; this.heroWaitReset = 0;
+
+    // 1b tumble — frozen dramatic mid-turn, boulder + marble airborne
+    const P=this.P;
+    this.tumble = this.makeWorld(this.LV.boulder, 5);
+    this.tumble.theta = 0.42*P.HP; this.tumble.qCount = 0;
+    const tm=this.tumble.bodies[0], tb=this.tumble.bodies[1];
+    tm.x=P.CS*3.1; tm.y=P.CS*3.4; tm.rot=0.9;
+    tb.x=P.CS*5.2; tb.y=P.CS*4.6; tb.rot=-0.7;
+    this.tumble.time=0.4;
+
+    // 1c win — corridor solved, marble resting in the goal
+    this.win = this.makeWorld(this.LV.corridor, 5);
+    this.win.bodies[0].x = this.win.goal.x; this.win.bodies[0].y = this.win.goal.y;
+    this.win.bodies[0].vx=0; this.win.bodies[0].vy=0; this.win.time=0.5;
+
+    // 1d dead — boulder plugs the goal, marble stranded elsewhere
+    this.dead = this.makeWorld(this.LV.boulder, 5);
+    this.presettle(this.dead, 1.6); // marble falls, boulder stays plugging the goal
+    this.dead.time=0.3;
+
+    const heroCv0 = document.getElementById("qHero");
+    this.renderBoard(heroCv0, this.hero); this.updateHeroHUD(this.hero); // paint once synchronously (rAF is paused while the tab is hidden)
+    this.renderBoard(document.getElementById("qTumble"), this.tumble);
+    this.renderBoard(document.getElementById("qWin"), this.win);
+    this.renderBoard(document.getElementById("qDead"), this.dead);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(()=>{ try{
+      this.renderBoard(heroCv0, this.hero);
+      this.renderBoard(document.getElementById("qTumble"), this.tumble);
+      this.renderBoard(document.getElementById("qWin"), this.win);
+      this.renderBoard(document.getElementById("qDead"), this.dead);
+    }catch(e){} });
+
+    // live loop for the hero
+    this._on=true; let last=0, acc=0;
+    const heroCv=document.getElementById("qHero");
+    const loop=(now)=>{
+      if (!this._on) return; this._raf=requestAnimationFrame(loop);
+      if (!last){ last=now; }
+      let dt=(now-last)/1000; last=now; if (dt>0.05) dt=0.05; acc+=dt;
+      const P=this.P; let guard=0;
+      try {
+        while (acc>=P.DT && guard<600){ this.step(this.hero); acc-=P.DT; guard++; this.autoHero(); }
+        this.renderBoard(heroCv, this.hero); this.updateHeroHUD(this.hero);
+      } catch(e){ console.error("quarter hero loop", e); this._on=false; }
+    };
+    this._raf=requestAnimationFrame(loop);
+  }
+  autoHero(){
+    const w=this.hero;
+    if (w.phase==="won"){ if (w.winT>1.5){ this.hero=this.makeWorld(this.LV.boulder,5); this.presettle(this.hero,1.2); this.heroI=0; } return; }
+    if (w.rot || !this.settled(w)){ w.idleAt=w.time; return; }
+    if (w.time - w.idleAt < 0.55) return;   // beat between turns
+    if (this.heroI < this.heroSeq.length){ this.doTurn(w, this.heroSeq[this.heroI++]); w.idleAt=w.time; }
+    else { // sequence done and not won → reset the loop after a pause
+      this.heroWaitReset += 0; if (w.time - w.idleAt > 1.4){ this.hero=this.makeWorld(this.LV.boulder,5); this.presettle(this.hero,1.2); this.heroI=0; } }
+  }
+}
+</script>
+</body>
+</html>
