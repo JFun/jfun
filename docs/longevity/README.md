@@ -53,6 +53,8 @@ To ship hundreds/thousands of *fair* levels a solo dev must generate them and ce
 
 Built once (2–4 weeks), it unlocks Sort and Slingshaft to thousands of levels and is reusable across the studio. Precedent in-repo: `apps/moraine` ships an engine as a shared browser+Node module.
 
+**Author-by-intent generator (proven in Rattle, `apps/rattle/scripts/dev/gen-campaign.cjs`).** Don't hand-pick seeds. Describe each level by INTENT — tier element, objective, difficulty `d∈[0,1]` within the tier — and let the physics pick the pile: **seed-search** the certifier (`findseed.cjs`) for the first seed that solves ∧ is robust (greedy also wins) ∧ hits the target slack. Bake the **sawtooth** into the generator (extra-taps slack resets high at each new element = a breather, ramps tight to the tier end; tightens across the run), and flag the tier opener for the on-board coach-mark. Deterministic (fixed seed ranges, no RNG) so the whole campaign regenerates identically any time you retune the ramp. Rattle's 106-level ladder (T0–T7) generates + certifies in ~35 s.
+
 ---
 
 ## Anti-patterns (hard-won — several match our own scars)
@@ -65,6 +67,8 @@ Built once (2–4 weeks), it unlocks Sort and Slingshaft to thousands of levels 
 - **Ship a hand-authored campaign FIRST, then go procedural.** The generator amplifies the core — prove the core is fun by hand (20–30% handcrafted backbone) before automating; procedural sameness must change *strategy*, not just jitter pixels.
 - **No gacha, no aggressive energy gates, no guilds / real-time MP / voiced narrative.** Each is a 3–6 month solo-dev sink and/or clashes with the cozy, no-paywall taste. Async once-a-day snapshot leaderboards are the ceiling.
 - **Feel is unprovable headless.** The verifier proves *fairness/math*, never *fun*. Always feel-test on device and render a PNG after any UI/feel change.
+- **A physics element can pass fast search yet dead-end under SLOW human play — certify with an idle/slow-play pass, not just fast beam/greedy.** Rattle's buoyant balloon drifts to the top of an open vessel and *detaches* from the pile over idle seconds; the fast bot pops it before it drifts, so the level "certified," but a human staring at the board gets a stranded, unpoppable objective (a real softlock Qi hit). Fix in the SIM (a **perch clamp** kept it touching the pile surface) AND add a guard to the certifier (idle ~3000 steps → assert every such body still has a neighbour within its effect radius). Rule: any **buoyant / kinematic / timing-dependent** element must be certified with a slow-play/idle-drift check, because the bot's speed hides the failure. *(Corollary of "the verifier must run the real sim" — it must also run it at the player's* pace *, not just the bot's.)*
+- **A move budget that runs out needs a real lose card, not a silent stall.** Out-of-taps (or any unwinnable end state) must surface a "retry" card immediately — a board that just sits there reads as a freeze/bug. The rattle-escape covers *no poppable pair*; it does NOT cover *no budget left*.
 
 ---
 
@@ -74,3 +78,5 @@ Built once (2–4 weeks), it unlocks Sort and Slingshaft to thousands of levels 
 - Fixed-timestep physics (1/120s) decoupled from rAF; portrait-first; scales from canvas size; works in a 300×560 iframe and fullscreen.
 - Every game exposes `window.__game = { state(), stepN(n), reset(), goto(level), ...action hooks }` so it can be driven headlessly WITHOUT rAF (the review browser suspends rAF). This is also what the verifier drives.
 - WebAudio synthesized only; no external assets. See any prototype in `prototypes/` for the pattern.
+- **Commit the `ios/` project SOURCE, gitignore `ios/App/build/`.** Xcode DerivedData / ModuleCache (`.pcm`) / dSYMs are **~370 MB/app** of regenerable junk; root `.gitignore build/` + the Capacitor-generated `ios/.gitignore` cover it. Before `git add apps/<name>`, dry-run (`git add -n`) and grep for `build/|ModuleCache|\.pcm|DerivedData|\.DS_Store` — a raw add of the app dir would otherwise commit hundreds of MB. A clean app slice is ~40 tracked files (web + ios source + scripts + design + configs).
+- **New app = its own PR; stack when the shared root files collide.** `package-lock.json` (workspace glob) and `.claude/launch.json` (preview ports) both touch *every* app, so two independent per-app PRs conflict on them. Stack the second PR on the first (merge order matters) so each still shows a clean app-scoped diff.

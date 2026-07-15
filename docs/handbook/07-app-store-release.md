@@ -48,6 +48,7 @@ The old per-app standalone repos (`JFun/moraine` etc.) are **deprecated**. Host 
 - Start from `templates/create-game/docs/{support,privacy}.html` (dark theme, Firebase
   disclosure baked in). The privacy page MUST match the App-Privacy questionnaire (§8).
 - Live ~1-2 min after the pages hit `main`. Verify with `curl -sS -o /dev/null -w "%{http_code}" <url>`.
+- **⚠ Do NOT make `JFun/jfun` private on the free plan — it unpublishes Pages and 404s every app's Support/Privacy URL.** GitHub serves Pages from a private repo only on **Team/Enterprise** (for orgs; Pro for personal); the free org plan cannot. A dead Support/Privacy URL is an App-Review rejection, and a takedown risk once the app is live. If the repo must go private, first move hosting off it and re-point App Store Connect once: (a) split `/docs` into a **public** repo or the org site `JFun.github.io`; (b) **Firebase Hosting** — free, already wired per app (`firebase init hosting` → `firebase deploy`), and independent of repo visibility; or (c) any static host. A **custom domain** on whichever host is the permanent fix — after that Apple's URLs never change again, no matter where the pages move. Keep the repo public until any in-review app (Support/Privacy URLs are checked during review) is approved and stable.
 
 ## 4. App Store screenshots — CDP harness
 
