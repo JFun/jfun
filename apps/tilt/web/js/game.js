@@ -123,24 +123,45 @@
     rollSrc.start();
   }
   let rollSentAt = 0, rollSentGain = -1;
-  function setRollLevel(maxSpeed) {   // maxSpeed in cells/s; 0 silences
+  function setRollLevel(maxSpeed, onIce) {   // maxSpeed in cells/s; 0 silences
     if (!SFX_ON) maxSpeed = 0;        // settings: sound off → no rolling rumble
+    // the surface SPEAKS: ice opens the filter into a glassy hiss, sand chokes
+    // it into a low grind — the ear learns the element as fast as the eye
+    const fMulS = onIce === "ice" ? 2.6 : onIce === "sand" ? 0.45 : 1;
+    const gMulS = onIce === "ice" ? 0.8 : onIce === "sand" ? 1.15 : 1;
     if (snReady) {
       const now = performance.now();
-      const gain = Math.min(0.11, maxSpeed / 15 * 0.11);
+      const gain = Math.min(0.11, maxSpeed / 15 * 0.11) * gMulS;
       if (now - rollSentAt < 60 && Math.abs(gain - rollSentGain) < 0.008) return;
       rollSentAt = now; rollSentGain = gain;
-      SN.setRoll({ gain, freq: 300 + maxSpeed * 70 });
+      SN.setRoll({ gain, freq: (300 + maxSpeed * 70) * fMulS });
       return;
     }
     if (!rollGain || !AC) return;
-    const g = Math.min(0.11, maxSpeed / 15 * 0.11);
+    const g = Math.min(0.11, maxSpeed / 15 * 0.11) * gMulS;
     rollGain.gain.setTargetAtTime(g, AC.currentTime, 0.06);
-    rollFilter.frequency.setTargetAtTime(300 + maxSpeed * 70, AC.currentTime, 0.06);
+    rollFilter.frequency.setTargetAtTime((300 + maxSpeed * 70) * fMulS, AC.currentTime, 0.06);
   }
   function sndCapture() { if (!SFX_ON) return; if (snReady) { SN.play({ name: "capture", rate: 1, vol: 1 }); return; } tone(500, 760, 0.12, 0.25, "sine"); tone(760, 1050, 0.2, 0.2, "triangle", 0.07); }
   function sndPlunk() { if (!SFX_ON) return; if (!throttled("plunk", 120)) return; if (snReady) { SN.play({ name: "plunk", rate: 1, vol: 1 }); return; } tone(240, 110, 0.12, 0.32, "sine"); noiseBurst(0.03, 0.1, 900); }
   function sndRim() { if (!SFX_ON) return; if (!throttled("rim", 90)) return; if (snReady) { SN.play({ name: "rim", rate: 1, vol: 1 }); return; } tone(300, 180, 0.05, 0.2, "triangle"); tone(250, 140, 0.05, 0.16, "triangle", 0.05); noiseBurst(0.03, 0.12, 1200); }
+  // gate voice: open = rising metallic slide, close = a heavy iron thunk —
+  // state changes speak even when the door is off-fovea (Foundry)
+  function sndGate(open, gi) {
+    if (!SFX_ON) return; if (!throttled("gate" + (gi || 0), 90)) return;   // per-door: twin boards keep both voices
+    if (snReady) { SN.play({ name: open ? "gateOpen" : "gateClose", rate: 1, vol: 1 }); return; }
+    if (open) { tone(160, 430, 0.13, 0.22, "triangle"); noiseBurst(0.05, 0.08, 2000); }
+    else { tone(150, 58, 0.12, 0.34, "sine"); noiseBurst(0.035, 0.14, 500); }
+  }
+  // CHIME bumper: each post rings a PENTATONIC note (idx → scale degree) so a
+  // bank chain plays a phrase. Pitch rides the post index; a hot hit is louder.
+  const PENTA = [1, 1.122, 1.26, 1.498, 1.682];   // major pentatonic ratios
+  function sndBump(idx, speed) {
+    if (!SFX_ON) return; if (!throttled("bump" + (idx || 0), 55)) return;
+    const rate = PENTA[(idx || 0) % 5], vol = Math.min(1, 0.4 + speed / 14);
+    if (snReady) { SN.play({ name: "bump", rate, vol }); return; }
+    tone(660 * rate, 520 * rate, 0.12, 0.22 * vol, "triangle"); tone(990 * rate, 780 * rate, 0.08, 0.12 * vol, "sine", 0.01);
+  }
   function sndWinChord() { if (!SFX_ON) return; if (snReady) { SN.play({ name: "win", rate: 1, vol: 1 }); return; } [523, 659, 784, 1047].forEach((f, i) => tone(f, f * 1.01, 0.28, 0.22, "triangle", i * 0.09)); }
   function sndFail() { if (!SFX_ON) return; if (snReady) { SN.play({ name: "fail", rate: 1, vol: 1 }); return; } tone(320, 150, 0.25, 0.3, "triangle"); tone(210, 90, 0.35, 0.26, "triangle", 0.13); }
   function haptic(style) {
@@ -227,6 +248,9 @@
       renderSample("rim", 0.15, oc => { oTone(oc, 300, 180, 0.05, 0.2, "triangle"); oTone(oc, 250, 140, 0.05, 0.16, "triangle", 0.05); oNoise(oc, 0.03, 0.12, 1200); }),
       renderSample("plunk", 0.2, oc => { oTone(oc, 240, 110, 0.12, 0.32, "sine"); oNoise(oc, 0.03, 0.1, 900); }),
       renderSample("capture", 0.35, oc => { oTone(oc, 500, 760, 0.12, 0.25, "sine"); oTone(oc, 760, 1050, 0.2, 0.2, "triangle", 0.07); }),
+      renderSample("bump", 0.2, oc => { oTone(oc, 660, 520, 0.12, 0.22, "triangle"); oTone(oc, 990, 780, 0.08, 0.12, "sine", 0.01); }),
+      renderSample("gateOpen", 0.22, oc => { oTone(oc, 160, 430, 0.13, 0.22, "triangle"); oNoise(oc, 0.05, 0.08, 2000); }),
+      renderSample("gateClose", 0.2, oc => { oTone(oc, 150, 58, 0.12, 0.34, "sine"); oNoise(oc, 0.035, 0.14, 500); }),
       renderSample("win", 0.66, oc => { [523, 659, 784, 1047].forEach((f, i) => oTone(oc, f, f * 1.01, 0.28, 0.22, "triangle", i * 0.09)); }),
       renderSample("fail", 0.55, oc => { oTone(oc, 320, 150, 0.25, 0.3, "triangle"); oTone(oc, 210, 90, 0.35, 0.26, "triangle", 0.13); }),
       renderSample("roll", 0.5, oc => {
@@ -379,7 +403,9 @@
     const maxTray = tablet ? Math.min(700, Math.round(window.innerWidth * 0.78)) : 480 - 54;
     const availW = Math.min(window.innerWidth - 54, maxTray);  // wrap padding + .trayframe
     const availH = Math.max(200, window.innerHeight - (tablet ? 400 : 335)); // meta + timer + hint (no footer)
-    const traySize = Math.min(availW, availH);
+    // floor the tray size: a zero/negative viewport (embedded panes mid-layout,
+    // headless first-frame) must never produce a negative CELL/R — clamp + retry
+    const traySize = Math.max(120, Math.min(availW, availH));
     // rim gutter (design 2026-07): the rail thickens INWARD by PAD so border-cell
     // hole rings + rim-hugging balls sit fully on the felt. Engine layouts are
     // untouched — pure render geometry; all play art draws translated by PAD.
@@ -407,14 +433,43 @@
     draw();
     showOnboarding();
     // first launch ever: show the animated how-to card once
+    const wNow = E.worldFor(n);
     if (!sv.tutSeen) {
       showTutorial(() => { const s = loadSave(); s.tutSeen = 1; writeSave(s); showOnboarding(); });
-    } else if ((P.walls || []).length && !sv.wallsSeen) {
-      // a mechanic's debut gets a once-only intro card (design 6b)
+    } else if (wNow.id > 1 && !(sv.worldSeen || {})[wNow.id]) {
+      // a WORLD's debut gets its intro card once (palette + live element demo).
+      // Entering a later world also retires EARLIER mechanics' intro cards
+      // (Qi feedback: no re-teaching walls in W2 — seen-in-spirit stays seen).
+      showWorldIntro(wNow, () => { const s = loadSave(); s.worldSeen = s.worldSeen || {}; s.worldSeen[wNow.id] = 1; s.wallsSeen = 1; writeSave(s); showOnboarding(); });
+    } else if ((P.walls || []).length && !sv.wallsSeen && wNow.id === 1) {
+      // a mechanic's intro card fires ONLY in its debut world (design 6b)
       showMechanicIntro(() => { const s = loadSave(); s.wallsSeen = 1; writeSave(s); showOnboarding(); });
     }
   }
-  // physics world in CELL units (resize-proof; rendering scales by CELL)
+  /* ---------- run-scoped FEAT tracking (depth plan Phase 0) ----------
+     Pure event listeners over the physics events — zero new physics. Feats are
+     judged per RUN and persisted on a win (once earned on a level, kept forever,
+     like medals). no-clack = marbles never collided; zero-lodge = never plunked
+     a wrong cup; no-stop = after the first real motion, the loose marbles never
+     all rested before the last capture. */
+  let runClacks = 0, runPlunks = 0, runMoved = false, runStopped = false, stopT = 0;
+  // gem state for THIS level: {x,y,c,got} from the deterministic engine placement;
+  // null when the level has no gem or it was already collected on a past run.
+  let gem = null;
+  function featDefs() {
+    const defs = [];
+    if (P.init.marbles.length >= 2) defs.push({ id: "c", name: "NO-CLACK", desc: "never hit another marble" });
+    defs.push({ id: "l", name: "ZERO-LODGE", desc: "never plugged a wrong hole" });
+    defs.push({ id: "s", name: "NO-STOP", desc: "never came to rest" });
+    return defs;
+  }
+  function runFeats() {   // feat id → earned THIS run
+    return { c: runClacks === 0, l: runPlunks === 0, s: runMoved && !runStopped };
+  }
+  // physics world in CELL units (resize-proof; rendering scales by CELL).
+  // Per-world PARAM plumbing (depth plan Phase 1): the level's world may retune
+  // ≤2 physics params (E.WORLDS[..].params, merged over defaults by createWorld;
+  // W1 = {}). The pinned physics-tests keep every world escapable + tunnel-free.
   function buildWorld() {
     world = PH.createWorld({
       w: N, h: N, pad: 0, unit: 1,
@@ -423,18 +478,36 @@
       blocks: (P.walls || []).map(b => ({ x: b.x, y: b.y, w: 1, h: 1 })),
       slopes: (P.slopes || []).map(s => ({ x: s.x, y: s.y, w: s.w, h: s.h,
         ax: s.a === "H" ? 1 : 0, ay: s.a === "H" ? 0 : 1 })),
+      zones: (P.zones || []).map(z => ({ x: z.x, y: z.y, w: z.w, h: z.h, kind: E.worldFor(level).zoneKind || "ice" })),
+      gates: (P.gates || []).map(g => ({ x: g.x, y: g.y, px: g.px, py: g.py })),
+      posts: (P.posts || []).map(pp => ({ x: pp.x + 0.5, y: pp.y + 0.5, r: 0.34 })),
+      params: E.worldFor(level).params,
     });
+    curHoleSocket = E.worldFor(level).id === 3;   // CHIME holes are recessed sockets, not neon orbs
     tiltPhase = "ready";
     watchdogShown = false; restChecked = false;
     lastCaptureT = 0;
     lost = false; stuckHint = false; deadInfo = null;
     rollAng.length = 0; rollHead.length = 0;
+    runClacks = 0; runPlunks = 0; runMoved = false; runStopped = false; stopT = 0;
+    const sv = loadSave();
+    const g = E.gemFor(level, P);
+    gem = (g && !(sv.gems || {})[level]) ? { x: g.x, y: g.y, c: g.c, got: false } : null;
     updateTimePill();
   }
   function showOnboarding() {
+    const zk = (P.zones || []).length > 0 ? (E.worldFor(level).zoneKind || "ice") : null;
+    const postsNew = (P.posts || []).length > 0 && level <= 48;   // posts debut at L46 (Chime teach block)
+    const gatesNew = (P.gates || []).length > 0 && level <= 33;   // gates debut at L31 (Foundry teach block)
+    const sandNew = zk === "sand" && level <= 36;                 // (dormant — Dune cut)
+    const iceNew = zk === "ice" && level <= 36;                   // (dormant — Rime cut)
     const wallsNew = (P.walls || []).length > 0 && level <= 6;    // walls debut around L4
     const slopesNew = (P.slopes || []).length > 0 && level <= 8;  // slopes debut around L6
-    if (slopesNew) flashHint("<b>New: hills.</b> Bring speed over the ridge", 0, "hill");
+    if (postsNew) flashHint("<b>Posts!</b> Bank off them to reach the socket", 0, "post");
+    else if (gatesNew) flashHint("<b>Gates!</b> Park a marble on the plate", 0, "gate");
+    else if (sandNew) flashHint("<b>Sand!</b> Fast lines die here", 0, "sand");
+    else if (iceNew) flashHint("<b>Ice!</b> No stopping — commit the line", 0, "ice");
+    else if (slopesNew) flashHint("<b>New: hills.</b> Bring speed over the ridge", 0, "hill");
     else if (wallsNew) flashHint("<b>Walls!</b> Bank shots off them", 0, "wall");
     else flashHint("<b>Tap the tray</b>, then tilt", 0, "tilt");
   }
@@ -455,8 +528,21 @@
   // gradients at this size read as BLUR, not depth. If real depth is ever
   // wanted, the path is tight gradients/hard edges or pre-rendered sprites,
   // not more canvas soft-shading.)
+  let curHoleSocket = false;   // CHIME: draw holes as recessed sockets (set per board)
   function roundedHole(ctx, x, y, c, r) {
     ctx.save();
+    if (curHoleSocket) {
+      // recessed metal SOCKET (design: a bloomed neon orb reads as a second
+      // ball beside the ball-sized posts) — dark cup, thin colour rim, inner lip
+      const g = ctx.createRadialGradient(x, y - r * 0.25, r * 0.15, x, y, r * 1.06);
+      g.addColorStop(0, "#04050d"); g.addColorStop(1, "#171b30");
+      ctx.beginPath(); ctx.arc(x, y, r * 1.06, 0, 7); ctx.fillStyle = g; ctx.fill();
+      ctx.lineWidth = 2.6; ctx.strokeStyle = c; ctx.globalAlpha = 0.9;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.02, 0, 7); ctx.stroke();
+      ctx.globalAlpha = 0.5; ctx.lineWidth = 3; ctx.strokeStyle = "#00000070";
+      ctx.beginPath(); ctx.arc(x, y + r * 0.14, r * 0.66, 0.1, Math.PI - 0.1); ctx.stroke();
+      ctx.restore(); return;
+    }
     ctx.beginPath();
     ctx.arc(x, y, r * 1.1, 0, 7);
     ctx.fillStyle = "#070918";
@@ -487,6 +573,47 @@
     return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
   }
 
+  /* ---------- marble skins (depth plan Phase 0 — cosmetics, never bought) ----------
+     A skin is a FINISH, not a recolor — the marble's colour identity (its match)
+     must stay legible, so every skin only layers highlights/rims over the same
+     base gradient. Earned by medals, feats, gems; equipped skin persists in the
+     save and applies everywhere marbles draw (board + tutorial + collection). */
+  function featCount(sv) { let n = 0; const f = sv.feats || {}; for (const L in f) for (const k in f[L]) if (f[L][k]) n++; return n; }
+  function goldCount(sv) { let n = 0; const md = sv.medal || {}; for (const L in md) if (md[L] === "gold" || md[L] === "diamond") n++; return n; }
+  function gemCount(sv) { return Object.keys(sv.gems || {}).length; }
+  const GEM_TOTAL = (() => { let n = 0; for (let L = 1; L <= E.LAST_LEVEL; L++) if (E.hasGem(L)) n++; return n; })();
+  const SKINS = [
+    { id: "classic", name: "Classic", cond: "always yours", need: () => true },
+    { id: "pearl", name: "Pearl", cond: "earn 15 feats", need: sv => featCount(sv) >= 15 },
+    { id: "gilded", name: "Gilded", cond: "gold on all " + E.LAST_LEVEL + " levels", need: sv => goldCount(sv) >= E.LAST_LEVEL },
+    { id: "prism", name: "Prism", cond: "find all " + GEM_TOTAL + " gems", need: sv => gemCount(sv) >= GEM_TOTAL },
+  ];
+  let skinFx = "classic";
+  function applySkin() { const sv = loadSave(); skinFx = SKINS.some(s => s.id === sv.skin) ? sv.skin : "classic"; }
+  function drawSkinFx(c, px, py, r) {
+    if (skinFx === "pearl") {
+      // milky sheen: broad soft top-light + a cool rim glow
+      const g = c.createRadialGradient(px - r * 0.2, py - r * 0.5, r * 0.05, px, py, r);
+      g.addColorStop(0, "rgba(255,255,255,0.5)"); g.addColorStop(0.5, "rgba(255,255,255,0.12)"); g.addColorStop(1, "rgba(255,255,255,0)");
+      c.beginPath(); c.arc(px, py, r, 0, 7); c.fillStyle = g; c.fill();
+      c.lineWidth = 1.4; c.strokeStyle = "rgba(255,255,255,0.45)";
+      c.beginPath(); c.arc(px, py, r - 0.8, 0, 7); c.stroke();
+    } else if (skinFx === "gilded") {
+      // gold band + a warm spark at 10 o'clock
+      c.lineWidth = 1.8; c.strokeStyle = "rgba(255,198,62,0.9)";
+      c.beginPath(); c.arc(px, py, r - 0.9, 0, 7); c.stroke();
+      c.beginPath(); c.arc(px - r * 0.45, py - r * 0.1, r * 0.11, 0, 7); c.fillStyle = "#ffe9a8"; c.fill();
+    } else if (skinFx === "prism") {
+      // spectral rim: hue sweeps around the band — reads as iridescence
+      for (let i = 0; i < 6; i++) {
+        c.strokeStyle = "hsla(" + (i * 60) + ",90%,70%,0.55)";
+        c.lineWidth = 1.6;
+        c.beginPath(); c.arc(px, py, r - 0.9, i * 1.047 - 0.6, i * 1.047 + 0.62); c.stroke();
+      }
+      c.beginPath(); c.arc(px + r * 0.4, py + r * 0.25, r * 0.09, 0, 7); c.fillStyle = "#ffffffd0"; c.fill();
+    }
+  }
+
   // the rim gutter, painted on the canvas: outer rail band + inset felt, so edge
   // holes/balls have room inside the felt (the DOM .trayframe is the outer bevel).
   function paintRim() {
@@ -510,9 +637,99 @@
     for (let i = 1; i < N; i++) for (let j = 1; j < N; j++) {
       tctx.beginPath(); tctx.arc(i * CELL, j * CELL, 1.4, 0, 7); tctx.fill();
     }
+    drawZones();
     drawSlopes();
     drawBlocks();
     tctx.restore();
+  }
+  // ZONES — BEACH SAND v4 (design 2026-07-12, user reference #2): warm
+  // peach-tan radial, ~900 ultra-fine salt-and-pepper specks (5 tones), 3
+  // barely-there mottle patches, ~8 quiet shell flecks. NO hollows/clumps/
+  // marks. Rendered ONCE into an offscreen cache and blitted per frame — a
+  // thousand arc() fills per rAF is exactly the jank class we just fixed.
+  // (ICE painter kept in the cache renderer — dormant, Rime cut.)
+  let zoneCv = null, zoneCvKey = "";
+  function zoneHash(a, b) { let h = (a * 374761393 + b * 668265263) ^ 0x5bf03635; h = (h ^ (h >> 13)) * 1274126177; return ((h ^ (h >> 16)) >>> 0); }
+  function renderZoneCache() {
+    const px = CELL * N;
+    zoneCv = document.createElement("canvas");
+    zoneCv.width = px; zoneCv.height = px;
+    const c = zoneCv.getContext("2d");
+    const kind = E.worldFor(level).zoneKind || "ice";
+    for (let zi = 0; zi < P.zones.length; zi++) {
+      const z = P.zones[zi];
+      const x = z.x * CELL, y = z.y * CELL, w = z.w * CELL, h = z.h * CELL;
+      const rr = Math.max(5, CELL * 0.16);
+      c.save();
+      roundRectPath(c, x + 1.5, y + 1.5, w - 3, h - 3, rr);
+      c.clip();
+      if (kind === "sand") {
+        // warm peach-tan radial: bright heart, deeper edges
+        const cx = x + w / 2, cy = y + h / 2;
+        const rad = c.createRadialGradient(cx, cy, Math.min(w, h) * 0.1, cx, cy, Math.hypot(w, h) * 0.62);
+        rad.addColorStop(0, "#f0d6a6"); rad.addColorStop(0.55, "#e4c48e"); rad.addColorStop(1, "#d0ac72");
+        c.fillStyle = rad; c.fillRect(x, y, w, h);
+        const seed0 = zoneHash(z.x * 31 + z.y, z.w * 17 + z.h);
+        // 3 barely-there large mottle patches
+        for (let k = 0; k < 3; k++) {
+          const hh = zoneHash(seed0, k + 101);
+          const mx = x + (hh % 1000) / 1000 * w, my = y + ((hh >> 10) % 1000) / 1000 * h;
+          const mr = CELL * (0.6 + ((hh >> 20) % 100) / 200);
+          const mg = c.createRadialGradient(mx, my, 0, mx, my, mr);
+          mg.addColorStop(0, "rgba(165,128,74,0.055)"); mg.addColorStop(1, "rgba(165,128,74,0)");
+          c.fillStyle = mg; c.beginPath(); c.arc(mx, my, mr, 0, 7); c.fill();
+        }
+        // even ULTRA-FINE salt-and-pepper stipple (~110/cell at reference scale)
+        const TONES = ["#fff3d6", "#f4dcae", "#c9a266", "#a5804a", "#8f6f42"];
+        const scale = CELL / 44;
+        const n = Math.round(110 * z.w * z.h * Math.min(1.6, scale * scale));
+        for (let k = 0; k < n; k++) {
+          const hh = zoneHash(seed0, k);
+          const sx = x + (hh % 4096) / 4096 * w;
+          const sy = y + ((hh >> 12) % 4096) / 4096 * h;
+          const t = TONES[hh % 5];
+          const rP = (0.3 + ((hh >> 7) % 100) / 200) * scale;   // 0.3–0.8px
+          c.globalAlpha = 0.08 + ((hh >> 3) % 100) / 455;       // .08–.30
+          c.beginPath(); c.arc(sx, sy, Math.max(0.3, rP), 0, 7);
+          c.fillStyle = t; c.fill();
+        }
+        c.globalAlpha = 1;
+        // ~8 quiet shell flecks
+        for (let k = 0; k < 8; k++) {
+          const hh = zoneHash(seed0, k + 900);
+          const sx = x + (hh % 1000) / 1000 * w, sy = y + ((hh >> 10) % 1000) / 1000 * h;
+          c.globalAlpha = 0.32;
+          c.beginPath(); c.arc(sx, sy, (1.1 + (hh % 3) * 0.35) * scale, 0, 7);
+          c.fillStyle = hh % 2 ? "#fff6e0" : "#fff3d6"; c.fill();
+        }
+        c.globalAlpha = 1;
+      } else {
+        // frosted glass (dormant ice look)
+        const g = c.createLinearGradient(x, y, x + w, y + h);
+        g.addColorStop(0, "#9fd8ff2e"); g.addColorStop(0.5, "#cdeeff3d"); g.addColorStop(1, "#9fd8ff2e");
+        c.fillStyle = g; c.fillRect(x, y, w, h);
+        c.strokeStyle = "#e8f7ff66"; c.lineWidth = 2; c.lineCap = "round";
+        const horiz = w >= h, len = horiz ? w : h;
+        for (let i = 0; i < 3; i++) {
+          const f = (i + 0.6) / 3.4;
+          c.beginPath();
+          if (horiz) { const sx = x + len * f; c.moveTo(sx - CELL * 0.22, y + h * 0.72); c.lineTo(sx + CELL * 0.22, y + h * 0.24); }
+          else { const sy = y + len * f; c.moveTo(x + w * 0.28, sy + CELL * 0.22); c.lineTo(x + w * 0.72, sy - CELL * 0.22); }
+          c.stroke();
+        }
+      }
+      c.restore();
+      // quiet rim seats the surface into the felt (no hard mark)
+      c.strokeStyle = kind === "sand" ? "#a5804a44" : "#bfe9ff59"; c.lineWidth = 1.5;
+      roundRectPath(c, x + 1.5, y + 1.5, w - 3, h - 3, rr);
+      c.stroke();
+    }
+  }
+  function drawZones() {
+    if (!P || !P.zones || !P.zones.length) return;
+    const key = level + ":" + CELL;
+    if (!zoneCv || zoneCvKey !== key) { renderZoneCache(); zoneCvKey = key; }
+    tctx.drawImage(zoneCv, 0, 0);
   }
   // HILL rendering (lab v2 — corrected projection): the peak is NEAREST the
   // camera, so it MAGNIFIES — checker rows are widest at the ridge and
@@ -529,9 +746,9 @@
       const bl = Math.round((a & 255) * (1 - t) + (b & 255) * t);
       return "rgb(" + r + "," + g + "," + bl + ")";
     };
-    for (const s of P.slopes) {
-      const x = s.x * CELL, y = s.y * CELL, w = s.w * CELL, h = s.h * CELL;
-      const horiz = s.a === "H";
+    for (const sl of P.slopes) {
+      const x = sl.x * CELL, y = sl.y * CELL, w = sl.w * CELL, h = sl.h * CELL;
+      const horiz = sl.a === "H";
       const half = (horiz ? w : h) / 2;
       const K = 0.38, B = 0.16;                    // ridge magnification, end narrowing
       const pos = u => half * ((1 + K) * u - K * u * u);
@@ -550,7 +767,7 @@
       tctx.beginPath(); tctx.rect(x + 1, y + 1, w - 2, h - 2); tctx.clip();
       tctx.fillStyle = "#161a2c"; tctx.fillRect(x, y, w, h);
       const SUB = 3;                                // sub-rows keep the magnification smooth
-      const rows = (horiz ? s.w : s.h) * SUB, cols = (horiz ? s.h : s.w) * 2;
+      const rows = (horiz ? sl.w : sl.h) * SUB, cols = (horiz ? sl.h : sl.w) * 2;
       for (const f of [-1, 1]) {
         const lit = f < 0;
         const hiA = lit ? "#8a97dd" : "#4a548e", hiB = lit ? "#6b79bd" : "#3a4374";
@@ -594,21 +811,52 @@
   }
   function drawBlocks() {
     if (!P || !P.walls) return;
+    // real-block walls (design 2026-07-12, ported from the reference build);
+    // ADJACENT CELLS MERGE into one continuous run: zero inset + square corners
+    // on shared edges, front lip only at the bottom of a run, gloss only at its
+    // top, shadow only under the bottom cell — no felt gap inside a wall.
+    // Freestanding blocks keep rounded corners + breathing room. The 1.5px
+    // seam reads as mortar.
+    const wset = new Set(P.walls.map(q => q.x + "," + q.y));
+    const rrC = (x2, y2, w2, h2, tl, tr, br, bl) => {
+      tctx.beginPath();
+      tctx.moveTo(x2 + tl, y2);
+      tctx.arcTo(x2 + w2, y2, x2 + w2, y2 + h2, tr);
+      tctx.arcTo(x2 + w2, y2 + h2, x2, y2 + h2, br);
+      tctx.arcTo(x2, y2 + h2, x2, y2, bl);
+      tctx.arcTo(x2, y2, x2 + w2, y2, tl);
+      tctx.closePath();
+    };
     for (const b of P.walls) {
-      const x = b.x * CELL, y = b.y * CELL, s = CELL, rr = Math.max(4, CELL * 0.16);
-      // drop shadow (raised block)
-      tctx.fillStyle = "#00000055";
-      roundRectPath(tctx, x + 2, y + 4, s - 4, s - 4, rr); tctx.fill();
-      // body
-      const g = tctx.createLinearGradient(x, y, x, y + s);
-      g.addColorStop(0, "#4a54a0"); g.addColorStop(1, "#2e3670");
-      tctx.fillStyle = g;
-      roundRectPath(tctx, x + 1.5, y + 1.5, s - 3, s - 3, rr); tctx.fill();
-      tctx.lineWidth = 1.5; tctx.strokeStyle = "#6a76c9";
-      roundRectPath(tctx, x + 1.5, y + 1.5, s - 3, s - 3, rr); tctx.stroke();
-      // top bevel highlight
-      tctx.strokeStyle = "#ffffff2b"; tctx.lineWidth = 1;
-      tctx.beginPath(); tctx.moveTo(x + rr, y + 3); tctx.lineTo(x + s - rr, y + 3); tctx.stroke();
+      const x = b.x * CELL, y = b.y * CELL, s = CELL, rr = Math.max(3, CELL * 0.12);
+      const nb = {
+        u: wset.has(b.x + "," + (b.y - 1)), d: wset.has(b.x + "," + (b.y + 1)),
+        l: wset.has((b.x - 1) + "," + b.y), r: wset.has((b.x + 1) + "," + b.y),
+      };
+      const m = 1.5, lift = Math.max(4, s * 0.16);
+      const L = nb.l ? 0 : m, R = nb.r ? 0 : m, T = nb.u ? 0 : m, B = nb.d ? 0 : m;
+      const bx = x + L, bw = s - L - R;
+      const tl = (nb.u || nb.l) ? 0 : rr, tr = (nb.u || nb.r) ? 0 : rr;
+      const br = (nb.d || nb.r) ? 0 : rr, bl = (nb.d || nb.l) ? 0 : rr;
+      if (!nb.d) { // shadow only under the bottom of a run
+        tctx.fillStyle = "#00000066";
+        rrC(bx + 1.5, y + T + 3.5, bw, s - T - B - 2, tl, tr, br, bl); tctx.fill();
+      }
+      const gb = tctx.createLinearGradient(x, y, x, y + s);
+      gb.addColorStop(0, "#262c60"); gb.addColorStop(1, "#151a40");
+      tctx.fillStyle = gb;
+      rrC(bx, y + T, bw, s - T - B, tl, tr, br, bl); tctx.fill();        // body = front face
+      const faceH = nb.d ? s - T : s - T - lift;                          // face runs through shared edges
+      const gt = tctx.createLinearGradient(x, y, x, y + faceH);
+      gt.addColorStop(0, "#5b67ba"); gt.addColorStop(1, "#3a4390");
+      tctx.fillStyle = gt;
+      rrC(bx, y + T, bw, faceH, tl, tr, nb.d ? 0 : br, nb.d ? 0 : bl); tctx.fill(); // raised top face
+      tctx.lineWidth = 1.5; tctx.strokeStyle = "#7c89dd";
+      rrC(bx, y + T, bw, faceH, tl, tr, nb.d ? 0 : br, nb.d ? 0 : bl); tctx.stroke();
+      if (!nb.u) { // gloss strip only on the top block of a run
+        rrC(bx + 3, y + T + 2.5, bw - 6, faceH * 0.3, rr * 0.6, rr * 0.6, rr * 0.6, rr * 0.6);
+        tctx.fillStyle = "#ffffff30"; tctx.fill();
+      }
     }
   }
   function roundRectPath(c, x, y, w, h, r) {
@@ -628,6 +876,7 @@
     c.fillStyle = marbleGrad(c, px, py, col, r);
     c.fill();
     c.lineWidth = 1.2; c.strokeStyle = shade(col, -85) + "88"; c.stroke();
+    drawSkinFx(c, px, py, r);   // equipped cosmetic finish (colour identity untouched)
     // rolling-texture cue: a dark swirl revolving with the roll — without it the
     // marble reads as a sliding puck no matter how good the dynamics are
     if (roll && Math.cos(roll.ang) > 0) {
@@ -755,11 +1004,200 @@
       tctx.restore();
     }
   }
+  // hidden gem on the felt (depth plan Phase 0): a faceted brilliant in a marble
+  // colour, soft glow + slow pulse — legible as "roll over me", never mistakable
+  // for a hole (holes are rings; the gem is a filled crystal). Board-render only.
+  function drawGem(c, px, py, col, r, t) {
+    const pulse = 0.5 + 0.5 * Math.sin(t * 3);
+    c.save();
+    c.translate(px, py);
+    c.shadowColor = col; c.shadowBlur = 8 + 7 * pulse;
+    // crown silhouette: flat table, angled girdle, pointed pavilion
+    const w = r * 1.15, tb = r * 0.52, gy = -r * 0.22, ty = -r * 0.78;
+    c.beginPath();
+    c.moveTo(-tb, ty); c.lineTo(tb, ty);          // table
+    c.lineTo(w, gy); c.lineTo(0, r);              // right girdle → culet
+    c.lineTo(-w, gy); c.closePath();
+    c.fillStyle = col; c.fill();
+    c.shadowBlur = 0;
+    // facets: darker pavilion wedges + bright table
+    c.fillStyle = "rgba(0,0,0,0.28)";
+    c.beginPath(); c.moveTo(-w, gy); c.lineTo(-tb * 0.4, gy); c.lineTo(0, r); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(w, gy); c.lineTo(tb * 0.4, gy); c.lineTo(0, r); c.closePath(); c.fill();
+    c.fillStyle = "rgba(255,255,255,0.5)";
+    c.beginPath(); c.moveTo(-tb, ty); c.lineTo(tb, ty); c.lineTo(tb * 0.55, gy); c.lineTo(-tb * 0.55, gy); c.closePath(); c.fill();
+    c.strokeStyle = "rgba(255,255,255,0.75)"; c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(-tb, ty); c.lineTo(tb, ty); c.lineTo(w, gy); c.lineTo(0, r); c.lineTo(-w, gy); c.closePath();
+    c.stroke();
+    // travelling glint
+    const ga = (t * 1.1) % 6.283;
+    c.globalAlpha = 0.35 + 0.65 * pulse;
+    c.beginPath(); c.arc(Math.cos(ga) * r * 0.3, gy + Math.sin(ga) * r * 0.2, r * 0.14, 0, 7);
+    c.fillStyle = "#ffffff"; c.fill();
+    c.restore();
+  }
+  function zoneKindAt(m) {
+    for (const z of (P.zones || [])) {
+      if (m.x >= z.x && m.x <= z.x + z.w && m.y >= z.y && m.y <= z.y + z.h)
+        return E.worldFor(level).zoneKind || "ice";
+    }
+    return null;
+  }
+  /* PLATES & GATES (W2 Foundry — LEVELS_SPEC element visual): the pair is
+     STATE, painted live each frame — bar retraction eases toward the physics
+     world's `held`. Layer "under" draws the dotted link, the gold plate pad
+     and the 3 orange bars (below the marbles); layer "over" re-draws only the
+     wall-coloured lintel so a passing ball rolls THROUGH the doorway, never
+     over it. Reads gates straight off the physics world (cell units) so the
+     intro demo and the board share one painter, like drawWorld. */
+  function drawGates(c, w2, S, layer) {
+    if (!w2 || !w2.gates || !w2.gates.length) return;
+    for (const g of w2.gates) {
+      if (g._a === undefined) g._a = g.held ? 1 : 0;   // render-only anim state
+      if (layer === "under") g._a += ((g.held ? 1 : 0) - g._a) * 0.18;   // once per frame (the "over" pass re-reads)
+      const a = g._a;
+      const gx = g.x * S, gy = g.y * S, px = g.px * S, py = g.py * S;
+      const lint = S * 0.24;
+      // COLOUR-MATCH the pocket (Qi feedback): a gate seals exactly one hole —
+      // tint its plate, bars and link with THAT hole's colour so, on a two-pair
+      // board, you can tell at a glance which plate opens which gate (the red
+      // pocket's plate/gate/link are all red, the yellow pocket's all yellow).
+      // The lintel stays wall-coloured — it's a door IN the wall, not a piece.
+      let acc = "#ffc63e";
+      for (const h of w2.holes) if (Math.abs(Math.floor(h.x) - g.x) + Math.abs(Math.floor(h.y) - g.y) === 1) { acc = SKIN[h.c] || acc; break; }
+      if (layer === "under") {
+        c.save();
+        // dotted link plate → gate, lit while held
+        c.strokeStyle = acc;
+        c.globalAlpha = 0.15 + 0.4 * a;
+        c.lineWidth = Math.max(1.5, S * 0.05);
+        c.setLineDash([Math.max(2, S * 0.06), Math.max(5, S * 0.16)]);
+        c.beginPath();
+        c.moveTo(px + S / 2, py + S / 2);
+        c.lineTo(gx + S / 2, gy + S / 2);
+        c.stroke();
+        c.setLineDash([]);
+        c.globalAlpha = 1;
+        // plate: pocket-coloured pad ring — fill deepens + glow while pressed
+        const inset = S * 0.14, rr = Math.max(3, S * 0.14);
+        const lit = a > 0.5;
+        if (lit) { c.shadowColor = acc; c.shadowBlur = 12 * a; }
+        roundRectPath(c, px + inset, py + inset, S - 2 * inset, S - 2 * inset, rr);
+        c.fillStyle = acc + (lit ? "33" : "1c");
+        c.fill();
+        c.lineWidth = Math.max(1.5, S * 0.055);
+        c.strokeStyle = lit ? acc : acc + "aa";
+        c.stroke();
+        c.shadowBlur = 0;
+        c.fillStyle = lit ? acc : acc + "55";   // "park here" dot
+        c.beginPath(); c.arc(px + S / 2, py + S / 2, S * 0.07, 0, 7); c.fill();
+        // 3 bars sliding up into the lintel; pocket-coloured glow while shut
+        const drop = (S * 0.94 - lint * 0.6) * (1 - a);   // shut bars reach the cell floor
+        c.lineCap = "round";
+        c.lineWidth = Math.max(2.5, S * 0.1);
+        c.strokeStyle = acc;
+        if (a < 0.5) { c.shadowColor = acc; c.shadowBlur = 6 * (1 - a); }
+        for (let i = 0; i < 3; i++) {
+          const bx = gx + S * (0.25 + 0.25 * i);
+          c.beginPath();
+          c.moveTo(bx, gy + lint * 0.6);
+          c.lineTo(bx, gy + lint * 0.6 + Math.max(S * 0.06, drop));
+          c.stroke();
+        }
+        c.restore();
+      } else {
+        // lintel: wall-coloured header the bars retract into (same face colours
+        // as the real blocks so the doorway reads as part of the wall family)
+        c.save();
+        const lg = c.createLinearGradient(0, gy, 0, gy + lint);
+        lg.addColorStop(0, "#5b67ba"); lg.addColorStop(1, "#3a4390");
+        roundRectPath(c, gx + S * 0.03, gy + S * 0.02, S * 0.94, lint, Math.max(2, S * 0.06));
+        c.fillStyle = lg; c.fill();
+        c.lineWidth = 1.2; c.strokeStyle = "#7c89dd"; c.stroke();
+        c.fillStyle = "#ffffff2b";
+        c.fillRect(gx + S * 0.1, gy + S * 0.02 + 1.5, S * 0.8, Math.max(1.5, lint * 0.2));
+        c.restore();
+      }
+    }
+  }
+  // BUMPER POSTS (W3 Chime): a metal pillar with a pink ring; on impact the ring
+  // flares and 2 expanding chime rings pulse out (design element visual). postFx
+  // holds per-post {t,sp} of the last bump so the flare/rings animate off world.t.
+  let postFx = {};
+  function drawPosts(c, w2, S, now) {
+    if (!w2 || !w2.posts || !w2.posts.length) return;
+    for (const p of w2.posts) {
+      const px = p.x * S, py = p.y * S, r = p.r * S;
+      const fx = postFx[p.idx];
+      const age = fx ? now - fx.t : 99;
+      const flare = age < 0.35 ? (1 - age / 0.35) : 0;
+      if (age < 0.6) {                       // expanding chime rings
+        for (let k = 0; k < 2; k++) {
+          const a = age - k * 0.12;
+          if (a < 0 || a > 0.5) continue;
+          const rr = r * (1 + a * 6), al = (1 - a / 0.5) * 0.5;
+          c.beginPath(); c.arc(px, py, rr, 0, 7);
+          c.strokeStyle = "#ff8fb0"; c.globalAlpha = al; c.lineWidth = Math.max(1.5, S * 0.05); c.stroke();
+        }
+        c.globalAlpha = 1;
+      }
+      c.beginPath(); c.ellipse(px, py + r * 0.5, r * 0.95, r * 0.5, 0, 0, 7); c.fillStyle = "#00000055"; c.fill();
+      const g = c.createRadialGradient(px - r * 0.4, py - r * 0.45, r * 0.15, px, py, r);
+      g.addColorStop(0, "#eef1ff"); g.addColorStop(0.5, "#aab3d0"); g.addColorStop(1, "#4a5280");
+      c.beginPath(); c.arc(px, py, r, 0, 7); c.fillStyle = g; c.fill();
+      if (flare > 0) { c.shadowColor = "#ff8fb0"; c.shadowBlur = 14 * flare; }
+      c.lineWidth = Math.max(1.6, S * 0.06); c.strokeStyle = "#ff8fb0"; c.globalAlpha = 0.7 + 0.3 * flare;
+      c.beginPath(); c.arc(px, py, r * 0.92, 0, 7); c.stroke();
+      c.shadowBlur = 0; c.globalAlpha = 1;
+    }
+  }
   function draw() { if (world) drawTiltBoard(); }
   function drawTiltBoard() {
     drawGridBg();
     tctx.save(); tctx.translate(PAD, PAD);   // play space begins inside the rim
+    drawGates(tctx, world, CELL, "under");
+    drawPosts(tctx, world, CELL, world.t);
+    if (gem && !gem.got) drawGem(tctx, (gem.x + 0.5) * CELL, (gem.y + 0.5) * CELL, SKIN[gem.c], CELL * 0.30, world.t);
+    // ICE marbles wear the icy halo (dormant kind); SAND gets the half-sunk
+    // treatment AFTER the marbles draw (the lip overlaps the ball's bottom)
+    for (const m of world.marbles) {
+      if (m.captured || zoneKindAt(m) !== "ice") continue;
+      const g = tctx.createRadialGradient(m.x * CELL, m.y * CELL, R * 0.3, m.x * CELL, m.y * CELL, R * 1.9);
+      g.addColorStop(0, "#bfe9ff33"); g.addColorStop(0.6, "#9fd8ff22"); g.addColorStop(1, "#00000000");
+      tctx.beginPath(); tctx.arc(m.x * CELL, m.y * CELL, R * 1.9, 0, 7);
+      tctx.fillStyle = g; tctx.fill();
+    }
     drawWorld(tctx, world, CELL, { ang: rollAng, head: rollHead });
+    // BEACH SAND v4: a ball on sand sits HALF-SUNK — displaced lip over its
+    // lower quarter (#eccfa0→#d5b47e), bright rim crest, skid dents trailing
+    // while it moves (design 2026-07-12).
+    for (const m of world.marbles) {
+      if (m.captured || zoneKindAt(m) !== "sand") continue;
+      const px = m.x * CELL, py = m.y * CELL;
+      const sp = Math.hypot(m.vx, m.vy);
+      if (sp > 1.2) {   // skid dents: two soft dashes behind the motion
+        const nx = -m.vx / sp, ny = -m.vy / sp;
+        tctx.strokeStyle = "rgba(143,111,66,0.4)"; tctx.lineWidth = Math.max(1.5, R * 0.16); tctx.lineCap = "round";
+        for (let k = 1; k <= 2; k++) {
+          const d = R * (1.5 + k * 0.85);
+          tctx.beginPath();
+          tctx.moveTo(px + nx * d - ny * R * 0.3, py + ny * d + nx * R * 0.3);
+          tctx.lineTo(px + nx * (d + R * 0.5), py + ny * (d + R * 0.5));
+          tctx.stroke();
+        }
+      }
+      // displaced lip: covers the ball's bottom ~28% — it reads sunk IN the sand
+      const ly = py + R * 0.62;
+      const lg = tctx.createLinearGradient(0, ly - R * 0.4, 0, ly + R * 0.42);
+      lg.addColorStop(0, "#eccfa0"); lg.addColorStop(1, "#d5b47e");
+      tctx.beginPath(); tctx.ellipse(px, ly, R * 1.12, R * 0.42, 0, 0, 7);
+      tctx.fillStyle = lg; tctx.fill();
+      // rim crest: the pushed-up bright edge of the lip
+      tctx.beginPath(); tctx.ellipse(px, ly, R * 1.12, R * 0.42, 0, Math.PI * 1.05, Math.PI * 1.95);
+      tctx.strokeStyle = "#fff6e0"; tctx.lineWidth = 1.4; tctx.stroke();
+    }
+    drawGates(tctx, world, CELL, "over");
     drawLodgedWarnings();
     tctx.restore();
     if (deadInfo) drawDeadEnd();             // dims full canvas itself, then offsets by PAD
@@ -837,6 +1275,7 @@
      physics bank shot plays on the tipping mini-phone — same fixed timestep,
      same painters, so the demo IS the game. */
   function showMechanicIntro(onDone) {
+    resetCardChrome();
     $("#card").innerHTML = `
       <div style="display:flex; justify-content:center; margin-bottom:8px">
         <span class="g-wall" style="width:26px; height:26px; border-radius:5px"></span>
@@ -888,16 +1327,27 @@
       t += PH.DT;
       if (t >= DUR) { t = 0; resetW(); }
     }
-    function paintWall(x, y, s) {
-      const rr2 = Math.max(4, s * 0.16);
-      roundRectPath(c, x + 2, y + 4, s - 4, s - 4, rr2); c.fillStyle = "#00000055"; c.fill();
-      const g = c.createLinearGradient(x, y, x, y + s);
-      g.addColorStop(0, "#4a54a0"); g.addColorStop(1, "#2e3670");
-      roundRectPath(c, x + 1.5, y + 1.5, s - 3, s - 3, rr2); c.fillStyle = g; c.fill();
-      c.lineWidth = 1.5; c.strokeStyle = "#6a76c9";
-      roundRectPath(c, x + 1.5, y + 1.5, s - 3, s - 3, rr2); c.stroke();
-      c.strokeStyle = "#ffffff2b"; c.lineWidth = 1;
-      c.beginPath(); c.moveTo(x + rr2, y + 3); c.lineTo(x + s - rr2, y + 3); c.stroke();
+    function paintWall(x, y, s, nbU, nbD) {
+      // real-block look (design 2026-07-12), vertical-run aware for the demo
+      const rr2 = Math.max(3, s * 0.12), m2 = 1.5, lift = Math.max(4, s * 0.16);
+      const T = nbU ? 0 : m2, B = nbD ? 0 : m2;
+      const tl = nbU ? 0 : rr2, tr = nbU ? 0 : rr2, br = nbD ? 0 : rr2, bl = nbD ? 0 : rr2;
+      const rrC2 = (x2, y2, w2, h2, a, b2, d, e) => {
+        c.beginPath(); c.moveTo(x2 + a, y2);
+        c.arcTo(x2 + w2, y2, x2 + w2, y2 + h2, b2); c.arcTo(x2 + w2, y2 + h2, x2, y2 + h2, d);
+        c.arcTo(x2, y2 + h2, x2, y2, e); c.arcTo(x2, y2, x2 + w2, y2, a); c.closePath();
+      };
+      if (!nbD) { c.fillStyle = "#00000066"; rrC2(x + m2 + 1.5, y + T + 3.5, s - 2 * m2, s - T - B - 2, tl, tr, br, bl); c.fill(); }
+      const gb = c.createLinearGradient(x, y, x, y + s);
+      gb.addColorStop(0, "#262c60"); gb.addColorStop(1, "#151a40");
+      c.fillStyle = gb; rrC2(x + m2, y + T, s - 2 * m2, s - T - B, tl, tr, br, bl); c.fill();
+      const faceH = nbD ? s - T : s - T - lift;
+      const gt = c.createLinearGradient(x, y, x, y + faceH);
+      gt.addColorStop(0, "#5b67ba"); gt.addColorStop(1, "#3a4390");
+      c.fillStyle = gt; rrC2(x + m2, y + T, s - 2 * m2, faceH, tl, tr, nbD ? 0 : br, nbD ? 0 : bl); c.fill();
+      c.lineWidth = 1.5; c.strokeStyle = "#7c89dd";
+      rrC2(x + m2, y + T, s - 2 * m2, faceH, tl, tr, nbD ? 0 : br, nbD ? 0 : bl); c.stroke();
+      if (!nbU) { rrC2(x + m2 + 3, y + T + 2.5, s - 2 * m2 - 6, faceH * 0.3, rr2 * 0.6, rr2 * 0.6, rr2 * 0.6, rr2 * 0.6); c.fillStyle = "#ffffff30"; c.fill(); }
     }
     function render() {
       c.clearRect(0, 0, LW, LH);
@@ -924,7 +1374,9 @@
       c.clip();
       c.fillStyle = "#ffffff0d";
       for (let i = 1; i < GW; i++) for (let j = 1; j < GH; j++) { c.beginPath(); c.arc(i * S, j * S, 1.2, 0, 7); c.fill(); }
-      for (const bl of WCELLS) paintWall(bl.x * S, bl.y * S, S);
+      for (const bl of WCELLS) paintWall(bl.x * S, bl.y * S, S,
+        WCELLS.some(q => q.x === bl.x && q.y === bl.y - 1),
+        WCELLS.some(q => q.x === bl.x && q.y === bl.y + 1));
       drawWorld(c, w, S, rolls);
       c.restore();
       c.restore();
@@ -947,6 +1399,221 @@
     $("#wallsGo").onclick = () => { on = false; $("#ov").classList.remove("show"); onDone && onDone(); };
   }
 
+  /* ---------- WORLD INTRO card (depth plan §6) — once per world, on entering ----
+     Full-card takeover in the world's palette: eyebrow WORLD N (ring color),
+     the world name big, a LIVE physics demo of the new element (same fixed
+     timestep, same painters — the demo IS the game), the element line, a feel
+     whisper, ENTER in the ring color. One visible physics rule per world. */
+  const WORLD_WHISPER = { 2: "One rests. One runs.", 3: "Aim the rebound." };
+  function showWorldIntro(w, onDone) {
+    resetCardChrome();
+    $("#card").className = "card worldintro";
+    $("#card").style.background = `linear-gradient(180deg,${w.c1},${w.c2})`;
+    $("#card").style.borderColor = w.ring + "66";
+    $("#card").innerHTML = `
+      <div class="wi-eyebrow" style="color:${w.ring}">WORLD ${w.id}</div>
+      <h2 class="wi-name">${w.name}</h2>
+      <canvas id="wiCv" style="margin:2px auto 0; display:block; max-width:100%"></canvas>
+      <div id="wiCap" class="creature" style="min-height:20px; margin-bottom:2px">&nbsp;</div>
+      <div class="wi-new">New: <b>${w.element}</b> — ${w.line}</div>
+      <div class="wi-whisper">${WORLD_WHISPER[w.id] || ""}</div>
+      <div class="row"><button id="wiGo" class="primary" style="background:${w.ring}; color:#06222f">ENTER ▸</button></div>`;
+    $("#ov").classList.add("show");
+    const cv = document.getElementById("wiCv"), c = cv.getContext("2d");
+    const LW = 300, LH = 200;
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    cv.width = LW * dpr; cv.height = LH * dpr;
+    cv.style.width = LW + "px"; cv.style.height = LH + "px";
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cv.style.filter = "drop-shadow(0 14px 14px rgba(0,0,0,0.5))";
+    const GW = 7, GH = 5, S = 34, SW = GW * S, SH = GH * S;
+    const kind = w.zoneKind || (w.id === 2 ? "gate" : w.id === 3 ? "post" : "ice");
+    const ICE = { x: 1.6, y: 1.6, w: 3.8, h: 1.8, kind };
+    // Foundry demo pieces (cells): plate (1,2) pocketed by a pin + shelf so the
+    // keeper STAYS parked under the crossing tilt; gate (4,4) under a short
+    // wall run; the runner's hole sits ON its rolling line — the capture
+    // corridor is holeR·0.62 ≈ 0.26 cells, so a hole 0.29 off the floor path
+    // never captures (story beats verified in scratch gate-demo-check.cjs:
+    // open 0.4s · sunk 2.2s · door drops 3.9s · 5.4s loop).
+    const GATE_BLOCKS = [{ x: 2, y: 2 }, { x: 1, y: 3 }, { x: 4, y: 3 }];
+    const CHIME_POST = { x: 3.32, y: 3.36, r: 0.34 };   // bank pivot (scratch chime-demo-search)
+    const BEATS = kind === "post" ? [
+      { gx: 0.8, gy: 1.88, dur: 1.2, cap: "Aim at the post", reset: true },
+      { gx: 0.52, gy: 2.82, dur: 1.6, cap: "Bank off it" },
+      { gx: -0.61, gy: -0.53, dur: 1.5, cap: "Into the socket" },
+      { gx: 0, gy: 0, dur: 1.0, cap: "Into the socket" },
+    ] : kind === "gate" ? [
+      { gx: 0, gy: 6, dur: 1.4, cap: "Park a marble on the plate", reset: true },
+      { gx: 3.4, gy: 2, dur: 1.6, cap: "Held open — roll through" },
+      { gx: 1.2, gy: 2, dur: 0.8, cap: "Through — and home" },
+      { gx: -5, gy: -2.5, dur: 1.2, cap: "Leave — the door drops" },
+      { gx: 0, gy: 0, dur: 0.4, cap: "Leave — the door drops" },
+    ] : kind === "sand" ? [
+      { gx: 7, gy: 0, dur: 1.8, cap: "Sand swallows your speed", reset: true },
+      { gx: 7, gy: 0.5, dur: 1.5, cap: "Crawl through — or go around" },
+      { gx: 2.5, gy: 5, dur: 1.7, cap: "Stop exactly where you mean to" },
+      { gx: 0, gy: 0, dur: 1.0, cap: "Stop exactly where you mean to" },
+    ] : [
+      { gx: 6, gy: 0, dur: 1.7, cap: "Ice barely steers — commit the line", reset: true },
+      { gx: -3.5, gy: 0.5, dur: 1.6, cap: "Grip returns off the ice" },
+      { gx: 3, gy: 5, dur: 1.8, cap: "Pick your line, then land it" },
+      { gx: 0, gy: 0, dur: 1.0, cap: "Pick your line, then land it" },
+    ];
+    const DUR = BEATS.reduce((s, b) => s + b.dur, 0);
+    const beatAt = t => { let a = 0; for (const b of BEATS) { a += b.dur; if (t < a) return b; } return BEATS[BEATS.length - 1]; };
+    const rolls = { ang: [], head: [] };
+    let dw = null, t = 0, phiX = 0, phiY = 0, capShown = "", on = true;
+    function resetW() {
+      dw = kind === "post" ? PH.createWorld({
+        w: GW, h: GH, pad: 0, unit: 1,
+        marbles: [{ x: 0.81, y: 1.48, r: 0.36, c: "r" }],
+        holes: [{ x: 5.96, y: 4.22, r: 0.42, c: "r" }],
+        posts: [CHIME_POST],
+      }) : kind === "gate" ? PH.createWorld({
+        w: GW, h: GH, pad: 0, unit: 1,
+        marbles: [{ x: 1.5, y: 0.6, r: 0.36, c: "y" },    // keeper — parks
+                  { x: 0.5, y: 4.4, r: 0.36, c: "b" }],   // runner — crosses
+        holes: [{ x: 5.7, y: 4.6, r: 0.42, c: "b" }],
+        blocks: GATE_BLOCKS.map(b => ({ x: b.x, y: b.y, w: 1, h: 1 })),
+        gates: [{ x: 4, y: 4, px: 1, py: 2 }],
+      }) : PH.createWorld({
+        w: GW, h: GH, pad: 0, unit: 1,
+        marbles: [{ x: 0.8, y: 2.5, r: 0.36, c: "b" }],
+        holes: [{ x: 5.5, y: 4.4, r: 0.42, c: "b" }],
+        zones: [ICE],
+      });
+      rolls.ang.length = 0; rolls.head.length = 0;
+    }
+    function stepOne() {
+      PH.step(dw, beatAt(t));
+      for (const e of dw.events) if (e.type === "bump") postFx[e.i] = { t: dw.t, sp: e.speed };   // demo chime rings
+      dw.events.length = 0;
+      dw.marbles.forEach((m, i) => {
+        if (m.captured) return;
+        const s = Math.hypot(m.vx, m.vy);
+        if (s > 0.05) { rolls.ang[i] = (rolls.ang[i] || 0) + (s / m.r) * PH.DT; rolls.head[i] = Math.atan2(m.vy, m.vx); }
+      });
+      t += PH.DT;
+      if (t >= DUR) { t = 0; resetW(); }
+    }
+    function paintIceMini(x, y, wpx, hpx) {
+      const rr = Math.max(4, S * 0.18);
+      c.save();
+      roundRectPath(c, x + 1.5, y + 1.5, wpx - 3, hpx - 3, rr); c.clip();
+      if (kind === "sand") {
+        // beach sand v4-lite: peach-tan radial + fine stipple + a few shells
+        const rad = c.createRadialGradient(x + wpx / 2, y + hpx / 2, 4, x + wpx / 2, y + hpx / 2, Math.hypot(wpx, hpx) * 0.6);
+        rad.addColorStop(0, "#f0d6a6"); rad.addColorStop(0.55, "#e4c48e"); rad.addColorStop(1, "#d0ac72");
+        c.fillStyle = rad; c.fillRect(x, y, wpx, hpx);
+        const TONES = ["#fff3d6", "#f4dcae", "#c9a266", "#a5804a", "#8f6f42"];
+        for (let k = 0; k < 130; k++) {
+          const hsh = (k * 2654435761) >>> 0;
+          c.globalAlpha = 0.08 + (hsh % 100) / 455;
+          c.beginPath();
+          c.arc(x + ((hsh >> 8) % 1000) / 1000 * wpx, y + ((hsh >> 18) % 1000) / 1000 * hpx, 0.3 + (hsh % 50) / 100, 0, 7);
+          c.fillStyle = TONES[hsh % 5]; c.fill();
+        }
+        c.globalAlpha = 0.32;
+        for (let k = 0; k < 4; k++) {
+          const hsh = ((k + 9) * 2246822519) >>> 0;
+          c.beginPath(); c.arc(x + (hsh % 1000) / 1000 * wpx, y + ((hsh >> 10) % 1000) / 1000 * hpx, 1.2, 0, 7);
+          c.fillStyle = "#fff6e0"; c.fill();
+        }
+        c.globalAlpha = 1;
+      } else {
+        const g = c.createLinearGradient(x, y, x + wpx, y + hpx);
+        g.addColorStop(0, "#9fd8ff3a"); g.addColorStop(0.5, "#cdeeff4d"); g.addColorStop(1, "#9fd8ff3a");
+        c.fillStyle = g; c.fillRect(x, y, wpx, hpx);
+        c.strokeStyle = "#e8f7ff70"; c.lineWidth = 2; c.lineCap = "round";
+        for (let i = 0; i < 3; i++) {
+          const sx = x + wpx * ((i + 0.6) / 3.4);
+          c.beginPath(); c.moveTo(sx - 8, y + hpx * 0.72); c.lineTo(sx + 8, y + hpx * 0.24); c.stroke();
+        }
+      }
+      c.restore();
+      c.strokeStyle = kind === "sand" ? "#a5804a55" : "#bfe9ff66"; c.lineWidth = 1.5;
+      roundRectPath(c, x + 1.5, y + 1.5, wpx - 3, hpx - 3, rr); c.stroke();
+    }
+    function paintBlockMini(x, y) {
+      // simplified real-block (34px scale): dark body, raised lit top face,
+      // gloss — same family as the board's drawBlocks
+      const m = 1.5, rr = Math.max(3, S * 0.12), lift = Math.max(3, S * 0.16);
+      const gb = c.createLinearGradient(0, y, 0, y + S);
+      gb.addColorStop(0, "#262c60"); gb.addColorStop(1, "#151a40");
+      roundRectPath(c, x + m, y + m, S - 2 * m, S - 2 * m, rr);
+      c.fillStyle = gb; c.fill();
+      const gt = c.createLinearGradient(0, y, 0, y + S - lift);
+      gt.addColorStop(0, "#5b67ba"); gt.addColorStop(1, "#3a4390");
+      roundRectPath(c, x + m, y + m, S - 2 * m, S - 2 * m - lift, rr);
+      c.fillStyle = gt; c.fill();
+      c.lineWidth = 1.2; c.strokeStyle = "#7c89dd"; c.stroke();
+      roundRectPath(c, x + 4, y + 3.5, S - 8, (S - lift) * 0.3, rr * 0.6);
+      c.fillStyle = "#ffffff30"; c.fill();
+    }
+    function render() {
+      c.clearRect(0, 0, LW, LH);
+      const b = beatAt(t);
+      const tX = Math.asin(Math.max(-0.85, Math.min(0.85, b.gx / 9.8)));
+      const tY = Math.asin(Math.max(-0.85, Math.min(0.85, b.gy / 9.8)));
+      phiX += (tX - phiX) * 0.09; phiY += (tY - phiY) * 0.09;
+      const DEG = 180 / Math.PI;
+      cv.style.transform = "perspective(560px) rotateY(" + (phiX * DEG).toFixed(2) + "deg) rotateX(" + (-phiY * DEG).toFixed(2) + "deg)";
+      const PW = SW + 20, PHH = SH + 26;
+      c.save();
+      c.translate(LW / 2, LH / 2);
+      roundRectPath(c, -PW / 2, -PHH / 2, PW, PHH, 16);
+      const bg = c.createLinearGradient(0, -PHH / 2, 0, PHH / 2);
+      bg.addColorStop(0, w.c1); bg.addColorStop(1, w.c2);
+      c.fillStyle = bg; c.fill();
+      c.lineWidth = 2; c.strokeStyle = w.ring + "66"; c.stroke();
+      c.save();
+      c.translate(-SW / 2, -SH / 2 + 3);
+      roundRectPath(c, 0, 0, SW, SH, 7);
+      c.fillStyle = "#0c102e"; c.fill();
+      c.clip();
+      c.fillStyle = "#ffffff0d";
+      for (let i = 1; i < GW; i++) for (let j = 1; j < GH; j++) { c.beginPath(); c.arc(i * S, j * S, 1.2, 0, 7); c.fill(); }
+      if (kind === "post") {
+        curHoleSocket = true;                 // Chime holes are sockets in the demo too
+        drawPosts(c, dw, S, dw.t);
+        drawWorld(c, dw, S, rolls);
+        curHoleSocket = false;
+      } else if (kind === "gate") {
+        for (const b of GATE_BLOCKS) paintBlockMini(b.x * S, b.y * S);
+        drawGates(c, dw, S, "under");
+        drawWorld(c, dw, S, rolls);
+        drawGates(c, dw, S, "over");
+      } else {
+        paintIceMini(ICE.x * S, ICE.y * S, ICE.w * S, ICE.h * S);
+        drawWorld(c, dw, S, rolls);
+      }
+      c.restore();
+      c.restore();
+      const capEl = document.getElementById("wiCap");
+      if (capEl && capShown !== b.cap) { capShown = b.cap; capEl.textContent = b.cap; }
+    }
+    resetW();
+    let last = 0, acc = 0;
+    function frame(now) {
+      if (!on || !document.getElementById("wiCv")) return;
+      requestAnimationFrame(frame);
+      if (!last) { last = now; render(); return; }
+      let dt = (now - last) / 1000; last = now;
+      if (dt > 0.05) dt = 0.05;
+      acc += dt;
+      while (acc >= PH.DT) { stepOne(); acc -= PH.DT; }
+      render();
+    }
+    requestAnimationFrame(frame);
+    $("#wiGo").onclick = () => {
+      on = false;
+      $("#card").className = "card";
+      $("#card").style.background = ""; $("#card").style.borderColor = "";
+      $("#ov").classList.remove("show");
+      onDone && onDone();
+    };
+  }
+
   /* ---------- tutorial: a real mini-game inside a tilting phone ----------
      Runs the ACTUAL physics (PH.createWorld/PH.step, same fixed timestep) on a
      pocket world and renders with the SAME primitives as the board (drawWorld)
@@ -959,6 +1626,7 @@
      roll → wrong hole → STUCK → hard tilt pops it free → sinks in its match. */
   let tutWorld = null, tutRAF = 0, tutOn = false, tutT = 0, tutStepFn = null;
   function showTutorial(onDone) {
+    resetCardChrome();
     const TUT = window.TutorialScript;
     $("#card").innerHTML = `
       <h2 style="font-size:22px">ROLL EACH BALL INTO<br>ITS MATCHING HOLE</h2>
@@ -966,6 +1634,7 @@
       <div id="tutCap" class="creature" style="min-height:20px; margin-bottom:12px">&nbsp;</div>
       <div class="row"><button id="tutGo" class="primary">GOT IT ▸</button></div>`;
     $("#ov").classList.add("show");
+    overlayAbovePanels();   // "How to Play" opens from the settings sheet on a panel too
     const cv = document.getElementById("tutCv"), c = cv.getContext("2d");
     const LW = 300, LH = 240;                       // logical size
     // crisp on Retina: back the canvas at device resolution, draw in logical px
@@ -1082,7 +1751,7 @@
     $("#tutGo").onclick = () => {
       tutOn = false; cancelAnimationFrame(tutRAF);
       tutWorld = null; tutStepFn = null;
-      $("#ov").classList.remove("show", "deadend");
+      $("#ov").classList.remove("show", "deadend", "above");
       onDone && onDone();
     };
   }
@@ -1094,7 +1763,7 @@
   function hasInputSource() { return motionOK || !!devG || Object.values(keysHeld).some(Boolean); }
   function tiltLoop(now) {
     requestAnimationFrame(tiltLoop);
-    if (lsOpen) { lastT = now; return; }   // Level Select is up — freeze the run underneath
+    if (lsOpen || wsOpen || colOpen) { lastT = now; return; }   // a nav panel is up — freeze the run underneath
     if (!world) return;
     if (tiltPhase === "armed") {
       // no calibration, no gate: gravity is absolute and live from the first
@@ -1116,21 +1785,30 @@
       lastT = now; setRollLevel(0); draw();
       return;
     }
-    if (tiltPhase !== "running") { lastT = now; setRollLevel(0); if (tiltPhase === "ready") draw(); return; }
+    if (tiltPhase !== "running") {
+      lastT = now; setRollLevel(0);
+      // "ready" repaints for the gem pulse — but NEVER under a card overlay:
+      // iOS recomposites #ov's full-screen backdrop-blur every canvas frame,
+      // janking the very buttons on the card (the "settings X dead/slow" bug)
+      if (tiltPhase === "ready" && !$("#ov").classList.contains("show")) draw();
+      return;
+    }
     let dt = (now - lastT) / 1000; lastT = now;
     if (dt > 0.05) dt = 0.05;   // clamp hiccups (backgrounding etc.)
     acc += dt;
     const g = currentGravity();
     while (acc >= PH.DT) { PH.step(world, g); acc -= PH.DT; consumeEvents(); if (lost) break; }
     // rolling-texture cue + rolling-rumble level
-    let smax = 0;
+    let smax = 0, freeN = 0, fastIce = null;
     world.marbles.forEach((m, i) => {
       if (m.captured) return;
+      freeN++;
       const s = Math.hypot(m.vx, m.vy);
-      if (s > smax) smax = s;
+      if (s > smax) { smax = s; fastIce = zoneKindAt(m); }
       if (s > 0.05) { rollAng[i] = (rollAng[i] || 0) + (s / m.r) * dt; rollHead[i] = Math.atan2(m.vy, m.vx); }
     });
-    setRollLevel(won || lost ? 0 : smax);
+    setRollLevel(won || lost ? 0 : smax, fastIce);
+    trackRunSignals(smax, freeN, dt);
     draw();
     if (!lost) updateTimePill();
     checkDeadEnd();
@@ -1151,6 +1829,7 @@
   function consumeEvents() {
     for (const e of world.events) {
       if (e.type === "clack") {
+        runClacks++;   // feat: no-clack
         const v = Math.min(1, e.speed / 10);
         sndClack(0.3 + 0.7 * v, 0.85 + 0.35 * v, e.i + "_" + e.j, e.dead);
         if (e.speed > 4) haptic("light");
@@ -1160,7 +1839,13 @@
         if (e.speed > 6) haptic(e.speed > 13 ? "medium" : "light");
       } else if (e.type === "rim") {
         sndRim(); haptic("light");
+      } else if (e.type === "gate") {
+        sndGate(e.open, e.i); haptic("light");
+      } else if (e.type === "bump") {
+        postFx[e.i] = { t: world.t, sp: e.speed };
+        sndBump(e.i, e.speed); if (e.speed > 6) haptic(e.speed > 13 ? "medium" : "light");
       } else if (e.type === "plunk") {
+        runPlunks++;   // feat: zero-lodge
         sndPlunk(); haptic("medium");   // wrong cup — you'll feel it
         flashHint("Tilt HARD to pop it out!", 1, "stuck"); stuckHint = true;
       } else if (e.type === "capture") {
@@ -1171,7 +1856,46 @@
       }
     }
   }
+  // per-step run signals shared by tiltLoop AND the __tilt.stepN dev hook (the
+  // hook must exercise the same feat/gem logic real play does, or tests lie):
+  // feat no-stop — once the board has genuinely moved, any 0.4s window where
+  // EVERY loose marble rests (before the final capture) forfeits the feat; the
+  // pre-first-tilt stillness never counts, neither does the sink animation.
+  function trackRunSignals(smax, freeN, dt) {
+    if (won || lost || freeN <= 0) return;
+    if (smax > 1.0) runMoved = true;
+    if (runMoved) {
+      if (smax < 0.08) { stopT += dt; if (stopT > 0.4) runStopped = true; }
+      else stopT = 0;
+    }
+    checkGem();
+  }
+  // gem pickup: a FREE marble rolling over the gem cell collects it — persisted
+  // immediately (a found gem survives a dead-end retry; the collection is the
+  // reward lap, not a win condition). Distinct haptic identity: a quick double tap.
+  function checkGem() {
+    if (!gem || gem.got) return;
+    const gx = gem.x + 0.5, gy = gem.y + 0.5;
+    for (const m of world.marbles) {
+      if (m.captured) continue;
+      if (Math.hypot(m.x - gx, m.y - gy) < 0.5) {
+        gem.got = true;
+        const sv = loadSave(); sv.gems = sv.gems || {}; sv.gems[level] = 1; writeSave(sv);
+        track("gem_collect", { level: level });
+        sndCapture();
+        haptic("light"); setTimeout(() => haptic("light"), 70);
+        popAt(gx * CELL, gy * CELL, SKIN[gem.c]);
+        toast("💎 Gem found!");
+        return;
+      }
+    }
+  }
   function startTiltRun() {
+    // NEVER arm while a card overlay is up (review 2026-07-12): #ov blocks
+    // pointer input but the desktop keydown path bypassed it — a run could
+    // play out blind UNDER the tutorial/world-intro card, destroying the
+    // intro's button (the only place its cleanup + once-only flag live).
+    if ($("#ov").classList.contains("show")) return;
     initAudio(); initRollSound(); requestMotion();
     if (tiltPhase === "ready") {
       tiltPhase = "armed";
@@ -1185,19 +1909,20 @@
   }
   function bestFor(sv, lvl) { return sv.best && sv.best[lvl]; }
   /* ---------- time medals (the replay hook) ----------
-     Thresholds scale off the level's BFS par (min tilts): a par-1 sprint wants
-     gold in a few seconds, a long level gets proportionally more room. Clearing
-     ALWAYS earns at least bronze. First-pass constants — tune to real playtest
-     times (that's the deliberate "set from your own runs" step). */
-  function medalTimes(par) { const p = Math.max(1, par || 1); return { gold: 1.2 + p * 1.6, silver: 2.0 + p * 2.6 }; }
-  function medalFor(time, par) { const t = medalTimes(par); return time <= t.gold ? "gold" : time <= t.silver ? "silver" : "bronze"; }
-  const MEDAL_RANK = { bronze: 1, silver: 2, gold: 3 };
-  const MEDAL_COL = { gold: "var(--gold)", silver: "var(--silver)", bronze: "var(--bronze)" };
+     Threshold math lives in engine.js (E.medalTimes/E.medalFor — pure, node-
+     tested; gold/silver formulas unchanged from the shipped 30). DIAMOND (depth
+     plan Phase 0) sits above gold: the mastery tier, hidden on the win card
+     until a level's first clear. Placeholder curves until certify.cjs replaces
+     them with bot percentiles. */
+  const medalTimes = E.medalTimes, medalFor = E.medalFor;
+  const MEDAL_RANK = { bronze: 1, silver: 2, gold: 3, diamond: 4 };
+  const MEDAL_COL = { diamond: "var(--diamond)", gold: "var(--gold)", silver: "var(--silver)", bronze: "var(--bronze)" };
   function bestMedal(sv, lvl) { return sv.medal && sv.medal[lvl]; }
-  // 3 stars, lit center-out by tier (bronze 1 / silver 2 / gold 3), tinted the
+  // 3 stars, lit center-out by tier (bronze 1 / silver 2 / gold+ 3), tinted the
   // medal colour — the big centre star anchors every tier so bronze still reads.
+  // Diamond lights all three in ice-blue (its 4th rank lives in the medal strip).
   function medalStarsHTML(medal) {
-    const lit = { 1: [1], 2: [0, 1], 3: [0, 1, 2] }[MEDAL_RANK[medal]];
+    const lit = { 1: [1], 2: [0, 1], 3: [0, 1, 2] }[Math.min(3, MEDAL_RANK[medal])];
     const cls = ["", "big", ""];
     return [0, 1, 2].map(i => {
       const on = lit.indexOf(i) >= 0;
@@ -1255,9 +1980,22 @@
     const blocked = new Set(), capCells = new Set();
     for (const b of (P.walls || [])) blocked.add(b.x + "," + b.y);
     for (const m of world.marbles) if (m.captured) { const k = Math.round(m.x - 0.5) + "," + Math.round(m.y - 0.5); blocked.add(k); capCells.add(k); }
+    const freeN = world.marbles.filter(mm => !mm.captured).length;
     for (const m of world.marbles) {
       if (m.captured) continue;
-      if (homeReachable(m, blocked)) continue;
+      // FOUNDRY gates: for the LAST free marble a closed gate is a permanent
+      // wall — nobody is left to hold the plate, and it cannot hold the plate
+      // and travel through its own door (leaving closes it). With ≥2 free
+      // marbles a gate stays passable-in-principle (another marble can park),
+      // so this under-detects but can never falsely end a live run. A marble
+      // already INSIDE the gate cell exits freely (anti-crush keeps it open).
+      let bl = blocked;
+      if (freeN <= 1 && (P.gates || []).length) {
+        bl = new Set(blocked);
+        for (const g of P.gates)
+          if (!(Math.floor(m.x) === g.x && Math.floor(m.y) === g.y)) bl.add(g.x + "," + g.y);
+      }
+      if (homeReachable(m, bl)) continue;
       // this ball can never reach its hole — capture the "why" for the board
       // annotation: the ball, its sealed home hole, and the CAPTURED ball(s) doing the
       // sealing. Sealers can cap the HOME's approach (gateway trap) OR box the BALL
@@ -1271,6 +2009,19 @@
           const nx = cx + dx, ny = cy + dy, k = nx + "," + ny;
           if (nx >= 0 && nx < N && ny >= 0 && ny < N && capCells.has(k) && !seen.has(k)) { seen.add(k); seals.push({ x: nx, y: ny }); }
         }
+      }
+      // gate-caused seal (reachable without the gate walls, not with) → the ✕
+      // belongs on the shut door DOING the sealing: a gate is a culprit iff
+      // opening it alone restores the path (joint cuts mark every closed door)
+      if (bl !== blocked && homeReachable(m, blocked)) {
+        let marked = 0;
+        for (const g of P.gates) {
+          const gk = g.x + "," + g.y;
+          if (!bl.has(gk)) continue;
+          const bl2 = new Set(bl); bl2.delete(gk);
+          if (homeReachable(m, bl2)) { seals.push({ x: g.x, y: g.y }); marked++; }
+        }
+        if (!marked) for (const g of P.gates) if (bl.has(g.x + "," + g.y)) seals.push({ x: g.x, y: g.y });
       }
       lost = true; sndFail(); haptic("heavy");
       track("dead_end", { level: level });
@@ -1291,6 +2042,7 @@
   // annotation on the board is the explanation, and it stays lit (phase "dead")
   // until the player taps. One line, no stats.
   function showDeadEnd(reason) {
+    resetCardChrome();
     reason = reason || "No way to finish from this position";
     $("#card").innerHTML = `
       <h2>DEAD END!</h2>
@@ -1310,69 +2062,157 @@
     sv.best[level] = prev ? Math.min(prev, time) : time;
     // medal: keep the best tier ever earned on this level
     const medal = medalFor(time, P.par);
-    track("level_complete", { level: level, time_ms: Math.round(time * 1000), stars: MEDAL_RANK[medal] });
     sv.medal = sv.medal || {};
     if (!sv.medal[level] || MEDAL_RANK[medal] > MEDAL_RANK[sv.medal[level]]) sv.medal[level] = medal;
+    // feats: judged per run, kept forever once earned on this level (mastery lap)
+    const rf = runFeats(), defs = featDefs();
+    sv.feats = sv.feats || {};
+    const fRec = sv.feats[level] = sv.feats[level] || {};
+    let earned = 0;
+    for (const d of defs) { if (rf[d.id]) { fRec[d.id] = 1; } if (fRec[d.id]) earned++; }
+    track("level_complete", { level: level, time_ms: Math.round(time * 1000),
+      stars: Math.min(3, MEDAL_RANK[medal]), medal: medal, feats: earned,
+      gem: gem && gem.got ? 1 : 0 });
     if (level >= E.LAST_LEVEL) sv.done = 1;
     writeSave(sv);
-    sndWinChord(); haptic("medium");
+    // world-complete funnel event (was on the retired finish card): fires when a
+    // world's last built level is cleared. diamond counts as gold-or-better.
+    const wE = E.worldFor(level);
+    if (level >= Math.min(wE.to, E.LAST_LEVEL)) {
+      let g = 0, s = 0, b = 0, d = 0;
+      for (let L = wE.from; L <= Math.min(wE.to, E.LAST_LEVEL); L++) {
+        const mm = (sv.medal || {})[L];
+        if (mm === "diamond") { d++; g++; } else if (mm === "gold") g++; else if (mm === "silver") s++; else if (mm === "bronze") b++;
+      }
+      track("world_complete", { world: wE.id, golds: g, diamonds: d, stars: g * 3 + s * 2 + b });
+    }
+    // haptic identity: a diamond-tier run lands HEAVY — you'll know without looking
+    sndWinChord(); haptic(medal === "diamond" ? "heavy" : "medium");
     let burst = 0; const bi = setInterval(() => {
       popAt(Math.random() * trayC.width, Math.random() * trayC.height * 0.6, Object.values(SKIN)[Math.floor(Math.random() * 7)]);
       if (++burst > 8) clearInterval(bi);
     }, 70);
     setTimeout(() => showTiltResult(time, prev), 700);
   }
+  /* ---------- win card v2 (depth plan Phase 0, LEVELS_SPEC §6) ----------
+     Top→bottom additions: medal strip B/S/G/D (letter chips with thresholds; the
+     run's tier lit), feats rows (this run: green check / dim), gem chip when the
+     gem was found this run. DIAMOND is hidden until the level's first clear —
+     the strip shows a teaser note instead (the mastery lap reveals itself). The
+     old "chase" line is retired: the strip IS the chase, all thresholds visible. */
+  const IC_GEM = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9z"></path><path d="M2 9h20"></path><path d="M12 22 8 9l4-6 4 6-4 13"></path></svg>';
+  function medalStripHTML(medal, mt, firstClear, diaNew) {
+    const chips = [
+      { k: "bronze", L: "B", col: "#cd8a4a", sub: "CLEAR" },
+      { k: "silver", L: "S", col: "#c8d0e8", sub: "≤ " + mt.silver.toFixed(1) + "s" },
+      { k: "gold", L: "G", col: "#ffc63e", sub: "≤ " + mt.gold.toFixed(1) + "s" },
+    ];
+    // diamond hides until the level's first clear — EXCEPT when this very run
+    // earned it (reveal-on-earn: the card must never announce DIAMOND up top
+    // while the strip denies the tier exists)
+    const showDia = !firstClear || medal === "diamond";
+    if (showDia) chips.push({ k: "diamond", L: "D", col: "#7ee7ff", sub: "≤ " + mt.diamond.toFixed(1) + "s", dia: true });
+    const row = chips.map(c => `
+      <div class="mchip${medal === c.k ? " on" : ""}${c.dia ? " dia" : ""}" style="--mc:${c.col}">
+        ${c.dia && diaNew ? '<i class="mnew">NEW</i>' : ""}
+        <span class="mlet">${c.L}</span><span class="msub">${c.sub}</span>
+      </div>`).join("");
+    return `<div class="mstrip">${row}</div>` +
+      (showDia ? "" : '<div class="mnote">Diamond appears after your first clear</div>');
+  }
+  // feats speak ONLY when earned (Qi: dim you-missed rows crowded the card):
+  // one slim line of green chips for THIS run's feats, nothing otherwise
+  function featChipsHTML(rf) {
+    const got = featDefs().filter(d => rf[d.id]);
+    if (!got.length) return "";
+    return '<div class="featline">' + got.map(d => `<span class="fchip">✓ ${d.name}</span>`).join("") + "</div>";
+  }
+  // ONE card ends a world (Qi feedback 2026-07-12: the level-clear card → a
+  // second "world complete" card → WORLDS → hunt-the-ladder was three stops of
+  // friction). Clearing a world's LAST built level folds the world-complete
+  // moment into THIS card (a ribbon) and its primary action flows STRAIGHT to
+  // what's next: the next world if it's built (no ladder detour), else the
+  // ladder (there's genuinely nowhere else to go until it ships).
+  // card-chrome hygiene: the world intro skins #card (class + inline palette)
+  // and normally cleans up in its ENTER handler — but any card that replaces
+  // #card.innerHTML would otherwise inherit the leaked skin (review 2026-07-12).
+  // Every card renderer resets the chrome first; cheap and idempotent.
+  function resetCardChrome() {
+    const c = $("#card");
+    c.className = "card";
+    c.style.background = ""; c.style.borderColor = "";
+  }
   function showTiltResult(time, prevBest) {
+    resetCardChrome();
     const sv = loadSave();
     const isPB = !prevBest || time <= prevBest;
     const medal = medalFor(time, P.par);         // THIS run's medal — the card rates the run you just played, not your best-ever
     const mt = medalTimes(P.par);
-    const isLast = level >= E.LAST_LEVEL;
-    const chase = medal === "gold" ? "" :
-      `<div class="chase">for <b style="color:${medal === "bronze" ? MEDAL_COL.silver : MEDAL_COL.gold}">${medal === "bronze" ? "SILVER" : "GOLD"}</b> clear under ${(medal === "bronze" ? mt.silver : mt.gold).toFixed(1)}s</div>`;
+    const firstClear = !prevBest;
+    // NEW tag rides the diamond chip until the player has SEEN it once
+    // (persisted flag — a diamond earned before the chip ever displayed still
+    // deserves its introduction)
+    const diaShown = !firstClear || medal === "diamond";
+    const diaNew = diaShown && !sv.diaSeen;
+    if (diaNew) { sv.diaSeen = 1; writeSave(sv); }
+    // dev hook (__tilt.result) can stage a card without a persisted best
+    const bestShown = (sv.best && sv.best[level] != null) ? sv.best[level] : time;
+    const gemChip = gem && gem.got
+      ? `<div class="gemchip">${IC_GEM}<b>GEM FOUND</b><span>added to your collection</span></div>` : "";
+    // world-transition state
+    const w = E.worldFor(level);
+    const isWorldEnd = level >= Math.min(w.to, E.LAST_LEVEL);
+    const next = isWorldEnd ? E.WORLDS[w.id] : null;      // WORLDS is 0-indexed; id (1-based) → the next entry
+    const nextBuilt = !!(next && next.from <= E.LAST_LEVEL);
+    const ribbon = isWorldEnd
+      ? `<div class="wc-ribbon" style="--ring:${w.ring}">★ WORLD ${w.id} · ${w.name.toUpperCase()} COMPLETE</div>` : "";
+    let primLabel, primAction;
+    if (!isWorldEnd) { primLabel = "NEXT ▸"; primAction = () => startLevel(level + 1); }
+    else if (nextBuilt) { primLabel = next.name.toUpperCase() + " ▸"; primAction = () => startLevel(next.from); }
+    else { primLabel = "WORLDS ▸"; primAction = () => { $("#ov").classList.remove("show"); openWorlds(); }; }
     $("#card").innerHTML = `
       <div class="glow"></div>
+      ${ribbon}
       <div class="stars">${medalStarsHTML(medal)}</div>
       <h2>LEVEL ${level} CLEAR!</h2>
       <div class="creature"><span style="color:${MEDAL_COL[medal]}">${medal.toUpperCase()}</span>${isPB ? ' · <span style="color:var(--good)">New best!</span>' : ""}</div>
+      ${medalStripHTML(medal, mt, firstClear, diaNew)}
+      ${isWorldEnd ? "" : featChipsHTML(runFeats())}
+      ${gemChip}
       <div class="stats">
         <div><span class="slab">TIME</span><b>${time.toFixed(1)}s</b></div>
-        <div><span class="slab">BEST</span><b style="color:var(--gold)">${(sv.best[level]).toFixed(1)}s</b></div>
+        <div><span class="slab">BEST</span><b style="color:var(--gold)">${bestShown.toFixed(1)}s</b></div>
       </div>
-      ${chase}
       <div class="row">
-        <button id="nextLvl" class="primary">${isLast ? "FINISH ★" : "NEXT ▸"}</button>
+        <button id="nextLvl" class="primary">${primLabel}</button>
         <button id="replay">${IC_RESTART}Replay</button>
       </div>`;
     $("#ov").classList.add("show");
-    $("#nextLvl").onclick = () => isLast ? showCampaignComplete() : startLevel(level + 1);
+    $("#nextLvl").onclick = primAction;
     $("#replay").onclick = () => startLevel(level);   // chase the best time
   }
-  // Finite campaign payoff — the "you beat it" card with a medal tally and a
-  // reason to come back (turn silvers/bronzes into gold).
-  function showCampaignComplete() {
-    const sv = loadSave();
-    let g = 0, s = 0, b = 0;
-    for (let L = 1; L <= E.LAST_LEVEL; L++) {
-      const m = (sv.medal || {})[L];
-      if (m === "gold") g++; else if (m === "silver") s++; else if (m === "bronze") b++;
+  // DEV: preview the world-transition without playing through — fully clear a
+  // world (silver on each level) and pop its world-end card. id defaults to the
+  // current world. (`__tilt.finishWorld(n)` / `?shot=worldend`.)
+  function devFinishWorld(id) {
+    const w = E.WORLDS[((id || E.worldFor(level).id) - 1)] || E.WORLDS[0];
+    const to = Math.min(w.to, E.LAST_LEVEL);
+    const sv = loadSave(); sv.best = sv.best || {}; sv.medal = sv.medal || {};
+    // DEV preview only — mark the world cleared at silver WITHOUT building every
+    // level. E.build() BFS-GENERATES each procedural W1 board (~0.3s each), so
+    // the old per-level loop cost ~9s on tap for World 1 (Qi: "took a long time
+    // to respond"). Only the shown level `to` is built (by startLevel below);
+    // the rest get a nominal best so the ladder still reads as cleared.
+    for (let L = w.from; L <= to; L++) {
+      if (!sv.medal[L]) sv.medal[L] = "silver";
+      if (sv.best[L] == null) sv.best[L] = 8;
     }
-    track("campaign_complete", { golds: g, stars: g * 3 + s * 2 + b });
-    const flawless = g === E.LAST_LEVEL;
-    $("#card").innerHTML = `
-      <div class="glow"></div>
-      <div class="stars"><span style="color:var(--gold)">★</span><span class="big" style="color:var(--gold)">★</span><span style="color:var(--gold)">★</span></div>
-      <h2>YOU BEAT TILT!</h2>
-      <div class="creature">All ${E.LAST_LEVEL} levels cleared</div>
-      <div class="stats">
-        <div><span class="slab">GOLD</span><b style="color:${MEDAL_COL.gold}">${g}</b></div>
-        <div><span class="slab">SILVER</span><b style="color:${MEDAL_COL.silver}">${s}</b></div>
-        <div><span class="slab">BRONZE</span><b style="color:${MEDAL_COL.bronze}">${b}</b></div>
-      </div>
-      <div class="chase">${flawless ? "Flawless — every level gold." : "Replay to turn silver &amp; bronze into gold."}</div>
-      <div class="row"><button id="fromTop" class="primary">${IC_RESTART}PLAY AGAIN</button></div>`;
-    $("#ov").classList.add("show");
-    $("#fromTop").onclick = () => startLevel(1);
+    sv.level = Math.min(Math.max(sv.level || 1, to), E.LAST_LEVEL); writeSave(sv);
+    startLevel(to);                                        // builds ONLY level `to`
+    won = true; tiltPhase = "done";
+    const t = Math.round(E.medalTimes(P.par).silver * 10) / 10;   // accurate time for the card
+    sv.best[to] = t; writeSave(sv);
+    showTiltResult(t, t);
   }
   /* ---------- Level Select (the home) — replaces the dev long-press jumper ----------
      The app opens HERE (design LEVELS_SPEC). Linear frontier unlock: level N is
@@ -1385,7 +2225,7 @@
   function clearedLvl(sv, L) { return !!(sv.best && sv.best[L]); }
   function unlockedLvl(sv, L) { return L <= 1 || clearedLvl(sv, L - 1); }
   function frontierLvl(sv) { let L = 1; while (L < E.LAST_LEVEL && clearedLvl(sv, L)) L++; return L; }
-  function starsFor(sv, L) { const m = (sv.medal || {})[L]; return m ? MEDAL_RANK[m] : (clearedLvl(sv, L) ? 1 : 0); }
+  function starsFor(sv, L) { const m = (sv.medal || {})[L]; return m ? Math.min(3, MEDAL_RANK[m]) : (clearedLvl(sv, L) ? 1 : 0); }
   function totalStars(sv) { let s = 0; for (let L = 1; L <= E.LAST_LEVEL; L++) s += starsFor(sv, L); return s; }
   const IC_LOCK = '<svg class="tlock" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>';
   // DEV JUMP: with DEV_UNLOCK on, EVERY tile in the Level Select is tappable —
@@ -1398,10 +2238,12 @@
   // → hard-locked grid, no "DEV: TAP ANY". No manual flag to forget.
   const DEV_UNLOCK = !!window.__DEV_BUILD || location.protocol === "http:";
   let lsOpen = false;
-  function buildLevelSelect() {
+  // the grid shows ONE world's levels (the ladder is the world-level nav; a
+  // 45-tile all-campaign wall stopped scaling the moment W2 shipped)
+  function buildLevelSelect(w) {
     const sv = loadSave(), frontier = frontierLvl(sv);
     let html = "";
-    for (let L = 1; L <= E.LAST_LEVEL; L++) {
+    for (let L = w.from; L <= Math.min(w.to, E.LAST_LEVEL); L++) {
       if (clearedLvl(sv, L)) {
         const st = starsFor(sv, L);
         let stars = ""; for (let i = 0; i < 3; i++) stars += `<i class="${i < st ? "on" : ""}">★</i>`;
@@ -1421,8 +2263,154 @@
     $("#lsStarN").textContent = totalStars(sv);
     $("#lsDev").style.display = DEV_UNLOCK ? "inline" : "none";
   }
-  function openLevelSelect() { buildLevelSelect(); lsOpen = true; $("#levelsel").classList.add("show"); }
+  function openLevelSelect(wid) {
+    // grid header + backdrop carry the world identity (spec: the grid is the
+    // world's interior, re-skinned in its palette); defaults to the world
+    // currently being played
+    const w = (wid && E.WORLDS[wid - 1]) || E.worldFor(level);
+    $("#lsTitle").textContent = w.name.toUpperCase();
+    $("#levelsel").style.background =
+      `radial-gradient(130% 100% at 50% -20%, ${w.c1} 0%, ${w.c2} 55%, var(--bg) 100%)`;
+    buildLevelSelect(w); lsOpen = true; $("#levelsel").classList.add("show");
+  }
   function closeLevelSelect() { lsOpen = false; $("#levelsel").classList.remove("show"); }
+
+  /* ---------- Worlds home (depth plan §6) — the ladder of 9 world cards ----------
+     Linear unlock, one card per planet. Only W1 Tabletop is PLAYABLE today; the
+     ladder shows where the campaign is going (locked cards carry each world's
+     element name). The first locked world wears the unlock note — and stays
+     HONEST: once Tabletop is fully cleared it says the next world is coming in
+     an update, never pretending clearing unlocks something that isn't built. */
+  let wsOpen = false, colOpen = false;
+  const IC_PAD = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>';
+  const IC_CHECK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+  function worldProgress(sv, w) {
+    const to = Math.min(w.to, E.LAST_LEVEL);
+    let cleared = 0, stars = 0, total = Math.max(0, to - w.from + 1);
+    for (let L = w.from; L <= to; L++) { if (clearedLvl(sv, L)) cleared++; stars += starsFor(sv, L); }
+    return { cleared, stars, total };
+  }
+  function buildWorlds() {
+    const sv = loadSave();
+    let html = "", noteDone = false;
+    const frontier = frontierLvl(sv);
+    for (const w of E.WORLDS) {
+      const playable = w.from <= E.LAST_LEVEL;
+      const prev = E.WORLDS[w.id - 2];
+      const prevDone = !prev || worldProgress(sv, prev).cleared >= worldProgress(sv, prev).total;
+      const pr = worldProgress(sv, w);
+      // a world you have TOUCHED is unlocked no matter how you got in (dev
+      // tap-any, migrations, future promos) — a padlock on the world you are
+      // actively playing is a lie (Qi device report)
+      const touched = pr.cleared > 0 || (frontier >= w.from && frontier <= Math.min(w.to, E.LAST_LEVEL));
+      const open = prevDone || touched;
+      const eyebrow = `<span class="w-eyebrow">WORLD ${w.id} · LV ${w.from}–${w.to}</span>`;
+      const nameEl = `<span class="w-name">${w.name}</span><span class="w-el">${w.element}</span>`;
+      if (playable && open && pr.cleared >= pr.total) {
+        // cleared world — check + progress + the gold-star tally
+        html += `<div class="wcard done" data-w="${w.id}" style="--c1:${w.c1};--c2:${w.c2};--ring:${w.ring}">
+          <span class="w-left">${eyebrow}${nameEl}</span>
+          <span class="w-right"><span class="w-check">${IC_CHECK}</span>
+            <span class="w-count">${pr.cleared}/${pr.total}</span>
+            <span class="w-stars">★ ${pr.stars}</span></span></div>`;
+      } else if (playable && open) {
+        // the CURRENT world — ring glow, PLAY pill, progress track
+        html += `<div class="wcard cur" data-w="${w.id}" style="--c1:${w.c1};--c2:${w.c2};--ring:${w.ring};--ring22:${w.ring}22">
+          <span class="w-left">${eyebrow}${nameEl}
+            <span class="w-prog"><i style="width:${Math.round(100 * pr.cleared / Math.max(1, pr.total))}%"></i></span></span>
+          <span class="w-right"><button class="w-play" data-w="${w.id}">PLAY</button>
+            <span class="w-count">${pr.cleared}/${pr.total}</span></span></div>`;
+      } else if (!playable) {
+        // COMING SOON — this world isn't built yet. NEVER a padlock, regardless
+        // of the previous world's state (Qi feedback: a lock says "clear the one
+        // before it", but you can't unlock what doesn't exist). Distinct "soon"
+        // state: SOON tag, lighter dim, a tap explains it; only the FIRST notes.
+        const note = !noteDone ? (noteDone = true, `<span class="w-note soon">Coming in the next update</span>`) : "";
+        html += `<div class="wcard soon" data-wname="${w.name}" style="--c1:${w.c1};--c2:${w.c2};--ring:${w.ring}">
+          <span class="w-left">${eyebrow}${nameEl}${note}</span>
+          <span class="w-right"><span class="w-soon">SOON</span></span></div>`;
+      } else {
+        // HARD LOCK — a BUILT world gated behind an uncleared one (the real
+        // progression gate; padlock + "clear X to unlock" is honest here)
+        let note = "";
+        if (!noteDone) { noteDone = true; note = `<span class="w-note">Clear ${prev ? prev.name : ""} to unlock</span>`; }
+        html += `<div class="wcard lock" style="--c1:${w.c1};--c2:${w.c2};--ring:${w.ring}">
+          <span class="w-left">${eyebrow}${nameEl}${note}</span>
+          <span class="w-right"><span class="w-pad">${IC_PAD}</span></span></div>`;
+      }
+    }
+    const list = $("#wsList");
+    list.innerHTML = html;
+    list.querySelectorAll(".wcard.cur,.wcard.done").forEach(cd =>
+      cd.onclick = () => { haptic("light"); closeWorlds(); openLevelSelect(+cd.dataset.w); });
+    list.querySelectorAll(".w-play").forEach(bn =>
+      bn.onclick = ev => { ev.stopPropagation(); haptic("light"); closeWorlds(); startLevel(frontierLvl(loadSave())); });
+    list.querySelectorAll(".wcard.soon").forEach(cd =>
+      cd.onclick = () => { haptic("light"); toast(cd.dataset.wname + " — coming in the next update"); });
+    $("#wsStarN").textContent = totalStars(sv);
+  }
+  function openWorlds() { buildWorlds(); wsOpen = true; $("#worldsel").classList.add("show"); }
+  function closeWorlds() { wsOpen = false; $("#worldsel").classList.remove("show"); }
+
+  /* ---------- Collection (depth plan §6) — gems found + marble skins ----------
+     Gems: one tile per gem level, found = the gem drawn in its own colour,
+     missing = "?" . Skins: 2×2, tap an unlocked skin to equip (persists; applies
+     to every marble everywhere). Rule of the house: earned by medals, feats and
+     gems — never bought. */
+  const gemMeta = {};   // level → {c} (deterministic; cached — build() is not free)
+  function gemLevels() {
+    const out = [];
+    for (let L = 1; L <= E.LAST_LEVEL; L++) if (E.hasGem(L)) {
+      if (!gemMeta[L]) { const g = E.gemFor(L, E.build(L)); gemMeta[L] = g ? { c: g.c } : null; }
+      if (gemMeta[L]) out.push({ L, c: gemMeta[L].c });
+    }
+    return out;
+  }
+  function buildCollection() {
+    const sv = loadSave();
+    const gems = gemLevels(), got = sv.gems || {};
+    const nGot = gems.filter(g => got[g.L]).length;
+    let html = `<div class="col-lab">GEMS <b>${nGot}</b> / ${gems.length}</div><div class="gemgrid">`;
+    for (const g of gems) {
+      html += got[g.L]
+        ? `<div class="gemtile" title="Level ${g.L}"><canvas data-gem="${g.c}" width="52" height="52"></canvas></div>`
+        : `<div class="gemtile miss" title="Level ${g.L}">?</div>`;
+    }
+    html += `</div><div class="col-lab">MARBLE SKINS</div><div class="skingrid">`;
+    for (const s of SKINS) {
+      const un = s.need(sv), eq = skinFx === s.id;
+      html += `<div class="skintile${eq ? " eq" : ""}${un ? "" : " lock"}" data-skin="${s.id}">
+        ${eq ? '<span class="stag">EQUIPPED</span>' : ""}
+        <canvas data-prev="${s.id}" width="112" height="112"></canvas>
+        <span class="sname">${s.name}</span><span class="scond">${un ? (s.id === "classic" ? s.cond : "unlocked — " + s.cond) : s.cond}</span></div>`;
+    }
+    html += `</div><div class="col-note">Earned by medals, feats and gems — never bought.</div>`;
+    const body = $("#colBody");
+    body.innerHTML = html;
+    body.querySelectorAll("canvas[data-gem]").forEach(cv => {
+      const c = cv.getContext("2d");
+      drawGem(c, 26, 26, SKIN[cv.dataset.gem], 15, 1.8);
+    });
+    body.querySelectorAll("canvas[data-prev]").forEach(cv => {
+      const c = cv.getContext("2d");
+      c.setTransform(2, 0, 0, 2, 0, 0);            // 2× backing for crisp preview
+      const saved = skinFx; skinFx = cv.dataset.prev;
+      drawMarbleAt(c, 28, 27, SKIN.b, 17, false, null);
+      skinFx = saved;
+    });
+    body.querySelectorAll(".skintile").forEach(tl => {
+      tl.onclick = () => {
+        const s = SKINS.find(x => x.id === tl.dataset.skin);
+        const svNow = loadSave();
+        if (!s.need(svNow)) { haptic("light"); toast("Locked — " + s.cond); return; }
+        svNow.skin = s.id; writeSave(svNow); applySkin();
+        track("skin_equip", { skin: s.id });
+        haptic("light"); buildCollection();
+      };
+    });
+  }
+  function openCollection() { buildCollection(); colOpen = true; $("#collect").classList.add("show"); }
+  function closeCollection() { colOpen = false; $("#collect").classList.remove("show"); }
 
   /* ---------- Settings (design screenshot 11) — a modal in the #ov overlay ----------
      Toggles for Sound Effects + Vibration (persisted in the save, default ON; gate
@@ -1437,7 +2425,13 @@
     return `<button class="set-row" id="${id}"><span class="set-ic${on ? "" : " off"}">${ic}</span>` +
       `<span class="set-lbl">${label}</span><span class="set-tog${on ? " on" : ""}"></span></button>`;
   }
+  // the #ov overlay sits at z 20 — UNDER the nav panels (z 25/26), so the
+  // dead-end banner can never float above an opened panel. Settings/tutorial
+  // opened FROM a panel header must therefore lift the overlay above it.
+  function overlayAbovePanels() { $("#ov").classList.toggle("above", lsOpen || wsOpen || colOpen); }
   function openSettings() {
+    overlayAbovePanels();
+    resetCardChrome();
     $("#card").className = "card settings";
     $("#card").innerHTML =
       `<div class="set-head"><h2>SETTINGS</h2><button id="setClose" class="set-x">${IC_X}</button></div>` +
@@ -1446,12 +2440,24 @@
       `<div class="set-div"></div>` +
       `<button class="set-row2" id="rowHow"><span class="set-ic sm">${IC_HELP}</span>` +
       `<span class="set-lbl">How to Play</span><span class="set-chev">›</span></button>` +
+      // DEV row — on-device world-transition preview (debug builds only, same
+      // DEV_UNLOCK gate as the tap-any level grid; stripped from Release). Pops
+      // the current world's world-end card so the transition needs zero playthrough.
+      (DEV_UNLOCK ? `<button class="set-row2" id="rowDev"><span class="set-ic sm" style="color:var(--gold)">⚑</span>` +
+        `<span class="set-lbl" style="color:var(--gold)">DEV · Preview world end</span><span class="set-chev">›</span></button>` : "") +
       `<div class="set-ver">Tilt v1.0 · com.jfun.tilt</div>`;
     $("#ov").classList.add("show");
-    $("#setClose").onclick = closeSettings;
+    // close must be UNKILLABLE (Qi device report: X unresponsive; browser repro
+    // clean on every path -> harden all paths + surface errors via dev toasts):
+    // click + touchend on the X, plus tap-outside-the-card closes like any sheet.
+    const xBtn = $("#setClose");
+    xBtn.onclick = closeSettings;
+    xBtn.addEventListener("touchend", e => { e.preventDefault(); closeSettings(); }, { passive: false });
+    $("#ov").onclick = e => { if (e.target === $("#ov")) closeSettings(); };
     $("#rowSound").onclick = () => toggleSetting("soundOff", "#rowSound");
     $("#rowVibe").onclick = () => toggleSetting("vibeOff", "#rowVibe");
     $("#rowHow").onclick = () => { closeSettings(); showTutorial(() => {}); };
+    if (DEV_UNLOCK) $("#rowDev").onclick = () => { closeSettings(); devFinishWorld(E.worldFor(level).id); };
   }
   function toggleSetting(key, sel) {
     const sv = loadSave(); sv[key] = !sv[key]; writeSave(sv); applySettings();
@@ -1460,7 +2466,7 @@
     $(sel).querySelector(".set-ic").classList.toggle("off", !on);
     haptic("light");   // self-gates: silent if vibration was just turned off
   }
-  function closeSettings() { $("#card").className = "card"; $("#ov").classList.remove("show"); }
+  function closeSettings() { $("#ov").onclick = null; $("#card").className = "card"; $("#ov").classList.remove("show", "above"); }
 
   // Visual hint chips (design 5a): every hint is [glyph] + short text. Glyphs are
   // the game's own pieces — tipping phone, bubble level, wall block, wedged ball —
@@ -1469,6 +2475,10 @@
     tilt: '<span class="g-rock"><span class="g-phone"><i class="g-ball"></i></span></span>',
     wall: '<span class="g-wall"></span>',
     hill: '<span class="g-wall"></span>',   // hills reuse the block glyph for now
+    ice: '<span class="g-ice"></span>',     // pale glass band (dormant — Rime cut)
+    sand: '<span class="g-sand"></span>',   // warm grain pad (dormant — Dune cut)
+    gate: '<span class="g-gate"><i></i><i></i><i></i></span>',   // barred door (Foundry)
+    post: '<span class="g-post"></span>',   // metal pillar + pink ring (Chime)
     stuck: '<span class="g-poprock"><i class="g-popring"></i><i class="g-ball g-popout"></i></span>',
     blocked: '<span class="g-phone g-noflow"><i class="g-slash"></i></span>',
   };
@@ -1489,12 +2499,18 @@
     updateHUD(); draw(); showOnboarding();
   }
 
-  /* header layers button → Level Select; back-chevron closes it (resumes the board) */
-  $("#levelsBtn").onclick = () => { haptic("light"); openLevelSelect(); };
-  $("#lsBack").onclick = () => { haptic("light"); closeLevelSelect(); };
-  /* settings ⚙ — in-game header (right, replaced restart) + level-select header */
+  /* header layers button → WORLDS home (the ladder); tapping a world opens its
+     level grid; the grid's back-chevron returns to the ladder; the ladder's
+     back-chevron resumes the board. Collection lives on the ladder header. */
+  $("#levelsBtn").onclick = () => { haptic("light"); openWorlds(); };
+  $("#wsBack").onclick = () => { haptic("light"); closeWorlds(); };
+  $("#wsCollect").onclick = () => { haptic("light"); openCollection(); };
+  $("#colBack").onclick = () => { haptic("light"); closeCollection(); };
+  $("#lsBack").onclick = () => { haptic("light"); closeLevelSelect(); openWorlds(); };
+  /* settings ⚙ — in-game header (right, replaced restart) + panel headers */
   $("#settingsBtn").onclick = () => { haptic("light"); openSettings(); };
   $("#lsSettings").onclick = () => { haptic("light"); openSettings(); };
+  $("#wsSettings").onclick = () => { haptic("light"); openSettings(); };
 
   /* tray input: tap anywhere on the tray to start the run */
   trayC.addEventListener("touchstart", e => { e.preventDefault(); startTiltRun(); }, { passive: false });
@@ -1512,7 +2528,7 @@
   // so headless WebKit screenshots can reach any state — inert in Capacitor
   try {
     const q = new URLSearchParams(location.search);
-    if (q.has("lvl")) { const sv = loadSave(); sv.tutSeen = 1; sv.rulesV3 = 1; sv.wallsSeen = 1; sv.level = +q.get("lvl") || 1; writeSave(sv); }
+    if (q.has("lvl")) { const sv = loadSave(); sv.tutSeen = 1; sv.rulesV3 = 1; sv.mvpV1 = 1; sv.sawV1 = 1; sv.foundryV1 = 1; sv.wallsSeen = 1; sv.worldSeen = {}; for (const w of E.WORLDS) if (w.id > 1) sv.worldSeen[w.id] = 1; sv.level = +q.get("lvl") || 1; writeSave(sv); }
   } catch (e) {}
   {
     // rules migration: lodge-and-escape restored + dead-end game over (layouts
@@ -1527,8 +2543,33 @@
       if (sv.level) sv.level = Math.min(sv.level, E.LAST_LEVEL);
       writeSave(sv);
     }
+    // sawtooth reorder (v1.1): level numbers now name DIFFERENT boards — old
+    // bests/medals/feats/gems keyed by number don't compare; clear once
+    // (precedent: rulesV3/mvpV1; v1.0 is still in review, so no live players)
+    if (!sv.sawV1) {
+      sv.sawV1 = 1; delete sv.best; delete sv.medal; delete sv.feats; delete sv.gems; delete sv.diaSeen;
+      if (sv.level) sv.level = Math.min(sv.level, E.LAST_LEVEL);
+      writeSave(sv);
+    }
+    // Foundry (one-shot, 2026-07-13): Dune (sand) cut at the kill-gate — W2
+    // 31–45 are all-new gate boards, so per-level records above 30 name
+    // different boards; clear just those, re-arm the W2 intro card
+    if (!sv.foundryV1) {
+      sv.foundryV1 = 1;
+      for (const o of [sv.best, sv.medal, sv.feats, sv.gems]) if (o) for (const k in o) if (+k > 30) delete o[k];
+      if (sv.worldSeen) delete sv.worldSeen[2];
+      if ((sv.level || 1) > 31) sv.level = 31;
+      delete sv.done;
+      writeSave(sv);
+    }
+  }
+  if (DEV_UNLOCK) {
+    // dev builds: uncaught errors become a visible toast — the device has no console
+    window.addEventListener("error", e => { try { toast("⚠ " + (e.message || "error").slice(0, 60)); } catch (x) {} });
+    window.addEventListener("unhandledrejection", e => { try { toast("⚠ " + String(e.reason).slice(0, 60)); } catch (x) {} });
   }
   applySettings();     // load persisted Sound/Vibration toggles before the first sound
+  applySkin();         // equipped marble finish (collection cosmetic)
   tryNativeMotion();   // native accelerometer needs no gesture/permission — flow from boot
   try { window.__tilt = { puzzle: () => P, level: () => level,
     goto: n => startLevel(n), won: () => won, restart,
@@ -1537,11 +2578,20 @@
     feedVec: (x, y, z) => lpVec(x, y, z, 1), angles: () => tiltAngles(),
     setCal: (p, r) => { cal = { pitch: p, roll: r }; }, gravity: () => currentGravity(),
     levelsel: openLevelSelect, frontier: () => frontierLvl(loadSave()), homeAngle: m => homeAngle(m), checkSeal: () => { checkSeal(); return lost; }, deadInfo: () => deadInfo,
+    worlds: openWorlds, collection: openCollection, finishWorld: id => devFinishWorld(id),
+    worldIntro: id => showWorldIntro(E.WORLDS[(id || 2) - 1], () => {}),
+    gem: () => gem, feats: () => runFeats(), save: () => loadSave(), setSkin: id => { const s = loadSave(); s.skin = id; writeSave(s); applySkin(); },
+    result: (tm, prev) => showTiltResult(tm == null ? 3.0 : tm, prev),
     tut: () => tutWorld, tutStep: s => tutStepFn && tutStepFn(s), showTut: () => showTutorial(() => {}),
     showWalls: () => showMechanicIntro(() => {}),
     stepN: (n, g) => {
       tiltPhase = "running";
-      for (let i = 0; i < n; i++) { PH.step(world, g || currentGravity()); consumeEvents(); checkDeadEnd(); }
+      for (let i = 0; i < n; i++) {
+        PH.step(world, g || currentGravity()); consumeEvents(); checkDeadEnd();
+        let smax = 0, freeN = 0;   // same run signals as tiltLoop — feats/gems behave identically here
+        for (const m of world.marbles) { if (m.captured) continue; freeN++; const s = Math.hypot(m.vx, m.vy); if (s > smax) smax = s; }
+        trackRunSignals(smax, freeN, PH.DT);
+      }
       let guard = 0;
       while (PH.solved(world) && !world.marbles.every(m => m.sink && m.sink.t >= world.params.sinkTime) && guard++ < 120)
         PH.step(world, { gx: 0, gy: 0 });
@@ -1556,17 +2606,24 @@
     const shot = q.get("shot");
     if (shot) {
       const sv = loadSave();
-      sv.tutSeen = 1; sv.rulesV3 = 1; sv.mvpV1 = 1; sv.wallsSeen = 1;
-      if (shot === "levels") {                       // seed a rich, mostly-cleared grid
-        sv.best = {}; sv.medal = {};
-        const meds = ["gold", "gold", "gold", "silver", "gold", "silver", "gold", "gold", "silver", "gold", "gold"];
+      sv.tutSeen = 1; sv.rulesV3 = 1; sv.mvpV1 = 1; sv.sawV1 = 1; sv.foundryV1 = 1; sv.wallsSeen = 1;
+      sv.worldSeen = {}; for (const w of E.WORLDS) if (w.id > 1) sv.worldSeen[w.id] = 1;   // dev/shots skip intro cards (contract)
+      if (shot === "levels" || shot === "worlds" || shot === "collect") {   // seed a rich, mostly-cleared save
+        sv.best = {}; sv.medal = {}; sv.gems = {}; sv.feats = {};
+        const meds = ["gold", "diamond", "gold", "silver", "gold", "silver", "gold", "gold", "silver", "gold", "gold"];
         const times = [4.2, 7.1, 5.8, 9.3, 6.0, 11.2, 8.7, 10.4, 7.9, 6.6, 8.1];
         for (let L = 1; L <= 11; L++) { sv.best[L] = times[L - 1]; sv.medal[L] = meds[L - 1]; }
+        for (const L of [2, 5, 8]) sv.gems[L] = 1;
+        for (let L = 1; L <= 8; L++) sv.feats[L] = { c: 1, l: 1, s: L % 2 };
       }
       writeSave(sv);
       const lvl = +(q.get("lvl") || (shot === "win" ? 6 : 12)) || 12;
       if (shot === "howto") { startLevel(5); showTutorial(function () {}); }
       else if (shot === "levels") { startLevel(12); openLevelSelect(); try { $("#lsDev").style.display = "none"; } catch (e) {} }
+      else if (shot === "worlds") { startLevel(12); openWorlds(); }
+      else if (shot === "collect") { startLevel(12); openCollection(); }
+      else if (shot === "worldend") { devFinishWorld(1); }
+      else if (shot === "worldintro") { startLevel(lvl); showWorldIntro(E.WORLDS[1], function () {}); }
       else if (shot === "win") {
         startLevel(lvl);
         const stars = Math.max(1, Math.min(3, +(q.get("s") || 3)));

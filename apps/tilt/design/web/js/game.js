@@ -443,21 +443,51 @@
   }
   function drawBlocks() {
     if (!P || !P.walls) return;
+    // real-block walls; ADJACENT CELLS MERGE into one continuous run (user
+    // 2026-07-12): zero inset + square corners on shared edges, front lip
+    // only at the bottom of a run, gloss only at its top, shadow only under
+    // the bottom cell — no felt gap inside a wall. Freestanding blocks keep
+    // rounded corners + breathing room. The 1.5px seam reads as mortar.
+    const wset = new Set(P.walls.map(q => q.x + "," + q.y));
+    const rrC = (x2, y2, w2, h2, tl, tr, br, bl) => {
+      tctx.beginPath();
+      tctx.moveTo(x2 + tl, y2);
+      tctx.arcTo(x2 + w2, y2, x2 + w2, y2 + h2, tr);
+      tctx.arcTo(x2 + w2, y2 + h2, x2, y2 + h2, br);
+      tctx.arcTo(x2, y2 + h2, x2, y2, bl);
+      tctx.arcTo(x2, y2, x2 + w2, y2, tl);
+      tctx.closePath();
+    };
     for (const b of P.walls) {
-      const x = b.x * CELL, y = b.y * CELL, s = CELL, rr = Math.max(4, CELL * 0.16);
-      // drop shadow (raised block)
-      tctx.fillStyle = "#00000055";
-      roundRectPath(tctx, x + 2, y + 4, s - 4, s - 4, rr); tctx.fill();
-      // body
-      const g = tctx.createLinearGradient(x, y, x, y + s);
-      g.addColorStop(0, "#4a54a0"); g.addColorStop(1, "#2e3670");
-      tctx.fillStyle = g;
-      roundRectPath(tctx, x + 1.5, y + 1.5, s - 3, s - 3, rr); tctx.fill();
-      tctx.lineWidth = 1.5; tctx.strokeStyle = "#6a76c9";
-      roundRectPath(tctx, x + 1.5, y + 1.5, s - 3, s - 3, rr); tctx.stroke();
-      // top bevel highlight
-      tctx.strokeStyle = "#ffffff2b"; tctx.lineWidth = 1;
-      tctx.beginPath(); tctx.moveTo(x + rr, y + 3); tctx.lineTo(x + s - rr, y + 3); tctx.stroke();
+      const x = b.x * CELL, y = b.y * CELL, s = CELL, rr = Math.max(3, CELL * 0.12);
+      const nb = {
+        u: wset.has(b.x + "," + (b.y - 1)), d: wset.has(b.x + "," + (b.y + 1)),
+        l: wset.has((b.x - 1) + "," + b.y), r: wset.has((b.x + 1) + "," + b.y),
+      };
+      const m = 1.5, lift = Math.max(4, s * 0.16);
+      const L = nb.l ? 0 : m, R = nb.r ? 0 : m, T = nb.u ? 0 : m, B = nb.d ? 0 : m;
+      const bx = x + L, bw = s - L - R;
+      const tl = (nb.u || nb.l) ? 0 : rr, tr = (nb.u || nb.r) ? 0 : rr;
+      const br = (nb.d || nb.r) ? 0 : rr, bl = (nb.d || nb.l) ? 0 : rr;
+      if (!nb.d) { // shadow only under the bottom of a run
+        tctx.fillStyle = "#00000066";
+        rrC(bx + 1.5, y + T + 3.5, bw, s - T - B - 2, tl, tr, br, bl); tctx.fill();
+      }
+      const gb = tctx.createLinearGradient(x, y, x, y + s);
+      gb.addColorStop(0, "#262c60"); gb.addColorStop(1, "#151a40");
+      tctx.fillStyle = gb;
+      rrC(bx, y + T, bw, s - T - B, tl, tr, br, bl); tctx.fill();        // body = front face
+      const faceH = nb.d ? s - T : s - T - lift;                          // face runs through shared edges
+      const gt = tctx.createLinearGradient(x, y, x, y + faceH);
+      gt.addColorStop(0, "#5b67ba"); gt.addColorStop(1, "#3a4390");
+      tctx.fillStyle = gt;
+      rrC(bx, y + T, bw, faceH, tl, tr, nb.d ? 0 : br, nb.d ? 0 : bl); tctx.fill(); // raised top face
+      tctx.lineWidth = 1.5; tctx.strokeStyle = "#7c89dd";
+      rrC(bx, y + T, bw, faceH, tl, tr, nb.d ? 0 : br, nb.d ? 0 : bl); tctx.stroke();
+      if (!nb.u) { // gloss strip only on the top block of a run
+        rrC(bx + 3, y + T + 2.5, bw - 6, faceH * 0.3, rr * 0.6, rr * 0.6, rr * 0.6, rr * 0.6);
+        tctx.fillStyle = "#ffffff30"; tctx.fill();
+      }
     }
   }
   function roundRectPath(c, x, y, w, h, r) {
