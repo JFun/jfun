@@ -60,6 +60,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8785", "--directory", "/Users/qili/git/jfun/apps/quarter/web"],
       "port": 8785
+    },
+    {
+      "name": "rattle-web",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8786", "--directory", "/Users/qili/git/jfun/apps/rattle/web"],
+      "port": 8786
     }
   ]
 }

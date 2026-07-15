@@ -1,0 +1,80 @@
+/* RATTLE — warm honey/toy-jar identity (sibling to Tilt gold / Quarter periwinkle).
+   Per apps/rattle/design/README.md. */
+:root {
+  --ink: #f3ecfa; --dim: #b3a3c4; --dim2: #8b7c98;
+  --honey: #ffb648; --honey-d: #ff9d3b;
+  --card1: #2a2038; --card2: #1a1226; --border: #4a3a5c;
+  --chip: #1c1330; --chipb: #3d2f52;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; padding: 0; height: 100%; overflow: hidden;
+  background: radial-gradient(130% 100% at 50% -15%, #2a1a33, #170f1f 55%, #0c0812);
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overscroll-behavior: none;
+  font-family: Nunito, system-ui, -apple-system, sans-serif; color: var(--ink);
+}
+#c { position: fixed; inset: 0; display: block; touch-action: none; z-index: 1; }
+
+#hint {
+  position: fixed; left: 50%; z-index: 2; transform: translateX(-50%);
+  top: calc(env(safe-area-inset-top) + 96px);
+  background: rgba(28,19,48,.82); border: 1px solid var(--chipb);
+  color: var(--dim); font: 700 13px Nunito, sans-serif; letter-spacing: .02em;
+  padding: 8px 15px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+  transition: opacity .6s;
+}
+#hint.off { opacity: 0; }
+
+/* footer: RATTLE button + caption */
+#foot {
+  position: fixed; left: 0; right: 0; z-index: 3;
+  bottom: calc(env(safe-area-inset-bottom) + 22px);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+#rattleBtn {
+  display: inline-flex; align-items: center; gap: 9px;
+  height: 56px; padding: 0 26px; border-radius: 18px;
+  background: transparent; border: 2px solid var(--honey); color: var(--honey);
+  font: 900 17px Nunito, sans-serif; letter-spacing: .1em; cursor: pointer;
+  box-shadow: 0 0 18px rgba(255,182,72,.16); transition: transform .1s, background .15s, color .15s;
+}
+#rattleBtn:active { transform: translateY(2px); background: rgba(255,182,72,.12); }
+#footCap { color: var(--dim2); font-weight: 700; font-size: 12.5px; }
+
+/* overlay card (cleared / no-pairs / debut) — matched to the flagship design source */
+#ov {
+  position: fixed; inset: 0; z-index: 5; display: none; align-items: center; justify-content: center;
+  background: rgba(13,8,23,.8); -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px); padding: 22px;
+}
+#ov.show { display: flex; }
+#card {
+  position: relative; overflow: hidden; width: 100%; max-width: 352px;
+  background: linear-gradient(180deg, var(--card1), var(--card2));
+  border: 2px solid var(--border); border-radius: 26px; padding: 26px 22px 22px; text-align: center;
+  box-shadow: 0 30px 80px -20px #000, inset 0 1px 0 rgba(255,255,255,.12); animation: rpop .4s cubic-bezier(.2,1.4,.4,1);
+}
+@keyframes rpop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+/* warm glow behind the win stars */
+#card .glow { position: absolute; top: -56px; left: 50%; transform: translateX(-50%); width: 300px; height: 230px; background: radial-gradient(50% 50% at 50% 50%, rgba(255,182,72,.2) 0%, transparent 70%); pointer-events: none; }
+#card .eyebrow { position: relative; color: #ff5a3c; font: 900 11px Nunito, sans-serif; letter-spacing: .3em; text-indent: .3em; margin-bottom: 12px; }
+#card .well { position: relative; display: flex; align-items: center; justify-content: center; width: 132px; height: 132px; margin: 0 auto 14px; border-radius: 24px; background: #140c22; border: 1px solid #3a2e4c; box-shadow: inset 0 2px 12px rgba(0,0,0,.5); }
+#card h2 { position: relative; font-family: "Lilita One", sans-serif; font-weight: 400; font-size: 30px; color: #fff; margin: 0; letter-spacing: .03em; text-shadow: 0 4px 0 #140c22; }
+/* win stars — fanned arc, extruded gold glyphs */
+#card .stars { position: relative; display: flex; align-items: flex-end; justify-content: center; gap: 7px; margin-bottom: 6px; }
+#card .stars span { line-height: 1; }
+#card .sub { position: relative; color: var(--honey); font-weight: 800; font-size: 13px; margin: 2px 0 14px; }
+#card .msg { color: var(--dim); font-weight: 700; font-size: 13px; line-height: 1.5; margin: 0 0 16px; }
+#card .drule { color: var(--honey); font-weight: 800; font-size: 13.5px; line-height: 1.45; margin-bottom: 4px; }
+#card .ddetail { color: var(--dim); font-weight: 700; font-size: 12px; line-height: 1.45; margin-bottom: 18px; }
+#card .toy { position: relative; display: flex; align-items: center; gap: 12px; justify-content: center; background: #140c22; border: 1px solid #3a2e4c; border-radius: 16px; padding: 12px; margin-bottom: 16px; }
+#card .toy .lab { text-align: left; }
+#card .toy .lab b { display: block; color: #fff; font-weight: 900; font-size: 14px; }
+#card .toy .lab span { color: #8b7c98; font-size: 11px; font-weight: 700; }
+#card .btns { position: relative; display: flex; flex-direction: column; gap: 10px; }
+#card .row { display: flex; gap: 10px; }
+#card button { border-radius: 16px; cursor: pointer; font-family: inherit; transition: transform .1s; }
+#card button:active { transform: translateY(2px); }
+#card .primary { width: 100%; border: none; background: linear-gradient(180deg, #ffce6b, var(--honey-d)); color: #3a1e05; font-weight: 900; font-size: 15px; letter-spacing: .04em; padding: 15px; box-shadow: 0 6px 16px -8px #000; display: inline-flex; align-items: center; justify-content: center; gap: 9px; }
+#card .ghost { flex: 1; border: 1px solid var(--chipb); background: var(--chip); color: var(--dim); font-weight: 800; font-size: 14px; padding: 13px; }
+#card .ghost span { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+#card .foot { position: relative; color: #6b5d78; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; margin-top: 14px; }

@@ -1,0 +1,18 @@
+{
+  "name": "rattle",
+  "private": true,
+  "version": "0.1.0",
+  "type": "commonjs",
+  "description": "Rattle — Toon Blast with the grid ripped out: tap a same-colour cluster and the pile avalanches under real physics; rattle the jar to re-cluster. Physics-verified levels.",
+  "dependencies": {
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.4.0"
+  },
+  "scripts": {
+    "test": "bash scripts/dev/test.sh",
+    "serve": "python3 -m http.server 8784 --directory web",
+    "verify": "node scripts/dev/verify.cjs"
+  }
+}
