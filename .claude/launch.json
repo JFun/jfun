@@ -54,6 +54,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8784", "--directory", "/Users/qili/git/jfun/apps/cut/web"],
       "port": 8784
+    },
+    {
+      "name": "quarter-web",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8785", "--directory", "/Users/qili/git/jfun/apps/quarter/web"],
+      "port": 8785
     }
   ]
 }
