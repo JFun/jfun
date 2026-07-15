@@ -1,0 +1,9 @@
+{
+  "appId": "com.jfun.rattle",
+  "appName": "Rattle",
+  "webDir": "web",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0c0812"
+  }
+}
