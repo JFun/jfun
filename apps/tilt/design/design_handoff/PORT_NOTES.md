@@ -30,7 +30,8 @@ this folder standalone — don't copy them back, yours are canonical).
   - holes: neon-halo ring (lw 5, `shadowBlur`), deeper cup, wider dimple
   - marbles: grounded ellipse shadow, dark rim stroke, double specular,
     hotter gradient (0.16/0.55 stops)
-  - grid: intersection dots instead of lines; walls recolored to indigo
+  - grid: intersection dots instead of lines; walls = REAL-BLOCK look
+    (raised top face + front extrusion, 2026-07-12 — see README walls spec)
   - "TAP TO START" in the display face
   - dead ends (final): a dead end = no solution from the current state, NEVER
     a timer. Card is ONE line — `DEAD END!` + “No way to finish from this

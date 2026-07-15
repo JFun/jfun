@@ -43,6 +43,7 @@
       restWall: 0.5,                // ball on wooden rail
       restBall: 0.88,               // glass on glass — crisp Newton's-cradle transfer
       restCaptured: 0.45,           // hitting a ball seated in a hole is a dull knock
+      restPost: 1.12,               // W3 CHIME bumper — restitution >1: a hit LEAVES faster than it arrived
       restSlop: unit * 0.5,         // below this approach speed, collide inelastically
       clackMin: unit * 0.8,         // approach speed before a clack event is worth a sound
       wallScrub: 2.5,               // tangential damping while grinding a wall, 1/s
@@ -56,6 +57,34 @@
                                     // escape needs a hard tilt (> ~cupHoldK/accel m/s²)
       slopeG: 3.5,                  // hill steepness, in m/s² of extra gravity
                                     // away from the ridge (≈ a 21° incline)
+      iceFriction: 0.06,            // rolling-resistance MULTIPLIER inside an ice
+                                    // zone — near-frictionless: a marble on ice
+                                    // COMMITS to its line (slides until blocked),
+                                    // the "committed lines" World-2 (Rime) lesson
+      iceGrip: 0.35,                // TILT-authority multiplier on ice — the slipping
+                                    // contact transmits only a fraction of your steer,
+                                    // so mid-ice the line barely bends (friction alone
+                                    // was unfeelable: gravity outweighs felt friction
+                                    // ~10:1 at normal tilts — grip loss is the felt
+                                    // difference, retuned after Qi's "can't tell" test)
+                                    // [ICE is DORMANT: Rime was CUT at the kill-gate —
+                                    //  machinery + tests stay, like the parked slopes]
+      sandFriction: 3.5,            // rolling-resistance MULTIPLIER on a sand pad
+      sandDragK: 1.2 / unit,        // quadratic drag on sand (units 1/LENGTH — must
+                                    // scale by 1/unit or px-worlds get unit× overdrag;
+                                    // the crawl test caught exactly this) — the momentum
+                                    // killer: v² term DOMINATES at speed (12 cells/s
+                                    // dies to a crawl inside ~a cell; the felt-vs-sand
+                                    // contrast is unmissable — the Rime lesson: an
+                                    // element must ADD a dominant force, not shave a
+                                    // minor one). Slow crawls survive; parking on sand
+                                    // holds against small tilts (a new verb).
+      plateRest: unit * 2.5,        // W2 FOUNDRY: a marble slower than this whose
+                                    // center covers a plate cell is PARKED — it
+                                    // holds the linked gate open (rolling across
+                                    // at speed is not parking, matching the
+                                    // discrete rule). Gate-cell occupancy also
+                                    // holds it open: a gate NEVER crushes.
       sinkTime: 0.22,               // capture snap animation, seconds
     };
   }
@@ -81,9 +110,39 @@
       holes: opts.holes.map(h => ({ x: h.x, y: h.y, r: h.r, c: h.c, filled: false })),
       blocks: (opts.blocks || []).map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h })),
       slopes: (opts.slopes || []).map(s => ({ x: s.x, y: s.y, w: s.w, h: s.h, ax: s.ax, ay: s.ay })),
+      // zones (DORMANT — ice + sand were cut at the kill-gate; machinery stays)
+      zones: (opts.zones || []).map(z => ({ x: z.x, y: z.y, w: z.w, h: z.h, kind: z.kind || "ice" })),
+      // W2 FOUNDRY gates: {x,y} gate cell + {px,py} plate cell. `held` is the
+      // physics truth (recomputed each step from marble positions); the game
+      // renders its own eased animation off it. A closed gate is a solid block.
+      gates: (opts.gates || []).map(g => ({ x: g.x, y: g.y, px: g.px, py: g.py, held: false })),
+      // W3 CHIME bumper posts: fixed circles a marble rebounds off LIVELY
+      // (restPost>1). Off-centre contact steers the bounce — bank into pockets
+      // no straight tilt reaches. idx drives the per-post pentatonic note.
+      posts: (opts.posts || []).map((p, i) => ({ x: p.x, y: p.y, r: p.r, idx: i })),
       t: 0,
       events: [],
     };
+  }
+  // circle vs fixed circle (CHIME bumper post): push out along the centre-line
+  // normal, reflect the inbound normal velocity with restitution >1 (adds
+  // energy — "arrive hot → flung"). Tangential velocity is PRESERVED (no scrub,
+  // unlike a wall), so an off-centre hit banks off at an angle — the whole verb.
+  function collidePost(w, m, p, dt, withEvents) {
+    const P = w.params;
+    let dx = m.x - p.x, dy = m.y - p.y;
+    let d = Math.hypot(dx, dy);
+    const minD = m.r + p.r;
+    if (d >= minD) return;
+    if (d < 1e-9) { dx = 0; dy = -1; d = 1e-9; }   // dead-centre: deterministic straight-back
+    const nx = dx / d, ny = dy / d;
+    m.x = p.x + nx * minD; m.y = p.y + ny * minD;
+    const vn = m.vx * nx + m.vy * ny;
+    if (vn < 0) {
+      if (withEvents) w.events.push({ type: "bump", speed: -vn, x: p.x, y: p.y, i: p.idx });
+      m.vx -= (1 + P.restPost) * vn * nx;
+      m.vy -= (1 + P.restPost) * vn * ny;
+    }
   }
   // circle vs AABB block: push out along the closest-point normal, reflect the
   // inbound normal velocity (corners get the diagonal normal for free).
@@ -131,15 +190,47 @@
     w.t += dt;
 
     const gmag = Math.hypot(gravity.gx, gravity.gy);
+    // FOUNDRY gates: held = a slow (parked) free marble covers the plate cell,
+    // OR any free marble covers the gate cell itself (never crush). Evaluated
+    // from current positions before movement — deterministic; emits an event
+    // on every transition so the UI can clunk/thud + animate the bars.
+    const cu = w.unit;   // gate/plate cells are UNIT-sized squares at world-coord origins
+    for (let gi = 0; gi < w.gates.length; gi++) {
+      const g = w.gates[gi];
+      let held = false;
+      for (const m of w.marbles) {
+        if (m.captured) continue;
+        const onPlate = m.x >= g.px && m.x <= g.px + cu && m.y >= g.py && m.y <= g.py + cu;
+        if (onPlate && speedOf(m) < P.plateRest) { held = true; break; }
+        if (m.x >= g.x && m.x <= g.x + cu && m.y >= g.y && m.y <= g.y + cu) { held = true; break; }
+      }
+      if (held !== g.held) w.events.push({ type: "gate", i: gi, open: held, x: (g.x + cu / 2) / cu, y: (g.y + cu / 2) / cu });
+      g.held = held;
+    }
     for (const m of w.marbles) {
       if (m.captured) {
         if (m.sink && m.sink.t < P.sinkTime) m.sink.t += dt;
         continue;
       }
       m.px = m.x; m.py = m.y;
-      // gravity
-      m.vx += gravity.gx * P.accel * dt;
-      m.vy += gravity.gy * P.accel * dt;
+      // ZONES (checked once per marble per step, by KIND):
+      //   ice  — the contact SLIPS: tilt authority drops to iceGrip, friction to
+      //          iceFriction; the marble commits to its entry line (DORMANT — Rime cut).
+      //   sand — heavy going: friction × sandFriction plus a QUADRATIC drag that
+      //          murders speed (fast entries die to a crawl within ~a cell); full
+      //          steering, easy resting — sand is where precision lives.
+      // No zones → both flags stay false → byte-identical to shipped Tabletop.
+      let onIce = false, onSand = false;
+      for (const z of w.zones) {
+        if (m.x >= z.x && m.x <= z.x + z.w && m.y >= z.y && m.y <= z.y + z.h) {
+          if (z.kind === "sand") onSand = true; else onIce = true;
+          break;
+        }
+      }
+      const gripMul = onIce ? P.iceGrip : 1;
+      // gravity (scaled by grip — on ice your tilt barely bends the line)
+      m.vx += gravity.gx * P.accel * gripMul * dt;
+      m.vy += gravity.gy * P.accel * gripMul * dt;
       // HILLS: constant extra pull AWAY from the ridge while on the patch —
       // climbing needs speed (stall → roll back), the far side flings you on
       for (const s of w.slopes) {
@@ -176,18 +267,24 @@
           }
         }
       }
+      const fMul = onIce ? P.iceFriction : onSand ? P.sandFriction : 1;
       // rolling resistance: small constant deceleration + whisper of damping —
-      // marbles COAST into their clacks instead of oozing to a halt.
+      // marbles COAST into their clacks instead of oozing to a halt. On ice the
+      // resistance all but vanishes; on SAND it multiplies AND gains a v² drag
+      // (the momentum killer — dominant exactly when the marble is fast).
       const sp = speedOf(m);
       if (sp > 0) {
-        const drop = (P.frictionK * sp + P.frictionC) * dt;
+        let drop = (P.frictionK * sp + P.frictionC) * fMul * dt;
+        if (onSand) drop += P.sandDragK * sp * sp * dt;
         const ns = Math.max(0, sp - drop);
         const k = ns / sp;
         m.vx *= k; m.vy *= k;
       }
       // static rest: force balance, not a magic tilt gate — rolling resistance
-      // holds the marble until the driving force exceeds it.
-      if (speedOf(m) < P.stopSpeed && gmag * P.accel < P.frictionC * 1.3) { m.vx = 0; m.vy = 0; }
+      // holds the marble until the driving force exceeds it. On ice both sides
+      // scale (grip-reduced drive vs near-zero resistance): a marble still
+      // almost never rests there — it commits.
+      if (speedOf(m) < P.stopSpeed && gmag * P.accel * gripMul < P.frictionC * fMul * 1.3) { m.vx = 0; m.vy = 0; }
       const spc = speedOf(m);
       if (spc > P.maxSpeed) { const k = P.maxSpeed / spc; m.vx *= k; m.vy *= k; }
       m.x += m.vx * dt;
@@ -203,6 +300,10 @@
       if (m.y > hiY) { m.y = hiY; if (m.vy > 0) { wallEv(w, m, m.vy);  m.vy = -m.vy * P.restWall; } m.vx *= 1 - P.wallScrub * dt; }
       // interior wall blocks — bank off them
       for (const b of w.blocks) collideBlock(w, m, b, dt, true);
+      // closed gates are walls (held gates are open floor)
+      for (const g of w.gates) if (!g.held) collideBlock(w, m, { x: g.x, y: g.y, w: w.unit, h: w.unit }, dt, true);
+      // bumper posts (CHIME) — bounce lively, ring a note
+      for (const p of w.posts) collidePost(w, m, p, dt, true);
     }
 
     // marble-marble collisions. A CAPTURED marble sits in its hole — recessed but
@@ -264,6 +365,8 @@
       if (m.x < lo) m.x = lo; else if (m.x > hiX) m.x = hiX;
       if (m.y < lo) m.y = lo; else if (m.y > hiY) m.y = hiY;
       for (const b of w.blocks) collideBlock(w, m, b, dt, false);
+      for (const g of w.gates) if (!g.held) collideBlock(w, m, { x: g.x, y: g.y, w: w.unit, h: w.unit }, dt, false);
+      for (const p of w.posts) collidePost(w, m, p, dt, false);
     }
 
     // holes catch EVERYTHING: the PATH this step is tested against each open

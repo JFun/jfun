@@ -92,8 +92,15 @@ re-styling.
   −0.35r, −0.42r); rim stroke 1.2px `shade(−85)+"88"`; speculars: 0.2r dot at
   (−0.3r, −0.36r) `#ffffffe8` + 0.09r dot at (−0.05r, −0.52r) `#ffffff90`.
   Rolling swirl cue unchanged from original.
-- **Walls** (`drawBlocks`): body `180deg #4a54a0→#2e3670`, stroke `#6a76c9`,
-  top bevel `#ffffff2b`, drop shadow unchanged.
+- **Walls** (`drawBlocks`) — REAL-BLOCK look (2026-07-12): shadow `#00000066`;
+  full-height body (front face) `180deg #262c60→#151a40`; raised TOP FACE
+  covering all but `lift = max(4, 0.16s)`px at the bottom, `180deg
+  #5b67ba→#3a4390`, stroke 1.5 `#7c89dd`; gloss strip `#ffffff30` on the top
+  face. The exposed dark strip below the top face sells the extrusion.
+  ADJACENT WALL CELLS MERGE (2026-07-12): zero inset + square corners on
+  shared edges, front lip only at the bottom of a run, gloss only at its top,
+  shadow only under the bottom cell — no felt gap inside a wall run; the
+  1.5px `#7c89dd` seam between cells reads as mortar.
 - **Ready text**: `TAP TO START`, Lilita One at `CELL×0.4`, `#ffffffd9`.
 - **SKIN palette** (render-only): r `#ff4d6b` g `#3ce07d` b `#43a6ff`
   y `#ffd23e` o `#ff8a2a` p `#b06bff` w `#f2f5ff`.
