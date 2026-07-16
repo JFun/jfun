@@ -95,16 +95,16 @@ function balloonsReachable(spec) {
 }
 // find the first seed (in a fixed window) that certifies this template with a
 // generous budget; returns {seed, bot}. bot = fewest taps to win.
-function findSeed(tmpl) {
+function findSeed(tmpl, slack) {
   for (let seed = 101; seed <= 720; seed++) {
     const spec = Object.assign({}, tmpl, { seed, taps: 24 });
     let bot;
     try { bot = beam(spec, 8, 24); } catch (e) { continue; }
     if (bot === null || bot < 2) continue;
     if (!balloonsReachable(spec)) continue;
-    // confirm greedy also wins with the slack budget we'll actually ship
-    const shipTaps = Math.min(24, bot + 3);
-    const gspec = Object.assign({}, spec, { taps: shipTaps });
+    // confirm greedy wins at the EXACT budget we'll ship (bot + slack) — not a
+    // looser proxy, or a tight level can pass here yet fail verify.cjs (FRAGILE).
+    const gspec = Object.assign({}, spec, { taps: bot + slack });
     let g; try { g = greedy(gspec, seed); } catch (e) { continue; }
     if (!g) continue;
     return { seed, bot };
@@ -121,51 +121,56 @@ const TIERS = [
   { key: "base",    from: 1,   to: 8,   colors: 3, el: null,      duck: false, obj: "pop"      },
   { key: "toy",     from: 9,   to: 16,  colors: 4, el: null,      duck: true,  obj: "duckpop"  },
   { key: "stone",   from: 17,  to: 26,  colors: 4, el: "stone",   duck: false, obj: "pop"      },
-  { key: "shell",   from: 27,  to: 38,  colors: 4, el: "shell",   duck: false, obj: "shells"   },
-  { key: "balloon", from: 39,  to: 52,  colors: 4, el: "balloon", duck: false, obj: "balloons" },
-  { key: "ice",     from: 53,  to: 68,  colors: 4, el: "ice",     duck: false, obj: "pop"      },
-  { key: "tar",     from: 69,  to: 86,  colors: 4, el: "tar",     duck: false, obj: "pop"      },
-  { key: "bomb",    from: 87,  to: 106, colors: 4, el: "bomb",    duck: false, obj: "pop"      },
+  { key: "shell",   from: 27,  to: 40,  colors: 4, el: "shell",   duck: false, obj: "shells"   },
+  { key: "balloon", from: 41,  to: 54,  colors: 4, el: "balloon", duck: false, obj: "balloons" },
+  { key: "bomb",    from: 55,  to: 70,  colors: 4, el: "bomb",    duck: false, obj: "pop"      },
+  // finale: remix of all the strong elements, a 5th colour, tightest budget.
+  // (ice + tar were CUT — friction changed motion, not decisions; see design-4-rattle.md.)
+  { key: "combo",   from: 71,  to: 106, colors: 5, el: null,      duck: false, obj: "pop"      },
 ];
 // per-element mix-density ramp (n at d=0 → n at d=1)
-const ELDENS = { stone: [5, 13], shell: [4, 9], balloon: [4, 7], ice: [8, 18], tar: [7, 15], bomb: [3, 7] };
+const ELDENS = { stone: [5, 13], shell: [4, 9], balloon: [4, 7], bomb: [3, 7] };
+const COMBO_POOL = ["stone", "shell", "balloon", "bomb"];
 const HINTS = {
   pop: "tap same-colour groups", duckpop: "bring the duck down",
   stone: "stones are dead weight — dig around them", shell: "pop right beside a crate to crack it",
-  balloon: "pop beside a balloon to burst it", ice: "icy beads slide — the pile slumps flat",
-  tar: "tar dams the pile — dig its colour out", bomb: "pop beside a bomb to blow a hole",
+  balloon: "pop beside a balloon to burst it", bomb: "pop beside a bomb to blow a hole",
+  combo: "everything at once — plan the cascade",
 };
 
 function makeLevel(n) {
   const tier = TIERS.find(t => n >= t.from && n <= t.to);
   const len = tier.to - tier.from + 1, j = n - tier.from, d = len > 1 ? j / (len - 1) : 0;
   const tierIdx = TIERS.indexOf(tier);
-  const count = ri(52, 74, d);
+  const count = ri(52, 76, d);
   const colors = tier.colors;
   const bias = { color: n % Math.max(1, colors - 1), share: lerp(0.48, 0.40, d) };
   const mix = [];
   if (tier.el) mix.push({ el: tier.el, n: ri(ELDENS[tier.el][0], ELDENS[tier.el][1], d) });
-  // COMBO remix: from balloon tier on, the harder half sprinkles an earlier element
-  const REMIX = { balloon: ["stone"], ice: ["stone", "balloon"], tar: ["stone", "ice"], bomb: ["stone", "shell", "ice"] };
-  let combo = null;
-  if (REMIX[tier.key] && d > 0.55) {
-    combo = REMIX[tier.key][n % REMIX[tier.key].length];
-    mix.push({ el: combo, n: ri(2, 4, d) });
+  // remix an earlier element in the harder half of an element tier
+  const REMIX = { balloon: ["stone"], bomb: ["stone", "shell"] };
+  if (REMIX[tier.key] && d > 0.55) mix.push({ el: REMIX[tier.key][n % REMIX[tier.key].length], n: ri(2, 4, d) });
+  // COMBO finale: remix 1–2 of the strong elements, rotating by level
+  if (tier.key === "combo") {
+    const e1 = COMBO_POOL[n % 4];
+    mix.push({ el: e1, n: ri(ELDENS[e1][0], Math.round((ELDENS[e1][0] + ELDENS[e1][1]) / 2), d) });
+    if (d > 0.3) mix.push({ el: COMBO_POOL[(n + 1) % 4], n: ri(2, 4, d) });
   }
   const objs = [];
   const hintKey = tier.key === "base" ? "pop" : tier.key === "toy" ? "duckpop" : tier.key;
-  if (tier.obj === "shells") { objs.push({ kind: "shells" }); if (d > 0.5) objs.push({ kind: "pop", color: bias.color, need: ri(10, 15, d) }); }
-  else if (tier.obj === "balloons") { objs.push({ kind: "balloons" }); if (d > 0.5) objs.push({ kind: "pop", color: bias.color, need: ri(10, 15, d) }); }
-  else if (tier.obj === "duckpop") { objs.push({ kind: "duck" }); objs.push({ kind: "pop", color: bias.color, need: ri(12, 17, d) }); }
-  else { objs.push({ kind: "pop", color: bias.color, need: ri(13, 21, d) }); }
+  if (tier.obj === "shells") { objs.push({ kind: "shells" }); if (d > 0.5) objs.push({ kind: "pop", color: bias.color, need: ri(11, 16, d) }); }
+  else if (tier.obj === "balloons") { objs.push({ kind: "balloons" }); if (d > 0.5) objs.push({ kind: "pop", color: bias.color, need: ri(11, 16, d) }); }
+  else if (tier.obj === "duckpop") { objs.push({ kind: "duck" }); objs.push({ kind: "pop", color: bias.color, need: ri(13, 18, d) }); }
+  else { objs.push({ kind: "pop", color: bias.color, need: ri(14, 22, d) }); }
   const spec = { count, colors, duck: !!tier.duck, objs, bias, mix: mix.length ? mix : undefined };
 
-  const found = findSeed(spec);
+  // SAWTOOTH slack (a bit harder — was 9→4): opens with a breather, ramps tight;
+  // tightens across tiers so the combo finale is the pinch. Target ~80% first-try.
+  const slack = clampi(ri(7, 3, d) - Math.floor(tierIdx * 0.3), 2, 8);
+  let found = findSeed(spec, slack), useSlack = slack;
+  if (!found) { found = findSeed(spec, slack + 1); useSlack = slack + 1; }   // loosen 1 if no seed is greedy-safe at the target slack
   if (!found) return { fail: true, n };
-  // SAWTOOTH slack: generous at tier start → tight at tier end, and a touch
-  // tighter each tier as the campaign progresses.
-  const slack = clampi(ri(9, 4, d) - Math.floor(tierIdx * 0.4), 3, 10);
-  const taps = found.bot + slack;
+  const taps = found.bot + useSlack;
   const lv = { count, colors, taps, duck: !!tier.duck, seed: found.seed,
     objs, bias: { color: bias.color, share: +bias.share.toFixed(3) },
     hint: HINTS[hintKey] };

@@ -39,17 +39,29 @@
   function ringFx(x, y, r0, r1, col, life) { if (rings.length > 20) rings.shift(); rings.push({ x, y, r0, r1, col, t: 0, life: life || 0.45 }); }
 
   /* ---------------- audio (ported; lazy, resumes on foreground) ---------------- */
-  let AC = null, master = null, noiseBuf = null, lastThump = 0;
-  function ensureAudio() {
-    if (AC) { if (AC.state !== "running") AC.resume().catch(() => {}); return; }
+  // iOS WKWebView audio hardening — docs/handbook/08-ios-webaudio.md. After
+  // background/interruption the context returns 'suspended'|'interrupted'|ZOMBIE
+  // (state lies 'running', clock frozen); the cure is close()+rebuild in a gesture.
+  // Pairs with AppDelegate's AVAudioSession.setActive on didBecomeActive.
+  let AC = null, master = null, noiseBuf = null, lastThump = 0, audioPoisoned = false;
+  function buildAudio() {
     try {
       const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
       AC = new C(); master = AC.createGain(); master.gain.value = 0.5; master.connect(AC.destination);
       const n = Math.floor(AC.sampleRate * 0.4); noiseBuf = AC.createBuffer(1, n, AC.sampleRate);
       const d = noiseBuf.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
-    } catch (e) { AC = null; }
+      AC.onstatechange = () => { if (AC && AC.state !== "running") audioPoisoned = true; };
+    } catch (e) { AC = null; master = null; noiseBuf = null; }
   }
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && AC && AC.state !== "running") AC.resume().catch(() => {}); });
+  function ensureAudio() {   // call on every user gesture: rebuild a poisoned context, create if absent, resume
+    if (audioPoisoned && AC) { try { AC.close(); } catch (e) {} AC = null; master = null; noiseBuf = null; audioPoisoned = false; }
+    if (!AC) buildAudio();
+    if (AC && AC.state !== "running") AC.resume().catch(() => {});
+    if (AC && AC.state === "running") { const t0 = AC.currentTime; setTimeout(() => { if (AC && AC.state === "running" && AC.currentTime <= t0) audioPoisoned = true; }, 160); }
+  }
+  function wakeAudio() { if (AC && AC.state !== "running") AC.resume().catch(() => {}); }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") wakeAudio(); });
+  window.addEventListener("pageshow", wakeAudio);
   function noiseHit(t, dur, gain, cut, type) { if (!AC) return; const s = AC.createBufferSource(); s.buffer = noiseBuf; const f = AC.createBiquadFilter(); f.type = type || "lowpass"; f.frequency.value = cut; const g = AC.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(1e-4, t + dur); s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + 0.02); }
   function tone(fr, t, dur, gain, type, slide) { if (!AC) return; const o = AC.createOscillator(); o.type = type || "sine"; o.frequency.setValueAtTime(fr, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, slide), t + dur); const g = AC.createGain(); g.gain.setValueAtTime(1e-4, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.01); g.gain.exponentialRampToValueAtTime(1e-4, t + dur); o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.03); }
   function sndTurn(d) {

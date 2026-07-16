@@ -48,6 +48,13 @@
         primed = true;
       } catch (e) {}
     }
+    // ZOMBIE guard: the state can LIE 'running' while the output is dead and the
+    // clock is FROZEN — onstatechange never fires for it. Prove the clock advances;
+    // if not, flag interrupted so the NEXT gesture closes+rebuilds. (Playbook rule 5.)
+    if (c.state === "running") {
+      var t0 = c.currentTime;
+      setTimeout(function () { if (ctx && ctx.state === "running" && ctx.currentTime <= t0) { interrupted = true; primed = false; } }, 160);
+    }
   }
   function wake() { if (ctx && ctx.state !== "running") { const p = ctx.resume(); if (p && p.catch) p.catch(function () {}); } }
 
