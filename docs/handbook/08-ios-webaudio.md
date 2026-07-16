@@ -8,45 +8,76 @@ caught by automated tests.
 
 ## The checklist (copy into every new iOS shell / game.js)
 
-Native (`MainViewController.capacitorDidLoad`, needs `import AVFoundation`):
+> **Why this keeps recurring (2026-07-15 audit of all 8 apps).** The fix is TWO
+> layers and BOTH must be present — but the audit found the native half lived
+> ONLY in Cut. There is no committed `ios/` template (each app hand-runs
+> `npx cap add ios`), so every other shell (Tilt uses native audio; Quarter,
+> Rattle, Excavate, Moraine, Dowse do NOT) shipped without it. And the web half
+> was documented only as a *pointer* to Cut's `game.js`, so copies drift or lag.
+> Durable homes, going forward:
+> - **Native → `AppDelegate.swift`.** Every Capacitor app already has one (in the
+>   pbxproj — no new file, no storyboard/pbxproj surgery). **MANDATORY the moment
+>   you run `npx cap add ios`.** This is the single thing that fixes "lost sound
+>   after background."
+> - **Web → use `@jfun/audio`** (`packages/audio`, auto-vendored by
+>   `new-game.mjs`) — it bakes in resume + close-and-rebuild-on-gesture + the
+>   zombie clock-probe. Only hand-roll (Cut/Rattle do, for bespoke synths) with
+>   the canonical snippet below.
+
+Native — the always-present home is `AppDelegate.swift` (add `import AVFoundation`):
 
 ```swift
-// 1. Silent switch: WKWebView's default AVAudioSession is 'ambient' — the
-//    ringer/mute switch silences it completely. Games with music use .playback.
-try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-try? AVAudioSession.sharedInstance().setActive(true)
-// 2. Background/foreground: iOS DEACTIVATES the session on background or
-//    interruption (call, Siri, alarm). Without re-activation on foreground the
-//    WKWebView AudioContext stays dead and the game returns SILENT.
-NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
-                                       object: nil, queue: .main) { _ in
+func application(_ application: UIApplication, didFinishLaunchingWithOptions ...) -> Bool {
+    // 1. Silent switch: WKWebView's default session is 'ambient' — the ringer/mute
+    //    switch silences it. .playback ignores it; mixWithOthers is polite.
+    try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+    try? AVAudioSession.sharedInstance().setActive(true)
+    return true
+}
+func applicationDidBecomeActive(_ application: UIApplication) {
+    // 2. iOS DEACTIVATES the session on background/interruption (call, Siri,
+    //    Control Center). Without this reactivation the WKWebView AudioContext
+    //    stays dead ('interrupted') and the game returns SILENT — web resume()
+    //    can NEVER restart output until this runs. THE fix for the recurring bug.
     try? AVAudioSession.sharedInstance().setActive(true)
 }
 ```
+(Only put these in `MainViewController.capacitorDidLoad` instead — as Cut does —
+if you already keep a custom MainViewController for the `#if DEBUG` DEV-flag
+injection. Same two calls, either home works.)
 
-Web (game.js):
+Web — bespoke-audio apps (hand-rolled synths, e.g. Cut/Rattle) use this canonical
+lifecycle (`@jfun/audio` already implements the same shape — prefer it):
 
 ```js
-// 3. Resume-after-background — the context comes back in THREE bad shapes:
-//      'suspended'   → resume() works
-//      'interrupted' → SAFARI-ONLY state; ==='suspended' checks never match it;
-//                      resume() works once the session is reactivated (rule 2)
-//      ZOMBIE        → state SAYS 'running' but the output is dead and
-//                      currentTime is FROZEN; resume() is a no-op. The ONLY fix
-//                      is closing the context and rebuilding the whole graph.
-//    So: retry resume with backoff, then VERIFY with an aliveness probe (is the
-//    clock advancing?); dead → rebuild. See apps/cut/web/js/game.js
-//    (audioAlive / rebuildAudio / resumeAudio / healAudio) for the canonical copy.
-function audioAlive(cb){ // the state can LIE — trust only an advancing clock
-  if(!actx||actx.state!=='running'){ cb(false); return; }
-  const t0=actx.currentTime;
-  setTimeout(()=>cb(!!actx&&actx.currentTime>t0),150);
+let AC=null, master=null, poisoned=false;
+function buildAudio(){
+  try{ AC=new (window.AudioContext||window.webkitAudioContext)();
+    master=AC.createGain(); master.connect(AC.destination); /* + your graph */
+    AC.onstatechange=()=>{ if(AC&&AC.state!=='running') poisoned=true; }; // any drop from running poisons the graph
+  }catch(e){ AC=null; master=null; }
 }
-// 4. Rebuilds outside a user gesture may be denied → keep an `audioDead` flag;
-//    EVERY gesture handler calls healAudio(), which rebuilds in-gesture
-//    (guaranteed allowed) or resumes anything !== 'running'. Never gate on
-//    ==='suspended'.
+// call on EVERY user gesture — rebuild a poisoned context, create if absent, resume
+function initAudio(){
+  if(poisoned&&AC){ try{AC.close();}catch(e){} AC=null; master=null; poisoned=false; }
+  if(!AC) buildAudio();
+  if(AC&&AC.state!=='running') AC.resume().catch(()=>{});
+  // ZOMBIE guard: state can LIE 'running' with a FROZEN clock → flag for next gesture
+  if(AC&&AC.state==='running'){ const t0=AC.currentTime;
+    setTimeout(()=>{ if(AC&&AC.state==='running'&&AC.currentTime<=t0) poisoned=true; },160); }
+}
+function wakeAudio(){ if(AC&&AC.state!=='running') AC.resume().catch(()=>{}); } // foreground = resume only; a gesture rebuilds
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') wakeAudio(); });
+window.addEventListener('pageshow', wakeAudio);
 ```
+Rules baked in above: NEVER gate on `==='suspended'` (test `!== 'running'` —
+`'interrupted'` is a separate Safari-only state); the rebuild MUST run in a user
+gesture (creation outside one can be denied), so `initAudio()` fires from every
+`pointerdown` and every sound is downstream of a gesture that called it; `tone()`
+must read the module-scoped `AC`/`master` so a rebuild reassigns them. Cut's
+richer variant (`audioAlive`/`rebuildAudio`/`resumeAudio` with back-off retries +
+a `localStorage` dev audio trail) is warranted only when audio must resume WITHOUT
+a tap (background music) — `apps/cut/web/js/game.js` is that reference.
 
 ## The rules behind the checklist
 

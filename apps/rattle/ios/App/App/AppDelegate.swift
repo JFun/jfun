@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +8,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Game audio must survive the ringer/silent switch: WKWebView's default
+        // "ambient" session is muted by it. ".playback" ignores the switch;
+        // "mixWithOthers" keeps the user's own podcast/music running alongside.
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        try? AVAudioSession.sharedInstance().setActive(true)
         return true
     }
 
@@ -26,7 +31,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        // iOS DEACTIVATES the audio session on background/interruption (call, Siri,
+        // Control Center). Without this re-activation on foreground, WKWebView's
+        // AudioContext stays dead ('interrupted') and the game returns SILENT — the
+        // recurring "lost sound after background" studio bug. The web layer's
+        // resume()/rebuild only works AFTER this. See docs/handbook/08-ios-webaudio.md.
+        try? AVAudioSession.sharedInstance().setActive(true)
     }
 
     func applicationWillTerminate(_ application: UIApplication) {

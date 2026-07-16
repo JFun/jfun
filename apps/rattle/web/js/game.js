@@ -30,13 +30,37 @@
   function readInsets() { const c = getComputedStyle(insetProbe); INSET.top = parseFloat(c.paddingTop) || 0; INSET.bottom = parseFloat(c.paddingBottom) || 0; }
   let parts = [], rings = [], shakeA = 0, banner = "", bannerT = 99, wob = {};
 
-  /* ---------------- audio (ported, honey-neutral) ---------------- */
-  let AC = null, master = null, clackT = 0, clackN = 0;
-  function initAudio() {
-    if (AC) { if (AC.state !== "running") AC.resume().catch(() => {}); return; }
-    try { const A = window.AudioContext || window.webkitAudioContext; if (!A) return; AC = new A(); const cp = AC.createDynamicsCompressor(); master = AC.createGain(); master.gain.value = 0.45; master.connect(cp); cp.connect(AC.destination); } catch (e) { AC = null; }
+  /* ---------------- audio (ported, honey-neutral) ----------------
+     iOS WKWebView hardening — docs/handbook/08-ios-webaudio.md. After background /
+     interruption the context returns 'suspended' | 'interrupted' (Safari-only —
+     never === 'suspended') | ZOMBIE (state LIES 'running' but the clock is frozen).
+     resume() cannot revive interrupted/zombie; the only cure is close()+rebuild,
+     done IN A GESTURE (creation outside a gesture can be denied). Pairs with the
+     native AVAudioSession.setActive(true) on didBecomeActive (AppDelegate.swift) —
+     without that, web resume can never restart output. tone()/sPop/etc. read the
+     module-scoped AC/master, so a rebuild reassigns them transparently. */
+  let AC = null, master = null, clackT = 0, clackN = 0, audioPoisoned = false;
+  function buildAudio() {
+    try {
+      const A = window.AudioContext || window.webkitAudioContext; if (!A) return;
+      AC = new A();
+      const cp = AC.createDynamicsCompressor(); master = AC.createGain(); master.gain.value = 0.45; master.connect(cp); cp.connect(AC.destination);
+      AC.onstatechange = () => { if (AC && AC.state !== "running") audioPoisoned = true; };   // any drop from running poisons the graph
+    } catch (e) { AC = null; master = null; }
   }
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && AC && AC.state !== "running") AC.resume().catch(() => {}); });
+  // call on EVERY user gesture: rebuild a poisoned context, create if absent, resume.
+  function initAudio() {
+    if (audioPoisoned && AC) { try { AC.close(); } catch (e) {} AC = null; master = null; audioPoisoned = false; }
+    if (!AC) buildAudio();
+    if (AC && AC.state !== "running") AC.resume().catch(() => {});
+    // zombie guard: state can lie 'running' with a frozen clock → flag for the next gesture to rebuild
+    if (AC && AC.state === "running") { const t0 = AC.currentTime; setTimeout(() => { if (AC && AC.state === "running" && AC.currentTime <= t0) audioPoisoned = true; }, 160); }
+  }
+  // foreground paths only resume (the native session reactivates on didBecomeActive);
+  // a poisoned context is healed by the next gesture's initAudio().
+  function wakeAudio() { if (AC && AC.state !== "running") AC.resume().catch(() => {}); }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") wakeAudio(); });
+  window.addEventListener("pageshow", wakeAudio);
   function tone(type, f0, f1, dur, vol, when) {
     if (!AC) return;
     try { const t0 = AC.currentTime + (when || 0); const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.setValueAtTime(Math.max(1, f0), t0); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t0 + dur); g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + 0.03); } catch (e) {}
@@ -168,14 +192,13 @@
     $("#ov").classList.add("show");
     $("#retryB").onclick = () => build(level);
   }
-  // element debut card (T2–T7) — same shape as the duck unlock: NEW ELEMENT eyebrow ·
-  // the REAL bead art on a canvas in a well · Lilita name · honey rule + dim detail · GOT IT ▸
+  // element debut copy — the on-board coach-mark's bubble text. NEW ELEMENT eyebrow ·
+  // Lilita name · honey rule + dim detail. (ice + tar cut — see design-4-rattle.md;
+  // their engine rules remain dormant but no level spawns them.)
   const ELEM_INTRO = {
     stone:   { name: "STONE BEAD",   c: 0, rule: "It's dead weight — you can't pop it",                detail: "Undermine it and dig the pile out around it." },
     shell:   { name: "SHELL BEAD",   c: 0, rule: "A pop right beside it cracks the crate open",        detail: "The freed bead turns normal — then clear it by colour." },
     balloon: { name: "BALLOON BEAD", c: 0, rule: "It floats up — pop a cluster beside it to burst it", detail: "Rising balloons prop the pile up from below." },
-    ice:     { name: "ICE BEAD",     c: 1, rule: "Slippery — icy beads slide and slump flat",          detail: "Piles spread wide. Read the new shape before you tap." },
-    tar:     { name: "TAR BEAD",     c: 2, rule: "Sticky and heavy — tar dams the pile",               detail: "It barely shifts on a rattle. Dig its colour out." },
     bomb:    { name: "BOMB BEAD",    c: 2, rule: "Pop a cluster next to it and it detonates",           detail: "Clears a 2.5-bead radius — line up your escape, then set it off." },
   };
   /* -------- on-board element intro: a Royal-Match-style coach-mark that
@@ -227,34 +250,35 @@
     ctx.strokeStyle = "rgba(255,206,107," + (0.5 + 0.4 * pulse) + ")";
     ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(sx, sy, sr * (1.28 + 0.14 * pulse), 0, 7); ctx.stroke();
     ctx.restore();
-    // pointer bubble — above the spotlight if there's room, else below
-    const bw = Math.min(322, W - 36), bh = 138;
-    const above = sy - hole - bh - 18 > INSET.top + 18;
-    const by = above ? sy - hole - bh - 16 : sy + hole + 16;
-    const bx = clamp(sx - bw / 2, 16, W - bw - 16);
-    const px = clamp(sx, bx + 26, bx + bw - 26);
+    // pointer bubble — enlarged for readability; more clearance so the wider card
+    // clears the spotlight cleanly. Above the spotlight if there's room, else below.
+    const bw = Math.min(330, W - 30), bh = 182;
+    const above = sy - hole - bh - 24 > INSET.top + 14;
+    const by = above ? sy - hole - bh - 22 : sy + hole + 22;
+    const bx = clamp(sx - bw / 2, 14, W - bw - 14);
+    const px = clamp(sx, bx + 30, bx + bw - 30);
     ctx.save(); ctx.globalAlpha = fade;
     ctx.fillStyle = above ? "#1a1226" : "#2a2038";        // pointer triangle toward the bead
     ctx.beginPath();
-    if (above) { ctx.moveTo(px - 12, by + bh); ctx.lineTo(px + 12, by + bh); ctx.lineTo(px, by + bh + 14); }
-    else { ctx.moveTo(px - 12, by); ctx.lineTo(px + 12, by); ctx.lineTo(px, by - 14); }
+    if (above) { ctx.moveTo(px - 13, by + bh); ctx.lineTo(px + 13, by + bh); ctx.lineTo(px, by + bh + 15); }
+    else { ctx.moveTo(px - 13, by); ctx.lineTo(px + 13, by); ctx.lineTo(px, by - 15); }
     ctx.closePath(); ctx.fill();
     const grd = ctx.createLinearGradient(0, by, 0, by + bh); grd.addColorStop(0, "#2a2038"); grd.addColorStop(1, "#1a1226");
-    rrect(bx, by, bw, bh, 20); ctx.fillStyle = grd; ctx.fill();
-    ctx.lineWidth = 2; ctx.strokeStyle = "#4a3a5c"; rrect(bx, by, bw, bh, 20); ctx.stroke();
+    rrect(bx, by, bw, bh, 22); ctx.fillStyle = grd; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = "#4a3a5c"; rrect(bx, by, bw, bh, 22); ctx.stroke();
     ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
     if ("letterSpacing" in ctx) ctx.letterSpacing = "3px";
-    ctx.fillStyle = "#ff5a3c"; ctx.font = "900 11px " + F;
-    ctx.fillText(coach.el === "duck" ? "NEW FRIEND" : "NEW ELEMENT", bx + bw / 2, by + 26);
+    ctx.fillStyle = "#ff5a3c"; ctx.font = "900 12px " + F;                    // eyebrow 12
+    ctx.fillText(coach.el === "duck" ? "NEW FRIEND" : "NEW ELEMENT", bx + bw / 2, by + 31);
     if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
-    ctx.fillStyle = "#fff"; ctx.font = "27px 'Lilita One', " + F;
-    ctx.fillText(info.name, bx + bw / 2, by + 57);
-    ctx.fillStyle = "#ffb648"; ctx.font = "800 13px " + F;
-    ctx.fillText(info.rule, bx + bw / 2, by + 82);
-    ctx.fillStyle = "#b3a3c4"; ctx.font = "700 12px " + F;
-    wrapText(info.detail, bx + bw / 2, by + 101, bw - 40, 15);
-    ctx.fillStyle = "#8b7c98"; ctx.font = "800 11px " + F;
-    ctx.fillText("TAP TO CONTINUE ▸", bx + bw / 2, by + bh - 13);
+    ctx.fillStyle = "#fff"; ctx.font = "25px 'Lilita One', " + F;             // title (Lilita display)
+    ctx.fillText(info.name, bx + bw / 2, by + 65);
+    ctx.fillStyle = "#ffb648"; ctx.font = "800 14.5px " + F;                  // body (rule) 14
+    ctx.fillText(info.rule, bx + bw / 2, by + 93);
+    ctx.fillStyle = "#b3a3c4"; ctx.font = "700 13px " + F;                    // detail, roomier line-height (fits 2 lines)
+    wrapText(info.detail, bx + bw / 2, by + 116, bw - 48, 18);
+    ctx.fillStyle = "#8b7c98"; ctx.font = "800 12px " + F;
+    ctx.fillText("TAP TO CONTINUE ▸", bx + bw / 2, by + bh - 18);
     ctx.restore();
   }
 

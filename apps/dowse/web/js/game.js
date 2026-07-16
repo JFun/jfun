@@ -11,9 +11,21 @@
   const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
   const DIRS = E.DIRS;
 
-  /* ---------------- audio (bespoke — richer than a generic kit for this game) ---------------- */
-  let AC = null;
-  function initAudio() { if (AC) return; try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  /* ---------------- audio (bespoke — richer than a generic kit for this game) ----------------
+     iOS WKWebView hardening (docs/handbook/08-ios-webaudio.md): after background/
+     interruption the context returns 'suspended'|'interrupted'|ZOMBIE (state lies
+     'running', clock frozen); the cure is close()+rebuild in a gesture. Pairs with
+     AppDelegate's AVAudioSession.setActive on didBecomeActive. */
+  let AC = null, audioPoisoned = false;
+  function initAudio() {   // call on every user gesture
+    if (audioPoisoned && AC) { try { AC.close(); } catch (e) {} AC = null; audioPoisoned = false; }
+    if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); AC.onstatechange = () => { if (AC && AC.state !== "running") audioPoisoned = true; }; } catch (e) { AC = null; } }
+    if (AC && AC.state !== "running") AC.resume().catch(() => {});
+    if (AC && AC.state === "running") { const t0 = AC.currentTime; setTimeout(() => { if (AC && AC.state === "running" && AC.currentTime <= t0) audioPoisoned = true; }, 160); }
+  }
+  function wakeAudio() { if (AC && AC.state !== "running") AC.resume().catch(() => {}); }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") wakeAudio(); });
+  window.addEventListener("pageshow", wakeAudio);
   function tone(freq, freq2, dur, vol, type, when) {
     if (!AC) return;
     const t = AC.currentTime + (when || 0);

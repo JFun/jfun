@@ -32,12 +32,13 @@ Every element is ONE physics rule — a constant, a collision callback, or a bod
 | T1 | 9–16 | **toy** (large escort body, e.g. duck) + 4th color | floor-sensor body | pops open channels; "bring it down" |
 | T2 | 17–26 | **stone** (colorless bead) | density ×3, no colorId | dead weight — undermine it, dig around it |
 | T3 | 27–38 | **shell** (bead in a wooden crate) | callback: adjacent pop shockwave cracks shell → normal bead | collateral damage; pop NEXT TO things |
-| T4 | 39–52 | **balloon** + remix T1–3 | gravityScale −0.6; pops on adjacent pop | props piles up from below; first combo band |
-| T5 | 53–68 | **ice bead** | friction 0.02 | slump physics — icy piles spread flat; read pile shape |
-| T6 | 69–86 | **tar bead** | friction 5 + weak weld joint to touching neighbors | dams avalanches; clumps fall as one unit |
-| T7 | 87–106 | **bomb bead** | callback: popped-in-cluster → radial impulse + destroy radius 2.5r | AoE you must *earn into position* |
-| T8 | 107–128 | **pinned bead** (latched to wall) — LAST new element | pin joint, released by adjacent pop | release-order puzzles |
-| T9 | 129–160+ | gravity tilt / mirrored & rotated vessels + FULL remix T1–8 | free variables, not elements | geometry/gravity permutation → endless/daily |
+| T4 | 41–54 | **balloon** + remix stone | gravityScale <0 (perch-clamped to the pile surface); pops on adjacent pop | props piles up from below; first combo band |
+| T5 | 55–70 | **bomb bead** | callback: popped-in-cluster → radial impulse + destroy radius 2.5r | AoE you must *earn into position* |
+| T6 | 71–106 | **combo finale** — remix all 4 strong elements + **5th colour** | (no new element; permutation) | plan the multi-element cascade; the difficulty pinch |
+| — | — | ~~ice bead (friction 0.02)~~ · ~~tar bead (friction 5 + weld)~~ | — | **CUT 2026-07-15** — friction changed *motion*, not *decisions*; unreadable in feel-test (same failure as Tilt's Rime/Dune). |
+| T7+ | 107+ | **pinned bead** (next new element) · then gravity tilt / mirrored & rotated vessels | pin joint released by adjacent pop; then free variables | release-order puzzles → geometry/gravity permutation → endless/daily |
+
+> **Shipped ladder (2026-07-15):** the certified 106-level campaign is T0→T6 above (base · duck · stone · shell · balloon · bomb · combo). Ice + tar were cut after feel-test (their engine rules remain dormant, easily revived). Difficulty was nudged up ("a bit harder", target ~80% first-try) by tightening the sawtooth slack curve (7→2 within a tier, tighter each tier) and adding a 5th colour in the combo finale — see `apps/rattle/scripts/dev/gen-campaign.cjs`.
 
 ## Objective variety (predicates on the settled world state)
 CLEAR-N-COLOR (pop N red — the baseline chip) · BRING-DOWN (toy reaches the floor sensor; ×1–3 toys) · CLEAR-ALL-TYPE (crack every shell / pop every balloon / sink every stone through the drain) · DROP-LINE (pile height below a marked line) · AVOID-ZONE (no bead may cross the overflow line / hazard bead must never touch the floor — containment fail) · ORDER (pop colors in the lit sequence) · PHASED (goal B gated behind goal A: crack the shells, *then* bring the duck down). All are ≤20-line checks on `state()` at settle.

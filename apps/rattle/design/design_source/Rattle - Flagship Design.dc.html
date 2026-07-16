@@ -16,8 +16,106 @@
     body { margin: 0; background: #0c0812; }
     @keyframes rpop { from { transform: scale(.85); opacity: 0 } to { transform: scale(1); opacity: 1 } }
     @keyframes rshake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-3px) rotate(-1deg)} 40%{transform:translateX(3px) rotate(1deg)} 60%{transform:translateX(-2px)} 80%{transform:translateX(2px)} }
+    @keyframes coachPulse { 0%{transform:scale(1); opacity:.9} 70%{transform:scale(1.35); opacity:0} 100%{opacity:0} }
+    @keyframes coachHand { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-9px)} }
+    @keyframes coachBob { 0%,100%{transform:translate(-50%,0)} 50%{transform:translate(-50%,-5px)} }
   </style>
 </helmet>
+
+<section style="display:flex; flex-direction:column; gap:30px; padding:56px 56px 40px; width:max-content; border-bottom:1px dashed #2c2140">
+  <div style="display:flex; flex-direction:column; gap:8px">
+    <div style="display:flex; align-items:center; gap:12px">
+      <div style="font-family:'Lilita One'; font-size:22px; letter-spacing:.02em; color:#f3ecfa">In-context element intro — coach mark on the board</div>
+      <div style="font:800 11px/1 ui-monospace,Menlo,monospace; color:#0c0812; background:#ffb648; border-radius:6px; padding:6px 8px; letter-spacing:.06em">NEW</div>
+    </div>
+    <div style="font:12px/1.6 ui-monospace,Menlo,monospace; color:#7a6b86; max-width:920px">the disconnected modal card is replaced by a <b style="color:#d9c9e6">Royal-Match-style coach mark</b>: the level loads with the new element already in the pile, the board dims, a spotlight + pulse ring lands on it, a pointer bubble explains the one rule <b style="color:#d9c9e6">right where it sits</b>, and a live cue shows the mechanic firing · tap anywhere → dim lifts, you play · shown once per element (design-4-rattle.md)</div>
+  </div>
+
+  <div style="display:flex; gap:40px; align-items:flex-start; flex-wrap:wrap">
+
+    <!-- C1 spotlight coach mark -->
+    <div id="C1" style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:flex-start; gap:11px">
+        <a href="#C1" style="font:700 12px/1 ui-monospace,Menlo,monospace; color:#0c0812; background:#ffb648; border-radius:8px; padding:7px 9px; text-decoration:none">C1</a>
+        <div style="display:flex; flex-direction:column; gap:3px">
+          <div style="font:700 15px/1.2 -apple-system,sans-serif; color:#f3ecfa">Step 1 — spotlight &amp; explain</div>
+          <div style="font:12px/1.5 -apple-system,sans-serif; color:#7a6b86; max-width:330px">Board dims, the bomb bead is spotlit in its real spot, the bubble names it and states the rule. No context switch — it's the level you're about to play.</div>
+        </div>
+      </div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" status-bar="{{ false }}" dark="{{ true }}" hint-size="402px,874px">
+        <div style="width:100%; height:100%; box-sizing:border-box; position:relative; overflow:hidden; background:radial-gradient(120% 90% at 50% -10%, #38213f 0%, #1c1226 48%, #0c0812 100%); color:#f3ecfa; font-family:'Nunito',-apple-system,sans-serif; user-select:none">
+          <!-- live board behind -->
+          <canvas id="rCoach" style="position:absolute; inset:0; width:100%; height:100%; display:block; z-index:0"></canvas>
+          <!-- header (dimmed with the board) -->
+          <div style="position:absolute; top:0; left:0; right:0; z-index:1; display:flex; justify-content:space-between; align-items:flex-start; padding:56px 18px 0">
+            <div style="display:flex; flex-direction:column; gap:1px">
+              <div style="font-weight:900; font-size:10px; letter-spacing:.16em; color:#8b7c98">LEVEL 87</div>
+              <div style="display:flex; align-items:baseline; gap:6px"><span style="font-family:'Lilita One'; font-size:34px; line-height:1; color:#fff; text-shadow:0 3px 0 #140c22">8</span><span style="font-weight:900; font-size:11px; letter-spacing:.14em; color:#ffb648">TAPS</span></div>
+            </div>
+            <div style="display:flex; gap:7px; align-items:center">
+              <div style="display:flex; align-items:center; gap:5px; background:#1c1330cc; border:1px solid #3d2f52; border-radius:999px; padding:5px 10px 5px 6px"><span style="width:16px; height:16px; border-radius:50%; background:#7ec7ff; display:inline-block"></span><span style="font-weight:900; font-size:12px; color:#f3ecfa">14</span></div>
+            </div>
+          </div>
+          <!-- dim + spotlight (box-shadow punches the hole) -->
+          <div style="position:absolute; left:50%; top:45%; transform:translate(-50%,-50%); width:132px; height:132px; border-radius:50%; box-shadow:0 0 0 9999px rgba(8,5,16,0.8); z-index:2; pointer-events:none"></div>
+          <!-- pulse rings on the spot -->
+          <div style="position:absolute; left:50%; top:45%; transform:translate(-50%,-50%); width:120px; height:120px; border-radius:50%; border:3px solid #ff7a4d; z-index:3; animation:coachPulse 1.8s ease-out infinite; pointer-events:none"></div>
+          <div style="position:absolute; left:50%; top:45%; transform:translate(-50%,-50%); width:120px; height:120px; border-radius:50%; border:3px solid #ffb648; z-index:3; animation:coachPulse 1.8s ease-out .9s infinite; pointer-events:none"></div>
+          <!-- the spotlit bomb bead -->
+          <canvas id="coachBomb" style="position:absolute; left:50%; top:45%; transform:translate(-50%,-50%); width:96px; height:96px; z-index:4; pointer-events:none"></canvas>
+          <!-- pointer bubble -->
+          <div style="position:absolute; left:50%; top:60%; transform:translate(-50%,0); width:330px; z-index:5; animation:coachBob 2.6s ease-in-out infinite">
+            <div style="position:absolute; top:-9px; left:50%; transform:translateX(-50%) rotate(45deg); width:18px; height:18px; background:#2a2038; border-left:2px solid #4a3a5c; border-top:2px solid #4a3a5c; border-radius:3px"></div>
+            <div style="background:#2a2038; border:2px solid #4a3a5c; border-radius:22px; padding:24px 22px 22px; text-align:center; box-shadow:0 24px 60px -18px #000">
+              <div style="font-weight:900; font-size:12px; letter-spacing:.3em; color:#ff5a3c; text-indent:.3em; margin-bottom:12px">NEW · BOMB BEAD</div>
+              <div style="font-weight:800; font-size:19px; color:#fff; line-height:1.4; margin-bottom:8px">Pop a cluster right next to it</div>
+              <div style="font-weight:700; font-size:14px; color:#b3a3c4; line-height:1.55">…and it blows a hole — clearing everything in a 2½-bead radius.</div>
+            </div>
+          </div>
+          <!-- tap-to-continue + finger -->
+          <div style="position:absolute; left:0; right:0; bottom:34px; z-index:5; display:flex; flex-direction:column; align-items:center; gap:2px">
+            <div style="font-size:26px; animation:coachHand 1.4s ease-in-out infinite">👆</div>
+            <div style="font-weight:800; font-size:12px; color:#e9dcf5; letter-spacing:.03em">Tap the bomb to try it</div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- C2 why on-board -->
+    <div id="C2" style="display:flex; flex-direction:column; gap:14px; max-width:340px">
+      <div style="display:flex; align-items:flex-start; gap:11px">
+        <a href="#C2" style="font:700 12px/1 ui-monospace,Menlo,monospace; color:#0c0812; background:#ffb648; border-radius:8px; padding:7px 9px; text-decoration:none">C2</a>
+        <div style="display:flex; flex-direction:column; gap:3px">
+          <div style="font:700 15px/1.2 -apple-system,sans-serif; color:#f3ecfa">Why on the board, not a modal</div>
+          <div style="font:12px/1.5 -apple-system,sans-serif; color:#7a6b86">the pattern, and how it degrades.</div>
+        </div>
+      </div>
+      <div style="background:#160f22; border:1px solid #2c2140; border-radius:20px; padding:20px; display:flex; flex-direction:column; gap:16px">
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <div style="font:700 10px/1 ui-monospace,Menlo,monospace; color:#6b5c7a; letter-spacing:.16em">LEARN WHERE YOU PLAY</div>
+          <div style="font-weight:700; font-size:12.5px; color:#b3a3c4; line-height:1.55">A modal explains in the abstract; a coach mark points at the <b style="color:#f3ecfa">actual bead in the actual pile</b>. The player's eye is already where their finger goes next — the rule sticks because it's spatial, not verbal.</div>
+        </div>
+        <div style="height:1px; background:#2c2140"></div>
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <div style="font:700 10px/1 ui-monospace,Menlo,monospace; color:#6b5c7a; letter-spacing:.16em">THE BEATS</div>
+          <div style="font-weight:700; font-size:12px; color:#b3a3c4; line-height:1.6"><b style="color:#f3ecfa">1</b> board loads, dims · spotlight lands on the new bead<br><b style="color:#f3ecfa">2</b> bubble names it + one-line rule<br><b style="color:#f3ecfa">3</b> a scripted cue fires the mechanic once (a nearby pair pops → the bomb bursts)<br><b style="color:#f3ecfa">4</b> tap anywhere → dim lifts, taps counter live, you play</div>
+        </div>
+        <div style="height:1px; background:#2c2140"></div>
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <div style="font:700 10px/1 ui-monospace,Menlo,monospace; color:#6b5c7a; letter-spacing:.16em">RULES</div>
+          <div style="display:flex; flex-wrap:wrap; gap:7px">
+            <span style="background:#0f0a18; border:1px solid #2c2140; border-radius:999px; padding:6px 11px; font-weight:800; font-size:11px; color:#b3a3c4">once per element, ever</span>
+            <span style="background:#0f0a18; border:1px solid #2c2140; border-radius:999px; padding:6px 11px; font-weight:800; font-size:11px; color:#b3a3c4">no timer runs during the intro</span>
+            <span style="background:#0f0a18; border:1px solid #2c2140; border-radius:999px; padding:6px 11px; font-weight:800; font-size:11px; color:#b3a3c4">skippable — tap dismisses</span>
+            <span style="background:#0f0a18; border:1px solid #2c2140; border-radius:999px; padding:6px 11px; font-weight:800; font-size:11px; color:#b3a3c4">replayable from the toy-chest entry</span>
+          </div>
+        </div>
+        <div style="font:700 10.5px/1.6 ui-monospace,Menlo,monospace; color:#6b5c7a">the L2 modal card stays as the fallback for reduced-motion / re-view; the coach mark is the default first-encounter.</div>
+      </div>
+    </div>
+
+  </div>
+</section>
 
 <section style="display:flex; flex-direction:column; gap:30px; padding:56px 56px 40px; width:max-content; border-bottom:1px dashed #2c2140">
   <div style="display:flex; flex-direction:column; gap:8px">
@@ -635,9 +733,12 @@ class Component extends DCLogic {
     const heroCv=document.getElementById("rHero");
     this.render(heroCv, this.hero); this.updateHeroHUD(this.hero); // paint once synchronously
     this.drawLadder(); // T2–T7 element icons (static)
+    this.coach = this.fbWorld("rCoach", { count:54, colors:4, taps:8, duck:false, bias:1, objPop:{color:1,rem:16}, seed:31 });
+    this.render(document.getElementById("rCoach"), this.coach); this.drawElement("coachBomb","bomb"); // in-context intro board
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(()=>{ try{
       this.render(heroCv,this.hero); this.render(document.getElementById("rTumble"),this.tumble);
       this.render(document.getElementById("rWin"),this.win); this.render(document.getElementById("rDead"),this.dead);
+      this.render(document.getElementById("rCoach"),this.coach); this.drawElement("coachBomb","bomb");
       this.drawLadder();
     }catch(e){} });
 

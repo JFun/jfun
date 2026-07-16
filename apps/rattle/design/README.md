@@ -112,7 +112,18 @@ class) — reads by silhouette + material, not just hue:
   element; art comes when T7 ships. T9+ = remix only (mirrored/rotated vessels,
   gravity variants), no new bodies.
 
-**Debut card (`L2`)**: every element is introduced with the same card as the
+**In-context coach mark (`C1`/`C2`) — DEFAULT first-encounter**: instead of a
+modal, the level loads with the new element already in the pile, the board
+dims, a spotlight + double pulse ring lands on the bead, and a pointer bubble
+names it + states the one rule right where it sits (Royal-Match style). Beats:
+dim → name → fire the mechanic once (scripted adjacent pop) → tap anywhere →
+dim lifts, taps counter goes live. Rules: once per element ever, no timer during
+intro, skippable (tap dismisses), replayable from the toy-chest entry.
+Implementation: dark overlay = a circle with `box-shadow:0 0 0 9999px rgba(8,5,16,.8)`
+(punches the spotlight hole); bead spotlit via `drawElement`; caption is plain
+HTML positioned over the field.
+
+**Debut card (`L2`) — reduced-motion / re-view fallback**: same card as the
 duck unlock — "NEW ELEMENT" eyebrow, big bead icon in a rounded well, name in
 Lilita, one plain-words rule line, GOT IT ▸ — then straight into the level.
 
