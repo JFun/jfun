@@ -21,7 +21,7 @@
   const F = "Nunito, -apple-system, system-ui, sans-serif";
 
   let W = 390, H = 844, DPR = 1, s = 1, ox = 0, oy = 0;   // screen; s/ox/oy = world→screen
-  let world = null, level = 1, simT = 0, firstTap = false, cardUp = false, deadOffered = false, coach = null;
+  let world = null, level = 1, simT = 0, firstTap = false, cardUp = false, deadOffered = false, coach = null, rattledThisLevel = false;
   // real device safe-area insets (notch / home indicator) — read from a CSS probe
   const INSET = { top: 0, bottom: 0 };
   const insetProbe = document.createElement("div");
@@ -85,7 +85,7 @@
   function build(n) {
     level = clamp(n | 0, 1, LV.length);
     world = E.createWorld(LV[level - 1]);
-    simT = 0; firstTap = false; cardUp = false; deadOffered = false; coach = null;
+    simT = 0; firstTap = false; cardUp = false; deadOffered = false; coach = null; rattledThisLevel = false;
     parts = []; rings = []; shakeA = 0; wob = {};
     banner = "LEVEL " + level; bannerT = 0;
     $("#hint").textContent = world.spec.hint; $("#hint").classList.remove("off");
@@ -130,15 +130,33 @@
   }
   function showCleared(spare) {
     cardUp = true;
-    const stars = spare >= (world.spec.taps - 2) ? 3 : spare >= 1 ? 2 : 1;
-    const sv = loadSave(); sv.best = sv.best || {}; sv.best[level] = Math.max(sv.best[level] || 0, spare); writeSave(sv);
+    // EFFICIENCY stars vs the verifier's bot-optimal `par` (not the generous budget):
+    // 3★ = within a tap of optimal, 2★ = tidy, 1★ = any clear. Perfect = par + no rattle.
+    // par is oracle-guaranteed reachable, so every 3★ is fair. docs: skilled-player research.
+    const par = world.spec.par || world.spec.taps;
+    const used = world.spec.taps - spare;
+    // PERFECT = matched the bot-optimal solve with no rattle. `===` (not `<=`): the budget is
+    // always ≥ par+1, so a full-budget clear can never fake a PERFECT. 3★ = within a tap of par.
+    const perfect = used === par && !rattledThisLevel;
+    const stars = used <= par + 1 ? 3 : used <= par + 3 ? 2 : 1;
+    const sv = loadSave();
+    sv.stars = sv.stars || {}; const prevStars = sv.stars[level] || 0; const bestStars = Math.max(prevStars, stars); sv.stars[level] = bestStars;
+    sv.perfect = sv.perfect || {}; if (perfect) sv.perfect[level] = 1;
+    sv.best = sv.best || {}; sv.best[level] = Math.max(sv.best[level] || 0, spare);
+    writeSave(sv);
+    // the stars ARE the grade — no par/used numbers on the card (reads like a debug
+    // readout, and it's redundant with the stars). Just a warm line + a Perfect flourish.
     const gotToy = level % 2 === 1;
     const toyN = 3 + level;   // deterministic toy-chest slot (Excavate collection pattern)
+    const toyBit = gotToy ? ' · <span style="color:#4bd48a">new toy' + (perfect ? '!' : ' unlocked!') + '</span>' : '';
+    const sub = perfect
+      ? '<span style="color:#ffce6b">★ PERFECT</span>' + toyBit
+      : (spare + (spare === 1 ? ' tap spare' : ' taps spare') + toyBit);
     $("#card").innerHTML =
       '<div class="glow"></div>' +
       starsArc(stars) +
       '<h2>CLEARED!</h2>' +
-      '<div class="sub">' + spare + (spare === 1 ? " tap spare" : " taps spare") + (gotToy ? ' · <span style="color:#4bd48a">new toy unlocked!</span>' : "") + '</div>' +
+      '<div class="sub">' + sub + '</div>' +
       (gotToy ? '<div class="toy">' + DUCK_SVG + '<div class="lab"><b>Rubber Duck</b><span>toy ' + toyN + ' of 50 · Bath-Time set</span></div></div>' : '') +
       '<div class="btns">' +
         '<button class="primary" id="nextB">' + (level < LV.length ? "NEXT ▸" : "REPLAY ▸") + '</button>' +
@@ -175,14 +193,23 @@
       '</div>' +
       '<div class="foot">rattle costs 1 tap · the pile is never a dead end</div>';
     $("#ov").classList.add("show");
-    $("#ratB").onclick = () => { $("#ov").classList.remove("show"); cardUp = false; deadOffered = false; initAudio(); E.doRattle(world); };
+    $("#ratB").onclick = () => { $("#ov").classList.remove("show"); cardUp = false; deadOffered = false; rattledThisLevel = true; initAudio(); E.doRattle(world); };
     $("#restB").onclick = () => build(level);
   }
   // out of taps with the level unfinished — a genuine loss (rattle can't help at 0 taps)
   function showLose() {
     cardUp = true;
-    const rem = world.objectives.filter(o => o.rem > 0 && o.kind !== "duck").reduce((a, o) => a + o.rem, 0);
-    const need = world.objectives.some(o => o.kind === "duck" && o.rem > 0) ? "the duck still to bring down" : rem + (rem === 1 ? " bead left" : " beads left");
+    // per-objective remaining — never sum different kinds into one "beads" count
+    // (a two-objective shell/balloon level has crates AND beads left, different units).
+    const parts = [];
+    for (const o of world.objectives) {
+      if (o.rem <= 0) continue;
+      if (o.kind === "duck") parts.push("the duck");
+      else if (o.kind === "shells") parts.push(o.rem + (o.rem === 1 ? " crate" : " crates"));
+      else if (o.kind === "balloons") parts.push(o.rem + (o.rem === 1 ? " balloon" : " balloons"));
+      else parts.push(o.rem + (o.rem === 1 ? " bead" : " beads"));
+    }
+    const need = parts.length ? parts.join(" + ") + " to go" : "almost there";
     $("#card").innerHTML =
       '<div style="width:66px;height:66px;margin:0 auto 12px;border-radius:20px;background:#140c22;border:1px solid #3a2e4c;display:flex;align-items:center;justify-content:center"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#ff5a3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg></div>' +
       '<h2 style="font-size:24px;margin:0 0 6px;text-shadow:0 3px 0 #140c22">OUT OF TAPS</h2>' +
@@ -438,8 +465,19 @@
       x += it.w + 6;
     }
   }
-  // bead drawn at native (unscaled) screen size for the chips
-  function drawBallScreen(x, y, r, c) { const P = PALETTE[c]; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = P.b; ctx.fill(); ctx.fillStyle = P.d; if (c === 0) { ctx.beginPath(); ctx.arc(x, y, r * 0.34, 0, 7); ctx.fill(); } else if (c === 2) { ctx.fillRect(x - r * 0.3, y - r * 0.3, r * 0.6, r * 0.6); } else { ctx.beginPath(); ctx.moveTo(x, y - r * 0.42); ctx.lineTo(x + r * 0.38, y + r * 0.28); ctx.lineTo(x - r * 0.38, y + r * 0.28); ctx.closePath(); ctx.fill(); } }
+  // bead drawn at native (unscaled) screen size for the chips — glyph per colour MUST
+  // match the on-board drawGlyph (0 dot · 1 triangle · 2 square · 3 diamond · 4 ring) so
+  // the objective chip looks like the pile it points at (colour 3 = diamond, not triangle).
+  function drawBallScreen(x, y, r, c) {
+    const P = PALETTE[c];
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = P.b; ctx.fill();
+    ctx.fillStyle = P.d; ctx.strokeStyle = P.d;
+    if (c === 0) { ctx.beginPath(); ctx.arc(x, y, r * 0.34, 0, 7); ctx.fill(); }
+    else if (c === 1) { ctx.beginPath(); ctx.moveTo(x, y - r * 0.42); ctx.lineTo(x + r * 0.38, y + r * 0.28); ctx.lineTo(x - r * 0.38, y + r * 0.28); ctx.closePath(); ctx.fill(); }
+    else if (c === 2) { ctx.fillRect(x - r * 0.3, y - r * 0.3, r * 0.6, r * 0.6); }
+    else if (c === 3) { ctx.beginPath(); ctx.moveTo(x, y - r * 0.42); ctx.lineTo(x + r * 0.38, y); ctx.lineTo(x, y + r * 0.42); ctx.lineTo(x - r * 0.38, y); ctx.closePath(); ctx.fill(); }
+    else { ctx.lineWidth = r * 0.20; ctx.beginPath(); ctx.arc(x, y, r * 0.30, 0, 7); ctx.stroke(); }
+  }
   function drawShellIcon(x, y, r) { ctx.fillStyle = "#976a2b"; rrect(x - r, y - r, r * 2, r * 2, r * 0.4); ctx.fill(); ctx.strokeStyle = "#5c3a16"; ctx.lineWidth = r * 0.22; ctx.beginPath(); ctx.moveTo(x - r * 0.8, y - r * 0.8); ctx.lineTo(x + r * 0.8, y + r * 0.8); ctx.moveTo(x + r * 0.8, y - r * 0.8); ctx.lineTo(x - r * 0.8, y + r * 0.8); ctx.stroke(); }
   function drawBalloonIcon(x, y, r) { const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.12, x, y, r); g.addColorStop(0, "#ff9ab6"); g.addColorStop(1, "#d6467e"); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y - r * 0.08, r * 0.88, 0, 7); ctx.fill(); ctx.fillStyle = "#d6467e"; ctx.beginPath(); ctx.moveTo(x - r * 0.16, y + r * 0.7); ctx.lineTo(x + r * 0.16, y + r * 0.7); ctx.lineTo(x, y + r * 0.95); ctx.closePath(); ctx.fill(); ctx.fillStyle = "rgba(255,255,255,0.75)"; ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.34, r * 0.16, 0, 7); ctx.fill(); }
   function drawBanner() {
@@ -472,6 +510,7 @@
     if (!firstTap) { firstTap = true; $("#hint").classList.add("off"); }
     const wx = (e.clientX - ox) / s, wy = (e.clientY - oy) / s;
     const r = E.tap(world, wx, wy);
+    if (r.kind === "rattle") rattledThisLevel = true;    // disqualifies the Perfect medal
     if (r.kind === "pop" || r.kind === "rattle" || r.kind === "singleton" || r.kind === "duck") consume();
   });
   canvas.addEventListener("contextmenu", e => e.preventDefault());
