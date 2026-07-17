@@ -1,0 +1,17 @@
+{
+  "name": "@jfun/difficulty",
+  "version": "0.1.0",
+  "description": "Difficulty design, packaged: sawtooth curve + slack schedule + efficiency-star math (engine-agnostic) and an adapter-based measure/tune/report harness (bot-solver win-rate as the pre-launch difficulty oracle). Certification stays per-game — engines differ.",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "main": "./index.js",
+  "browser": "./src/curve.js",
+  "exports": {
+    ".": { "require": "./index.js", "default": "./index.js" },
+    "./curve": "./src/curve.js",
+    "./harness": "./src/harness.js",
+    "./report": "./src/report.js"
+  },
+  "files": ["src", "index.js", "README.md"],
+  "scripts": { "test": "bash scripts/dev/test.sh" }
+}
