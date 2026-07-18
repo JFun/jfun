@@ -546,6 +546,16 @@
     }
     return null;   // pathological board with no free reachable interior cell — no gem
   }
+  // A gem's COLOUR is drawn from the level seed BEFORE the placement loop, so it's
+  // BOARD-INDEPENDENT — computable with NO build(). The Collection screen needs only
+  // the colour of each COLLECTED gem, so this lets it render every gem tile without
+  // BFS-generating any W1 board (which cost seconds of cold-start lag — Qi). Matches
+  // gemFor(level, build(level)).c exactly (node-verified over all gem levels).
+  function gemColorFor(level) {
+    const L = Math.max(1, level | 0);
+    const rng = makeRNG((seedForLevel(L) ^ 0x6e37) >>> 0);
+    return COLORS[Math.floor(rng() * COLORS.length)];
+  }
 
   /* ---------------- time medals + the diamond tier (depth plan Phase 0) ----------------
      Gold/silver formulas are UNCHANGED from the shipped 30 (existing saves keep
@@ -553,19 +563,42 @@
      win card until the level's first clear. These placeholder curves get
      replaced by certified bot percentiles (P10/P40/P75, diamond P2) when
      certify.cjs lands (Phase 2); the ORDERING contract is node-tested. */
-  function medalTimes(par) {
-    const p = Math.max(1, par || 1);
+  // MEASURED fastest-solve seconds per level, from a TIME-MINIMIZING bot over the
+  // REAL physics (scripts/dev/difficulty.cjs — adopting @jfun/difficulty's
+  // "measure, don't guess"). The old par-FORMULA guessed medal times and shipped
+  // IMPOSSIBLE diamonds on 18 levels (Chime banks, tight gate boards): the bot
+  // literally can't solve them that fast. Medals now derive from the measured
+  // fastest solve × human-headroom multipliers, so every tier is achievable and
+  // the medal SPREAD (≈old 1.05/1.6/2.6 ratios) is preserved. FEEL-TEST the
+  // diamond chase and tune MEDAL_MULT; L37 (2-gate) is estimated from its twin L39.
+  const FASTEST_SOLVE = {
+    1: 1.8, 2: 3.5, 3: 2.4, 4: 2.2, 5: 2.4, 6: 2.1, 7: 9.5, 8: 25.1, 9: 8.2, 10: 14.4,
+    11: 7.4, 12: 27.7, 13: 10, 14: 23, 15: 14.2, 16: 21.7, 17: 21.8, 18: 25.6, 19: 13.7, 20: 22.1,
+    21: 20.1, 22: 18.4, 23: 13.6, 24: 22.8, 25: 27.8, 26: 15.9, 27: 17.9, 28: 26.3, 29: 17.5, 30: 26.3,
+    31: 4.8, 32: 5.8, 33: 6.7, 34: 7.1, 35: 18.2, 36: 6.5, 37: 13, 38: 13.6, 39: 11.9, 40: 8.2,
+    41: 16, 42: 15, 43: 10.9, 44: 10.3, 45: 9.3, 46: 5.4, 47: 5.2, 48: 5.3, 49: 7.3, 50: 4.6,
+    51: 5.3, 52: 3.4, 53: 4.9, 54: 7, 55: 5.4, 56: 5.5, 57: 2, 58: 4.5, 59: 4.3, 60: 3.3,
+  };
+  const MEDAL_MULT = { diamond: 1.35, gold: 2.0, silver: 3.3 };   // over the measured fastest solve
+  function medalTimes(level, par) {
+    const t = FASTEST_SOLVE[Math.max(1, level | 0)];
+    if (t) return {
+      diamond: Math.round(t * MEDAL_MULT.diamond * 10) / 10,
+      gold: Math.round(t * MEDAL_MULT.gold * 10) / 10,
+      silver: Math.round(t * MEDAL_MULT.silver * 10) / 10,
+    };
+    const p = Math.max(1, par || 1);   // fallback for levels beyond the measured campaign
     return { diamond: 0.8 + p * 1.05, gold: 1.2 + p * 1.6, silver: 2.0 + p * 2.6 };
   }
-  function medalFor(time, par) {
-    const t = medalTimes(par);
+  function medalFor(time, level, par) {
+    const t = medalTimes(level, par);
     return time <= t.diamond ? "diamond" : time <= t.gold ? "gold" : time <= t.silver ? "silver" : "bronze";
   }
 
   return { N, DIRS, DIR4, PAL, COLORS, key, cloneState, tilt, isSolved,
            stateKey, solveBFS, rampFor, genPuzzle, seedForLevel, build,
            LAST_LEVEL, CURATED, hasGatewayHole,
-           WORLDS, worldFor, hasGem, gemFor, medalTimes, medalFor,
+           WORLDS, worldFor, hasGem, gemFor, gemColorFor, medalTimes, medalFor,
            SAW_ORDER, sourceFor,
            VERSION: "2.8.0" };
 });

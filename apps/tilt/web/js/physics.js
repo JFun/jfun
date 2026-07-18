@@ -115,7 +115,12 @@
       // W2 FOUNDRY gates: {x,y} gate cell + {px,py} plate cell. `held` is the
       // physics truth (recomputed each step from marble positions); the game
       // renders its own eased animation off it. A closed gate is a solid block.
-      gates: (opts.gates || []).map(g => ({ x: g.x, y: g.y, px: g.px, py: g.py, held: false })),
+      // pocketColor: COLOUR-SELECTIVE passage — only the ball whose colour matches
+      // the sealed pocket this gate guards may pass through it (any ball still holds
+      // the PLATE). A wrong ball therefore can never enter the dead-end pocket, so
+      // the unwinnable "wrong ball trapped behind a gate" state cannot form.
+      // Undefined → colour-agnostic (old behaviour) as a safe fallback.
+      gates: (opts.gates || []).map(g => ({ x: g.x, y: g.y, px: g.px, py: g.py, pocketColor: g.pocketColor, held: false })),
       // W3 CHIME bumper posts: fixed circles a marble rebounds off LIVELY
       // (restPost>1). Off-centre contact steers the bounce — bank into pockets
       // no straight tilt reaches. idx drives the per-post pentatonic note.
@@ -134,7 +139,7 @@
     let d = Math.hypot(dx, dy);
     const minD = m.r + p.r;
     if (d >= minD) return;
-    if (d < 1e-9) { dx = 0; dy = -1; d = 1e-9; }   // dead-centre: deterministic straight-back
+    if (d < 1e-9) { dx = 0; dy = -1; d = 1; }      // dead-centre: deterministic straight-back (UNIT normal — d=1, not 1e-9, or the /d below explodes the push)
     const nx = dx / d, ny = dy / d;
     m.x = p.x + nx * minD; m.y = p.y + ny * minD;
     const vn = m.vx * nx + m.vy * ny;
@@ -153,7 +158,7 @@
     let dx = m.x - cx, dy = m.y - cy;
     let d = Math.hypot(dx, dy);
     if (d >= m.r) return;
-    if (d < 1e-9) { dx = 0; dy = -1; d = 1e-9; }   // degenerate (center on face): push up, deterministic
+    if (d < 1e-9) { dx = 0; dy = -1; d = 1; }      // degenerate (center inside cell): push up (UNIT normal — d=1, not 1e-9, else nx/ny below blow up to ±1e9 and fling the ball off the tray)
     const nx = dx / d, ny = dy / d;
     m.x = cx + nx * m.r; m.y = cy + ny * m.r;
     const vn = m.vx * nx + m.vy * ny;
@@ -172,6 +177,16 @@
   function free(m) { return !m.captured; }
   function speedOf(m) { return Math.hypot(m.vx, m.vy); }
   function solvedWorld(w) { return w.marbles.every(m => m.captured); }
+  // sink a marble into its matching hole for good (shared by mouth-capture and
+  // funnel-settle capture). ex/ey seed the settle-rattle off the entry velocity.
+  function sinkCapture(w, m, h, i) {
+    const P = w.params, sp = speedOf(m), sn = sp > 0 ? sp : 1;
+    m.captured = true; h.filled = true;
+    m.sink = { fromX: m.x, fromY: m.y, toX: h.x, toY: h.y, t: 0,
+               ex: m.vx / sn, ey: m.vy / sn, sp: Math.min(1, sp / P.captureSpeed) };
+    m.vx = 0; m.vy = 0;
+    w.events.push({ type: "capture", speed: sp, x: h.x, y: h.y, i, color: m.c });
+  }
   // distance from point p to segment a→b
   function segDist(pxp, pyp, ax, ay, bx, by) {
     const dx = bx - ax, dy = by - ay;
@@ -301,7 +316,7 @@
       // interior wall blocks — bank off them
       for (const b of w.blocks) collideBlock(w, m, b, dt, true);
       // closed gates are walls (held gates are open floor)
-      for (const g of w.gates) if (!g.held) collideBlock(w, m, { x: g.x, y: g.y, w: w.unit, h: w.unit }, dt, true);
+      for (const g of w.gates) if (!g.held || (g.pocketColor && m.c !== g.pocketColor)) collideBlock(w, m, { x: g.x, y: g.y, w: w.unit, h: w.unit }, dt, true);
       // bumper posts (CHIME) — bounce lively, ring a note
       for (const p of w.posts) collidePost(w, m, p, dt, true);
     }
@@ -322,9 +337,12 @@
           let dist = Math.hypot(dx, dy);
           const minD = aR + bR;
           if (dist >= minD) continue;
-          if (dist < 1e-9) { dx = 1; dy = 0; dist = 1e-9; }   // degenerate: deterministic split axis
-          const nx = dx / dist, ny = dy / dist;
-          const overlap = minD - dist;
+          // degenerate (coincident centres): split along +x by the FULL minD.
+          // (Setting dist=1e-9 and dividing below would explode nx to 1e9 and
+          // hurl a ball to ±3.6e8 — off the tray, "vanished".)
+          let nx, ny, overlap;
+          if (dist < 1e-9) { nx = 1; ny = 0; overlap = minD; }
+          else { nx = dx / dist; ny = dy / dist; overlap = minD - dist; }
           if (free(a) && free(b)) {
             a.x -= nx * overlap / 2; a.y -= ny * overlap / 2;
             b.x += nx * overlap / 2; b.y += ny * overlap / 2;
@@ -365,8 +383,14 @@
       if (m.x < lo) m.x = lo; else if (m.x > hiX) m.x = hiX;
       if (m.y < lo) m.y = lo; else if (m.y > hiY) m.y = hiY;
       for (const b of w.blocks) collideBlock(w, m, b, dt, false);
-      for (const g of w.gates) if (!g.held) collideBlock(w, m, { x: g.x, y: g.y, w: w.unit, h: w.unit }, dt, false);
+      for (const g of w.gates) if (!g.held || (g.pocketColor && m.c !== g.pocketColor)) collideBlock(w, m, { x: g.x, y: g.y, w: w.unit, h: w.unit }, dt, false);
       for (const p of w.posts) collidePost(w, m, p, dt, false);
+      // FINAL containment: a block/gate flush against the rim can push a ball
+      // back past the boundary (its degenerate push is "up", toward a top-edge
+      // rim), and nothing clamps after this collision pass — so re-clamp last.
+      // The tray boundary is inviolable; a ball must never end a step outside it.
+      if (m.x < lo) m.x = lo; else if (m.x > hiX) m.x = hiX;
+      if (m.y < lo) m.y = lo; else if (m.y > hiY) m.y = hiY;
     }
 
     // holes catch EVERYTHING: the PATH this step is tested against each open
@@ -381,21 +405,28 @@
         const h = w.holes[hi];
         if (h.filled) continue;
         const d = segDist(h.x, h.y, m.px, m.py, m.x, m.y);
+        const sp = speedOf(m);
+        // FUNNEL-SETTLE capture: a MATCHING ball that has come to REST anywhere
+        // in the hole's funnel belongs in the cup — sink it. The funnel's
+        // pull-to-center (wellK/120 ≈ 0.05–0.08) is weaker than the come-to-rest
+        // threshold (stopSpeed 0.10) with the phone level, so a ball that rolls
+        // in and stops just off dead-center would otherwise sit in its own hole
+        // FOREVER, uncaptured — the board looks solved but never wins
+        // (device-repro'd). At-rest + matching + over the funnel is unambiguous.
+        if (h.c === m.c && sp < P.stopSpeed && d < h.r + m.r * 0.5) {
+          sinkCapture(w, m, h, i); inside = hi; break;
+        }
         if (d < h.r * P.captureFrac) {
           inside = hi;
-          if (m.rimIn !== hi) {           // just entered the hole mouth
-            const sp = speedOf(m);
+          const fresh = m.rimIn !== hi;    // first step crossing into the mouth
+          if (h.c === m.c && sp <= P.captureSpeed) {
+            // MATCHING + slow enough over the mouth → sink for good. Checked
+            // every step inside the mouth, not just on entry.
+            sinkCapture(w, m, h, i);
+          } else if (fresh) {              // not a clean matching sink — react once on entry
             if (sp > P.captureSpeed) {
-              m.vx *= 0.85; m.vy *= 0.85;
+              m.vx *= 0.85; m.vy *= 0.85;  // too fast → rattle the lip and roll on
               w.events.push({ type: "rim", speed: sp, x: h.x, y: h.y, i });
-            } else if (h.c === m.c) {
-              m.captured = true; h.filled = true;
-              const svx = m.vx, svy = m.vy;
-              const sn = sp > 0 ? sp : 1;
-              m.sink = { fromX: m.x, fromY: m.y, toX: h.x, toY: h.y, t: 0,
-                         ex: svx / sn, ey: svy / sn, sp: Math.min(1, sp / P.captureSpeed) };
-              m.vx = 0; m.vy = 0;
-              w.events.push({ type: "capture", speed: sp, x: h.x, y: h.y, i, color: m.c });
             } else {
               // wrong cup: the drop swallows the ball's momentum — it lodges
               m.vx *= 0.12; m.vy *= 0.12;

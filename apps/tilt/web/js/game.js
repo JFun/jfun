@@ -479,7 +479,14 @@
       slopes: (P.slopes || []).map(s => ({ x: s.x, y: s.y, w: s.w, h: s.h,
         ax: s.a === "H" ? 1 : 0, ay: s.a === "H" ? 0 : 1 })),
       zones: (P.zones || []).map(z => ({ x: z.x, y: z.y, w: z.w, h: z.h, kind: E.worldFor(level).zoneKind || "ice" })),
-      gates: (P.gates || []).map(g => ({ x: g.x, y: g.y, px: g.px, py: g.py })),
+      // pocketColor = the sealed pocket hole this gate guards (its sole orthogonal
+      // neighbour that is a hole). Passed to the physics so ONLY that colour's ball
+      // may pass through the gate — a wrong ball can never enter the dead-end pocket.
+      gates: (P.gates || []).map(g => {
+        const pocket = (P.holesArr || []).find(h =>
+          Math.abs(h.x - g.x) + Math.abs(h.y - g.y) === 1);
+        return { x: g.x, y: g.y, px: g.px, py: g.py, pocketColor: pocket ? pocket.c : null };
+      }),
       posts: (P.posts || []).map(pp => ({ x: pp.x + 0.5, y: pp.y + 0.5, r: 0.34 })),
       params: E.worldFor(level).params,
     });
@@ -488,6 +495,9 @@
     watchdogShown = false; restChecked = false;
     lastCaptureT = 0;
     lost = false; stuckHint = false; deadInfo = null;
+    pocketStuckSince = 0; pocketOffered = false;
+    gateBlockFx = {}; gateContact = new Set();   // gate colour-lock flash (gateRuleHintShown persists — teach once)
+    try { const hn = $("#hint"); hn.onclick = null; hn.style.pointerEvents = "none"; } catch (e) {}
     rollAng.length = 0; rollHead.length = 0;
     runClacks = 0; runPlunks = 0; runMoved = false; runStopped = false; stopT = 0;
     const sv = loadSave();
@@ -1053,7 +1063,8 @@
      intro demo and the board share one painter, like drawWorld. */
   function drawGates(c, w2, S, layer) {
     if (!w2 || !w2.gates || !w2.gates.length) return;
-    for (const g of w2.gates) {
+    for (let gi = 0; gi < w2.gates.length; gi++) {
+      const g = w2.gates[gi];
       if (g._a === undefined) g._a = g.held ? 1 : 0;   // render-only anim state
       if (layer === "under") g._a += ((g.held ? 1 : 0) - g._a) * 0.18;   // once per frame (the "over" pass re-reads)
       const a = g._a;
@@ -1106,6 +1117,38 @@
           c.stroke();
         }
         c.restore();
+        // COLOUR MEMBRANE (Qi: "can't tell why the wrong colour won't pass"): an
+        // OPEN doorway is NOT empty floor — only the pocket-colour ball may cross.
+        // As the bars retract, a translucent shimmering FIELD in the pocket colour
+        // fades in to fill the doorway, so a wrong ball visibly bounces off a
+        // COLOURED barrier (never an invisible wall) and the matching ball is seen
+        // passing through its own colour. Drawn under the balls; the flare (over)
+        // still punches on an actual rejection.
+        if (g.pocketColor && a > 0.05) {
+          const ix = gx + S * 0.10, iy = gy + lint * 0.75, iw = S * 0.80, ih = gy + S * 0.94 - iy;
+          const rr2 = Math.max(2, S * 0.10);
+          c.save();
+          roundRectPath(c, ix, iy, iw, ih, rr2);
+          c.save();
+          c.clip();
+          c.globalAlpha = 0.22 * a;
+          c.fillStyle = acc;
+          c.fillRect(ix, iy, iw, ih);
+          // slow downward-drifting shimmer bands — reads as a live field, not paint
+          const ph = (w2.t * 0.35) % 1;
+          c.globalAlpha = 0.18 * a;
+          for (let i = 0; i < 2; i++) {
+            const by = iy + ((ph + i * 0.5) % 1) * ih;
+            c.fillRect(ix, by - S * 0.05, iw, S * 0.10);
+          }
+          c.restore();
+          // glowing boundary so the field has an edge you expect to hit
+          c.globalAlpha = 0.5 * a;
+          c.strokeStyle = acc; c.lineWidth = Math.max(1.5, S * 0.05);
+          c.shadowColor = acc; c.shadowBlur = 8 * a;
+          c.stroke();
+          c.restore();
+        }
       } else {
         // lintel: wall-coloured header the bars retract into (same face colours
         // as the real blocks so the doorway reads as part of the wall family)
@@ -1118,6 +1161,29 @@
         c.fillStyle = "#ffffff2b";
         c.fillRect(gx + S * 0.1, gy + S * 0.02 + 1.5, S * 0.8, Math.max(1.5, lint * 0.2));
         c.restore();
+        // PERSISTENT COLOUR KEY (on the board, not just the easy-to-miss banner):
+        // a little marble in the pocket colour rides the lintel so "only the
+        // <colour> ball passes here" reads at a glance. On the lintel so it never
+        // covers a ball rolling through the doorway below.
+        c.save();
+        c.shadowColor = acc; c.shadowBlur = Math.max(3, S * 0.16);
+        drawMarbleAt(c, gx + S / 2, gy + lint * 0.5, acc, S * 0.16, false, null);
+        c.restore();
+        // COLOUR-LOCK flare: a wrong-colour ball just bounced off this OPEN gate.
+        // A bright pocket-colour PULSE + expanding ring over the doorway (a
+        // rejection flare — deliberately NOT the closing bars, which would read as
+        // "the gate shut") so "only its own colour passes" reads at the bounce.
+        const bt = gateBlockFx[gi], age = bt === undefined ? 9 : w2.t - bt;
+        if (age >= 0 && age < 0.45) {
+          const k = 1 - age / 0.45, ccx = gx + S / 2, ccy = gy + S / 2;
+          c.save();
+          c.globalAlpha = 0.5 * k; c.shadowColor = acc; c.shadowBlur = 18 * k; c.fillStyle = acc;
+          roundRectPath(c, gx + S * 0.08, gy + S * 0.08, S * 0.84, S * 0.84, Math.max(3, S * 0.14));
+          c.fill(); c.shadowBlur = 0;
+          c.globalAlpha = 0.9 * k; c.lineWidth = Math.max(2, S * 0.06); c.strokeStyle = acc;
+          c.beginPath(); c.arc(ccx, ccy, S * (0.3 + 0.55 * (1 - k)), 0, 7); c.stroke();
+          c.restore();
+        }
       }
     }
   }
@@ -1125,6 +1191,33 @@
   // flares and 2 expanding chime rings pulse out (design element visual). postFx
   // holds per-post {t,sp} of the last bump so the flare/rings animate off world.t.
   let postFx = {};
+  // gateBlockFx[gi] = world.t of the last time a WRONG-colour ball was rejected by
+  // an OPEN colour-selective gate — drives a brief colour-flash of the doorway so
+  // "only its own colour passes" reads at the moment of the bounce. gateContact
+  // tracks who's touching each gate so the flash + hint fire once per contact.
+  let gateBlockFx = {}, gateContact = new Set(), gateRuleHintShown = false;
+  function checkGateBlocks() {
+    if (won || lost || !world || tiltPhase !== "running") return;
+    const now = new Set();
+    for (let gi = 0; gi < world.gates.length; gi++) {
+      const g = world.gates[gi];
+      if (!g.held || !g.pocketColor) continue;           // only OPEN, colour-keyed gates
+      for (let mi = 0; mi < world.marbles.length; mi++) {
+        const m = world.marbles[mi];
+        if (m.captured || m.c === g.pocketColor) continue;   // wrong-colour only
+        const cx = Math.max(g.x, Math.min(m.x, g.x + world.unit));
+        const cy = Math.max(g.y, Math.min(m.y, g.y + world.unit));
+        if (Math.hypot(m.x - cx, m.y - cy) < m.r + 0.03) {   // touching the gate
+          const key = gi + ":" + mi; now.add(key);
+          if (!gateContact.has(key)) {                        // fresh bounce
+            gateBlockFx[gi] = world.t;
+            if (!gateRuleHintShown) { gateRuleHintShown = true; flashHint("Gates pass only their own colour", 0, "gate"); }
+          }
+        }
+      }
+    }
+    gateContact = now;
+  }
   function drawPosts(c, w2, S, now) {
     if (!w2 || !w2.posts || !w2.posts.length) return;
     for (const p of w2.posts) {
@@ -1475,7 +1568,9 @@
                   { x: 0.5, y: 4.4, r: 0.36, c: "b" }],   // runner — crosses
         holes: [{ x: 5.7, y: 4.6, r: 0.42, c: "b" }],
         blocks: GATE_BLOCKS.map(b => ({ x: b.x, y: b.y, w: 1, h: 1 })),
-        gates: [{ x: 4, y: 4, px: 1, py: 2 }],
+        // pocketColor matches the runner: the intro demo shows the BLUE membrane
+        // and the blue ball passing through its own colour — the rule, taught live
+        gates: [{ x: 4, y: 4, px: 1, py: 2, pocketColor: "b" }],
       }) : PH.createWorld({
         w: GW, h: GH, pad: 0, unit: 1,
         marbles: [{ x: 0.8, y: 2.5, r: 0.36, c: "b" }],
@@ -1812,6 +1907,7 @@
     draw();
     if (!lost) updateTimePill();
     checkDeadEnd();
+    checkGateBlocks();   // flash + one-time hint when a wrong colour bounces off an open gate
     // seal re-check ON SETTLE, not only on capture: a ball can roll into a pocket
     // already sealed by walls + captured balls AFTER the last capture — that dead
     // end fires no capture event, so nothing would catch it. Cheap O(64) flood-fill,
@@ -1841,13 +1937,26 @@
         sndRim(); haptic("light");
       } else if (e.type === "gate") {
         sndGate(e.open, e.i); haptic("light");
+        // teach the colour-lock rule at the FIRST gate opening — a reliable,
+        // contextual moment (you WILL open a gate to solve any gate level),
+        // unlike the wrong-ball bounce which is rare. Once per session; the
+        // bounce flare then reinforces it. Only for colour-keyed gates.
+        if (e.open && !gateRuleHintShown && world.gates[e.i] && world.gates[e.i].pocketColor) {
+          gateRuleHintShown = true; flashHint("Gates pass only their own colour", 0, "gate");
+        }
       } else if (e.type === "bump") {
         postFx[e.i] = { t: world.t, sp: e.speed };
         sndBump(e.i, e.speed); if (e.speed > 6) haptic(e.speed > 13 ? "medium" : "light");
       } else if (e.type === "plunk") {
         runPlunks++;   // feat: zero-lodge
         sndPlunk(); haptic("medium");   // wrong cup — you'll feel it
-        flashHint("Tilt HARD to pop it out!", 1, "stuck"); stuckHint = true;
+        // "Tilt HARD to pop it out!" is TRUE for an open hole but a LIE for a
+        // gate-pocket (the gate can't be held open during the tilt that would
+        // drag the ball out — proven unwinnable). Don't tell the player to do
+        // something impossible; the pocket-rescue offer takes over quickly.
+        if (!isGatePocketHole(Math.round(e.x - 0.5), Math.round(e.y - 0.5))) {
+          flashHint("Tilt HARD to pop it out!", 1, "stuck"); stuckHint = true;
+        }
       } else if (e.type === "capture") {
         lastCaptureT = world.t;
         sndCapture(); haptic("medium");
@@ -1880,7 +1989,11 @@
       if (m.captured) continue;
       if (Math.hypot(m.x - gx, m.y - gy) < 0.5) {
         gem.got = true;
-        const sv = loadSave(); sv.gems = sv.gems || {}; sv.gems[level] = 1; writeSave(sv);
+        // store the gem's COLOUR (not just 1) so the Collection screen never has to
+        // rebuild the level to know it — E.build() BFS-generates W1 boards (~0.3s
+        // each on desktop, 2-4× on device), and building every gem-level on the
+        // first Collection open cost seconds of cold-start lag (Qi).
+        const sv = loadSave(); sv.gems = sv.gems || {}; sv.gems[level] = gem.c; writeSave(sv);
         track("gem_collect", { level: level });
         sndCapture();
         haptic("light"); setTimeout(() => haptic("light"), 70);
@@ -1945,7 +2058,44 @@
     }
     return { lodged, freeN };
   }
+  // A GATE-POCKET hole's sole orthogonal entrance is its gate (its other
+  // neighbours are rim/wall) — the deliberate FOUNDRY seal. A WRONG-colour ball
+  // that lodges in one is effectively inescapable by hand (freeing it needs the
+  // gate held open during the very tilt that drags the ball toward the gate,
+  // which the plate rule forbids). We never CLAIM the board dead — some pockets
+  // stay technically winnable and a false "dead" card is the exact regression
+  // that got reverted before — but after a grace window we offer a one-tap
+  // restart so the player is never stranded on an impossible "Tilt HARD" hint.
+  function isGatePocketHole(hx, hy) {
+    const gates = P.gates || [];
+    if (!gates.length) return false;
+    const isWall = (x, y) => (P.walls || []).some(w => w.x === x && w.y === y);
+    const isGate = (x, y) => gates.some(g => g.x === x && g.y === y);
+    const isHole = (x, y) => (P.holesArr || []).some(o => o.x === x && o.y === y);
+    let adjGate = false, openFloor = false;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = hx + dx, ny = hy + dy;
+      if (nx < 0 || nx >= N || ny < 0 || ny >= N) continue;   // rim
+      if (isGate(nx, ny)) { adjGate = true; continue; }
+      if (isWall(nx, ny) || isHole(nx, ny)) continue;
+      openFloor = true;                                        // a permanently-open approach
+    }
+    return adjGate && !openFloor;
+  }
+  // is a wrong-colour ball wedged in a sealed gate-pocket right now?
+  function pocketTrapped() {
+    for (const m of world.marbles) {
+      if (m.captured) continue;
+      for (const h of world.holes) {
+        if (h.filled || h.c === m.c) continue;
+        if (Math.hypot(m.x - h.x, m.y - h.y) < h.r * world.params.captureFrac * 1.4 &&
+            isGatePocketHole(Math.round(h.x - 0.5), Math.round(h.y - 0.5))) return true;
+      }
+    }
+    return false;
+  }
   let stuckHint = false;            // "pop it out" hint is up — clear it once nothing is wedged
+  let pocketStuckSince = 0, pocketOffered = false;   // gate-pocket restart-offer state
   // DEAD END, done RIGHT (2026-07): a full solver run is not just slow (~1s) but the
   // WRONG oracle — the discrete slide model can't stop a ball mid-board, so it calls
   // almost every settled arrangement "dead" though the player could still roll home.
@@ -2037,6 +2187,31 @@
     // the "Tilt HARD to pop it out!" hint only makes sense while a ball is
     // actually wedged — once the last wrong ball frees, drop it
     if (stuckHint && lc.lodged === 0) { $("#hint").style.opacity = 0; stuckHint = false; }
+    // gate-pocket rescue: a wrong ball wedged in a sealed pocket can't be popped
+    // out by hand. After a grace window swap the impossible "Tilt HARD" hint for
+    // a one-tap restart. NON-destructive by design — a still-winnable board is
+    // unaffected (the player just ignores the offer and keeps tilting).
+    if (pocketTrapped()) {
+      if (!pocketStuckSince) pocketStuckSince = world.t;
+      if (world.t - pocketStuckSince > 1.2 && !pocketOffered) { pocketOffered = true; showPocketRescue(); }
+    } else if (pocketStuckSince) {
+      pocketStuckSince = 0;
+      if (pocketOffered) { pocketOffered = false; clearPocketRescue(); }
+    }
+  }
+  // a tappable "you're stuck — restart?" chip in the hint slot (opts back into
+  // pointer events; the hint is pointer-events:none by default)
+  function showPocketRescue() {
+    const h = $("#hint");
+    h.innerHTML = '<span class="chip-hint hot" style="cursor:pointer">' + (GLYPHS.stuck || "") +
+      '<span>Stuck in a gate — tap to restart</span></span>';
+    h.style.opacity = 1; h.style.pointerEvents = "auto";
+    h.onclick = () => { haptic("light"); clearPocketRescue(); restart(); };
+  }
+  function clearPocketRescue() {
+    const h = $("#hint");
+    h.onclick = null; h.style.pointerEvents = "none";
+    if (!stuckHint) h.style.opacity = 0;
   }
   // Dead-end banner: a COMPACT bottom sheet that does NOT cover the board — the
   // annotation on the board is the explanation, and it stays lit (phase "dead")
@@ -2061,7 +2236,7 @@
     const prev = sv.best[level];
     sv.best[level] = prev ? Math.min(prev, time) : time;
     // medal: keep the best tier ever earned on this level
-    const medal = medalFor(time, P.par);
+    const medal = medalFor(time, level, P.par);
     sv.medal = sv.medal || {};
     if (!sv.medal[level] || MEDAL_RANK[medal] > MEDAL_RANK[sv.medal[level]]) sv.medal[level] = medal;
     // feats: judged per run, kept forever once earned on this level (mastery lap)
@@ -2146,8 +2321,8 @@
     resetCardChrome();
     const sv = loadSave();
     const isPB = !prevBest || time <= prevBest;
-    const medal = medalFor(time, P.par);         // THIS run's medal — the card rates the run you just played, not your best-ever
-    const mt = medalTimes(P.par);
+    const medal = medalFor(time, level, P.par);         // THIS run's medal — the card rates the run you just played, not your best-ever
+    const mt = medalTimes(level, P.par);
     const firstClear = !prevBest;
     // NEW tag rides the diamond chip until the player has SEEN it once
     // (persisted flag — a diamond earned before the chip ever displayed still
@@ -2210,7 +2385,7 @@
     sv.level = Math.min(Math.max(sv.level || 1, to), E.LAST_LEVEL); writeSave(sv);
     startLevel(to);                                        // builds ONLY level `to`
     won = true; tiltPhase = "done";
-    const t = Math.round(E.medalTimes(P.par).silver * 10) / 10;   // accurate time for the card
+    const t = Math.round(E.medalTimes(level, P.par).silver * 10) / 10;   // accurate time for the card
     sv.best[to] = t; writeSave(sv);
     showTiltResult(t, t);
   }
@@ -2357,24 +2532,22 @@
      missing = "?" . Skins: 2×2, tap an unlocked skin to equip (persists; applies
      to every marble everywhere). Rule of the house: earned by medals, feats and
      gems — never bought. */
-  const gemMeta = {};   // level → {c} (deterministic; cached — build() is not free)
-  function gemLevels() {
-    const out = [];
-    for (let L = 1; L <= E.LAST_LEVEL; L++) if (E.hasGem(L)) {
-      if (!gemMeta[L]) { const g = E.gemFor(L, E.build(L)); gemMeta[L] = g ? { c: g.c } : null; }
-      if (gemMeta[L]) out.push({ L, c: gemMeta[L].c });
-    }
-    return out;
-  }
+  // The Collection screen does ZERO builds: the gem-level LIST is free (E.hasGem)
+  // and each gem's COLOUR comes from E.gemColorFor(L) (seed-derived, board-independent
+  // — see engine.js). Previously it E.build()'d every gem-level for the colour, which
+  // BFS-generates W1 boards = ~2s desktop / 4-8s device of cold-start lag (Qi). Works
+  // for legacy `1` saves too — the colour never needed the built board.
   function buildCollection() {
     const sv = loadSave();
-    const gems = gemLevels(), got = sv.gems || {};
-    const nGot = gems.filter(g => got[g.L]).length;
-    let html = `<div class="col-lab">GEMS <b>${nGot}</b> / ${gems.length}</div><div class="gemgrid">`;
-    for (const g of gems) {
-      html += got[g.L]
-        ? `<div class="gemtile" title="Level ${g.L}"><canvas data-gem="${g.c}" width="52" height="52"></canvas></div>`
-        : `<div class="gemtile miss" title="Level ${g.L}">?</div>`;
+    const got = sv.gems || {};
+    const levels = [];
+    for (let L = 1; L <= E.LAST_LEVEL; L++) if (E.hasGem(L)) levels.push(L);
+    const nGot = levels.filter(L => got[L]).length;
+    let html = `<div class="col-lab">GEMS <b>${nGot}</b> / ${levels.length}</div><div class="gemgrid">`;
+    for (const L of levels) {
+      html += got[L]
+        ? `<div class="gemtile" title="Level ${L}"><canvas data-gem="${E.gemColorFor(L)}" width="52" height="52"></canvas></div>`
+        : `<div class="gemtile miss" title="Level ${L}">?</div>`;
     }
     html += `</div><div class="col-lab">MARBLE SKINS</div><div class="skingrid">`;
     for (const s of SKINS) {
@@ -2528,7 +2701,7 @@
   // so headless WebKit screenshots can reach any state — inert in Capacitor
   try {
     const q = new URLSearchParams(location.search);
-    if (q.has("lvl")) { const sv = loadSave(); sv.tutSeen = 1; sv.rulesV3 = 1; sv.mvpV1 = 1; sv.sawV1 = 1; sv.foundryV1 = 1; sv.wallsSeen = 1; sv.worldSeen = {}; for (const w of E.WORLDS) if (w.id > 1) sv.worldSeen[w.id] = 1; sv.level = +q.get("lvl") || 1; writeSave(sv); }
+    if (q.has("lvl")) { const sv = loadSave(); sv.tutSeen = 1; sv.rulesV3 = 1; sv.mvpV1 = 1; sv.sawV1 = 1; sv.foundryV1 = 1; sv.medalV2 = 1; sv.wallsSeen = 1; sv.worldSeen = {}; for (const w of E.WORLDS) if (w.id > 1) sv.worldSeen[w.id] = 1; sv.level = +q.get("lvl") || 1; writeSave(sv); }
   } catch (e) {}
   {
     // rules migration: lodge-and-escape restored + dead-end game over (layouts
@@ -2562,6 +2735,16 @@
       delete sv.done;
       writeSave(sv);
     }
+    // Medals V2 (one-shot): medal thresholds moved from the guessed par-formula to
+    // MEASURED fastest-solve times (the old formula shipped impossible diamonds).
+    // Re-derive every cleared level's medal from its stored best time under the new
+    // thresholds so earned medals stay honest — kept times, upgraded stars.
+    if (!sv.medalV2) {
+      sv.medalV2 = 1;
+      sv.medal = sv.medal || {};
+      if (sv.best) for (const k in sv.best) sv.medal[k] = E.medalFor(sv.best[k], +k);
+      writeSave(sv);
+    }
   }
   if (DEV_UNLOCK) {
     // dev builds: uncaught errors become a visible toast — the device has no console
@@ -2587,7 +2770,7 @@
     stepN: (n, g) => {
       tiltPhase = "running";
       for (let i = 0; i < n; i++) {
-        PH.step(world, g || currentGravity()); consumeEvents(); checkDeadEnd();
+        PH.step(world, g || currentGravity()); consumeEvents(); checkDeadEnd(); checkGateBlocks();
         let smax = 0, freeN = 0;   // same run signals as tiltLoop — feats/gems behave identically here
         for (const m of world.marbles) { if (m.captured) continue; freeN++; const s = Math.hypot(m.vx, m.vy); if (s > smax) smax = s; }
         trackRunSignals(smax, freeN, PH.DT);
@@ -2606,7 +2789,7 @@
     const shot = q.get("shot");
     if (shot) {
       const sv = loadSave();
-      sv.tutSeen = 1; sv.rulesV3 = 1; sv.mvpV1 = 1; sv.sawV1 = 1; sv.foundryV1 = 1; sv.wallsSeen = 1;
+      sv.tutSeen = 1; sv.rulesV3 = 1; sv.mvpV1 = 1; sv.sawV1 = 1; sv.foundryV1 = 1; sv.medalV2 = 1; sv.wallsSeen = 1;
       sv.worldSeen = {}; for (const w of E.WORLDS) if (w.id > 1) sv.worldSeen[w.id] = 1;   // dev/shots skip intro cards (contract)
       if (shot === "levels" || shot === "worlds" || shot === "collect") {   // seed a rich, mostly-cleared save
         sv.best = {}; sv.medal = {}; sv.gems = {}; sv.feats = {};
@@ -2627,7 +2810,7 @@
       else if (shot === "win") {
         startLevel(lvl);
         const stars = Math.max(1, Math.min(3, +(q.get("s") || 3)));
-        const mt = medalTimes(P.par);
+        const mt = medalTimes(level, P.par);
         const time = Math.round((stars === 3 ? Math.max(0.6, mt.gold - 0.6) : stars === 2 ? (mt.gold + mt.silver) / 2 : mt.silver + 1) * 10) / 10;
         const svw = loadSave(); svw.best = svw.best || {}; svw.best[lvl] = time; writeSave(svw);
         won = true; tiltPhase = "done";
