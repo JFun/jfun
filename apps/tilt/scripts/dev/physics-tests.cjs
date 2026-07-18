@@ -67,6 +67,33 @@ t.section("containment");
   t.ok("wall hits were emitted", evs.some(e => e.type === "wall"));
   t.ok("no NaN/instability", w.marbles.every(m => isFinite(m.x) && isFinite(m.y) && isFinite(m.vx) && isFinite(m.vy)));
 }
+{
+  // DEGENERATE-COLLISION regression (device: a ball "vanished after going through
+  // the gate"). When a ball's CENTRE ends up inside a block/gate/post cell, or two
+  // balls coincide, the push-out normal was (unit vector)/1e-9 = a ~1e9 normal that
+  // hurled the ball to ±3.6e8 — off the tray, gone. Each degenerate must yield a
+  // UNIT normal; the ball must stay finite AND inside the tray.
+  const inBounds = m => isFinite(m.x) && isFinite(m.y) &&
+    m.x >= 10 + m.r - 1e-6 && m.x <= 390 - m.r + 1e-6 && m.y >= 10 + m.r - 1e-6 && m.y <= 390 - m.r + 1e-6;
+  // (a) centre dead inside a wall block (collideBlock)
+  const wa = PH.createWorld({ w: 400, h: 400, pad: 10, unit: UNIT,
+    marbles: [{ x: 180 + UNIT / 2, y: 180 + UNIT / 2, r: 18, c: "r" }],
+    holes: [], blocks: [{ x: 180, y: 180, w: UNIT, h: UNIT }] });
+  run(wa, { gx: 0, gy: 0 }, 0.3);
+  t.ok("ball with centre inside a block is ejected, finite + in-bounds (no 1e9 fling)", inBounds(wa.marbles[0]));
+  // (b) centre dead on a bumper post (collidePost)
+  const wp = PH.createWorld({ w: 400, h: 400, pad: 10, unit: UNIT,
+    marbles: [{ x: 200, y: 200, r: 18, c: "r" }], holes: [], posts: [{ x: 200, y: 200, r: 17 }] });
+  run(wp, { gx: 0, gy: 0 }, 0.3);
+  t.ok("ball dead-centre on a post is ejected, finite + in-bounds",
+    inBounds(wp.marbles[0]) && Math.hypot(wp.marbles[0].x - 200, wp.marbles[0].y - 200) > 1);
+  // (c) two exactly-coincident balls (marble-marble split)
+  const wc = world([{ x: 200, y: 200, c: "r" }, { x: 200, y: 200, c: "b" }]);
+  run(wc, { gx: 0, gy: 0 }, 0.3);
+  t.ok("coincident balls separate cleanly, finite + in-bounds",
+    inBounds(wc.marbles[0]) && inBounds(wc.marbles[1]) &&
+    Math.hypot(wc.marbles[0].x - wc.marbles[1].x, wc.marbles[0].y - wc.marbles[1].y) > 1);
+}
 
 t.section("collisions");
 {
@@ -86,6 +113,20 @@ t.section("hole capture");
   const evs = run(w, { gx: 2, gy: 0 }, 2);
   t.ok("matching hole captures", w.marbles[0].captured && w.holes[0].filled && evs.some(e => e.type === "capture"));
   t.ok("solved when all captured", PH.solved(w));
+}
+{
+  // WELL-FREEZE regression (device-repro'd "looks complete, won't win"): a
+  // MATCHING ball that rolls in and comes to REST in the funnel — just off
+  // dead-center, phone LEVEL — must still be captured. The funnel's pull-to-
+  // center (wellK/120) is weaker than the come-to-rest threshold (stopSpeed),
+  // so before the settle-capture it sat in its own hole forever, uncaptured,
+  // and the level never registered as solved.
+  const wf = world([{ x: 220, y: 200, c: "r" }], [{ x: 220, y: 200, c: "r" }]);
+  wf.marbles[0].y = 200 - wf.holes[0].r * 0.8;   // outer well: past the mouth, inside the funnel
+  wf.marbles[0].vx = 0; wf.marbles[0].vy = 0;
+  run(wf, { gx: 0, gy: 0 }, 1.2);                // phone held dead level — no help
+  t.ok("matching ball settling in its own funnel is captured (well-freeze fixed)",
+    wf.marbles[0].captured && wf.holes[0].filled && PH.solved(wf));
 }
 {
   // a slow WRONG-color ball PLUNKS into the cup and lodges — plugging it, not sinking
@@ -462,6 +503,26 @@ t.section("GATES (World 2 Foundry — plates & gates: state, not friction)");
     let openedEver = false;
     for (let i = 0; i < 60; i++) { PH.step(w, { gx: 0, gy: 0 }); if (w.gates[0].held) openedEver = true; }
     t.ok("a sprinting cross of the plate never opens the gate", openedEver === false);
+  }
+  // 5b) COLOUR-SELECTIVE passage: a gate that guards a colour pocket lets ONLY that
+  // colour through while HELD (any ball still holds the plate). A wrong ball can
+  // never enter the sealed pocket → the unwinnable "wrong ball trapped behind a
+  // gate" state (Qi L37) cannot form. pocketColor undefined = colour-agnostic (the
+  // tests above), so this is opt-in and the shipped no-pocketColor gates are unchanged.
+  {
+    const mkSel = (marbles, pocketColor) => PH.createWorld({ w: 400, h: 400, pad: 10, unit: UNIT,
+      marbles: marbles.map(m => Object.assign({ r: 18 }, m)), holes: [], blocks: [PIN],
+      gates: [{ x: 4 * UNIT, y: 3 * UNIT, px: 1 * UNIT, py: 6 * UNIT, pocketColor }] });
+    // gate guards a RED pocket; blue holder parks the plate open
+    const wr = mkSel([{ x: 75, y: 325, c: "b" }, { x: 60, y: 185, c: "r" }], "r");
+    run(wr, () => ({ gx: 3, gy: 0 }), 0.4);
+    t.ok("colour-selective gate still opens on a (any-colour) plate hold", wr.gates[0].held === true);
+    run(wr, () => ({ gx: 3, gy: 0 }), 2.2);
+    t.ok("MATCHING-colour ball passes the held colour-selective gate", wr.marbles[1].x > 5 * UNIT);
+    // same, but the runner is the WRONG colour (green for a red pocket)
+    const wg = mkSel([{ x: 75, y: 325, c: "b" }, { x: 60, y: 185, c: "g" }], "r");
+    run(wg, () => ({ gx: 3, gy: 0 }), 2.6);
+    t.ok("WRONG-colour ball is blocked even while the gate is held open", wg.marbles[1].x < 4 * UNIT - 10);
   }
   // 6) no gates → byte-identical to shipped physics
   {

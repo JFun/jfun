@@ -237,18 +237,20 @@ t.section("hidden gems (deterministic placement, ~1/3 of the campaign)");
 
 t.section("medal tiers (diamond > gold > silver; gold/silver formulas unchanged)");
 {
-  let ordered = true, legacy = true;
-  for (let p = 1; p <= 16; p++) {
-    const m = E.medalTimes(p);
-    if (!(m.diamond < m.gold && m.gold < m.silver)) ordered = false;
-    // the shipped 30's gold/silver curves must not move (saved medals keep meaning)
-    if (Math.abs(m.gold - (1.2 + p * 1.6)) > 1e-9 || Math.abs(m.silver - (2.0 + p * 2.6)) > 1e-9) legacy = false;
+  let ordered = true;
+  for (let L = 1; L <= E.LAST_LEVEL; L++) {
+    const m = E.medalTimes(L);
+    if (!(m.diamond > 0 && m.diamond < m.gold && m.gold < m.silver)) ordered = false;
   }
-  t.ok("diamond < gold < silver at every par", ordered);
-  t.ok("gold/silver thresholds identical to the shipped formulas", legacy);
-  const mt = E.medalTimes(2);
-  t.ok("medalFor walks the tiers", E.medalFor(mt.diamond - 0.1, 2) === "diamond" && E.medalFor(mt.gold - 0.1, 2) === "gold" &&
-    E.medalFor(mt.silver - 0.1, 2) === "silver" && E.medalFor(mt.silver + 5, 2) === "bronze");
+  t.ok("diamond < gold < silver at every level (measured table)", ordered);
+  // the old par-FORMULA shipped IMPOSSIBLE diamonds (Chime L46 at 2.9s — faster than
+  // the physics can solve). Measured medals = fastest-solve × 1.35, always achievable.
+  const mt = E.medalTimes(46);
+  t.ok("Chime L46 diamond now achievable (> the old impossible 2.9s)", mt.diamond > 2.9);
+  t.ok("medalFor walks the tiers", E.medalFor(mt.diamond - 0.1, 46) === "diamond" && E.medalFor(mt.gold - 0.1, 46) === "gold" &&
+    E.medalFor(mt.silver - 0.1, 46) === "silver" && E.medalFor(mt.silver + 5, 46) === "bronze");
+  const fb = E.medalTimes(999);   // fallback formula (levels beyond the measured campaign) still orders
+  t.ok("fallback medalTimes (unmeasured level) still ordered", fb.diamond < fb.gold && fb.gold < fb.silver);
 }
 
 t.section("sawtooth ordering (Cut lesson: alternate easy/hard, finale = hardest — PER WORLD)");

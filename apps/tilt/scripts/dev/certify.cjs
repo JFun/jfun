@@ -41,7 +41,10 @@ function mkWorld(P, gatesAsWalls) {
     marbles: P.init.marbles.map(m => ({ x: m.x + 0.5, y: m.y + 0.5, r: 0.36, c: m.c })),
     holes: P.holesArr.map(h => ({ x: h.x + 0.5, y: h.y + 0.5, r: 0.42, c: h.c })),
     blocks,
-    gates: gatesAsWalls ? [] : (P.gates || []).map(g => ({ x: g.x, y: g.y, px: g.px, py: g.py })),
+    gates: gatesAsWalls ? [] : (P.gates || []).map(g => {
+      const pocket = (P.holesArr || []).find(h => Math.abs(h.x - g.x) + Math.abs(h.y - g.y) === 1);
+      return { x: g.x, y: g.y, px: g.px, py: g.py, pocketColor: pocket ? pocket.c : null };
+    }),
     posts: (P.posts || []).map(pp => ({ x: pp.x + 0.5, y: pp.y + 0.5, r: 0.34 })),   // CHIME bumper posts
   });
 }
