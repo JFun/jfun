@@ -118,5 +118,10 @@ Rattle's original hand-inlined beam + win-rates **bit-for-bit** on all 106 level
 All games benefit from the curve math and the methodology. Discrete move-budget
 games (Rattle, Quarter) get the whole loop; physics games borrow the measurement.
 
+Difficulty is verification Layer 4; the full four-layer net (certify / fuzz /
+dead-state audit / bot-measure) is `docs/handbook/10-verification.md`, with the
+Layer-3 solver packaged as `@jfun/statespace` and the Layer-2 fuzz loop as
+`t.fuzz` in `@jfun/test-harness`.
+
 See `docs/handbook/09-difficulty.md` for the full methodology and the scars behind
 these rules.

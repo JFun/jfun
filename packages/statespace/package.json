@@ -1,0 +1,13 @@
+{
+  "name": "@jfun/statespace",
+  "version": "0.1.0",
+  "description": "Verification Layer 3, packaged (docs/handbook/10-verification.md): adapter-based state-graph enumeration, dead-state proofs (backward reachability from goal), permissive-oracle filtering with a built-in soundness cross-check, and detector-coverage audit — 'if the player is provably stuck, does the game KNOW?'. The transition model, oracle, and detectors stay per-game.",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "main": "./index.js",
+  "exports": {
+    ".": { "require": "./index.js", "default": "./index.js" }
+  },
+  "files": ["src", "index.js", "README.md"],
+  "scripts": { "test": "bash scripts/dev/test.sh" }
+}
