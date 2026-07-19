@@ -1,0 +1,6 @@
+{
+  "hosting": [
+    { "target": "tilt", "public": "docs/tilt", "ignore": ["**/.*"], "cleanUrls": true },
+    { "target": "cut",  "public": "docs/cut",  "ignore": ["**/.*"], "cleanUrls": true }
+  ]
+}

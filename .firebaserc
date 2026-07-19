@@ -1,0 +1,7 @@
+{
+  "projects": { "tilt": "tilt-8234e", "cut": "cut-jfun" },
+  "targets": {
+    "tilt-8234e": { "hosting": { "tilt": ["tilt-8234e"] } },
+    "cut-jfun":   { "hosting": { "cut":  ["cut-jfun"] } }
+  }
+}
