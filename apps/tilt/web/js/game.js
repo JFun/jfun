@@ -585,9 +585,11 @@
 
   /* ---------- marble skins (depth plan Phase 0 — cosmetics, never bought) ----------
      A skin is a FINISH, not a recolor — the marble's colour identity (its match)
-     must stay legible, so every skin only layers highlights/rims over the same
-     base gradient. Earned by medals, feats, gems; equipped skin persists in the
-     save and applies everywhere marbles draw (board + tutorial + collection). */
+     must stay legible, so every skin only layers highlights/sheens INSIDE the
+     ball over the same base gradient — NEVER a stroke on the silhouette (rings
+     read as a bug, see drawSkinFx). Earned by medals, feats, gems; equipped skin
+     persists in the save and applies everywhere marbles draw (board + tutorial +
+     collection). */
   function featCount(sv) { let n = 0; const f = sv.feats || {}; for (const L in f) for (const k in f[L]) if (f[L][k]) n++; return n; }
   function goldCount(sv) { let n = 0; const md = sv.medal || {}; for (const L in md) if (md[L] === "gold" || md[L] === "diamond") n++; return n; }
   function gemCount(sv) { return Object.keys(sv.gems || {}).length; }
@@ -601,25 +603,31 @@
   let skinFx = "classic";
   function applySkin() { const sv = loadSave(); skinFx = SKINS.some(s => s.id === sv.skin) ? sv.skin : "classic"; }
   function drawSkinFx(c, px, py, r) {
+    // RULE (Qi 2026-07-20): finishes are RING-FREE. Pearl's rim stroke here was
+    // the "extra circle around every ball" hunted across three sessions — it only
+    // reproduced on device because desktop tests run a fresh save (classic skin).
+    // A finish may add sheen/sparks INSIDE the ball; nothing traces the silhouette.
     if (skinFx === "pearl") {
-      // milky sheen: broad soft top-light + a cool rim glow
+      // milky sheen: broad soft top-light only
       const g = c.createRadialGradient(px - r * 0.2, py - r * 0.5, r * 0.05, px, py, r);
       g.addColorStop(0, "rgba(255,255,255,0.5)"); g.addColorStop(0.5, "rgba(255,255,255,0.12)"); g.addColorStop(1, "rgba(255,255,255,0)");
       c.beginPath(); c.arc(px, py, r, 0, 7); c.fillStyle = g; c.fill();
-      c.lineWidth = 1.4; c.strokeStyle = "rgba(255,255,255,0.45)";
-      c.beginPath(); c.arc(px, py, r - 0.8, 0, 7); c.stroke();
     } else if (skinFx === "gilded") {
-      // gold band + a warm spark at 10 o'clock
-      c.lineWidth = 1.8; c.strokeStyle = "rgba(255,198,62,0.9)";
-      c.beginPath(); c.arc(px, py, r - 0.9, 0, 7); c.stroke();
+      // warm gold wash + twin sparks (the gold band was a ring — gone)
+      const g = c.createRadialGradient(px - r * 0.3, py - r * 0.35, r * 0.1, px, py, r);
+      g.addColorStop(0, "rgba(255,198,62,0.42)"); g.addColorStop(0.6, "rgba(255,198,62,0.1)"); g.addColorStop(1, "rgba(255,198,62,0)");
+      c.beginPath(); c.arc(px, py, r, 0, 7); c.fillStyle = g; c.fill();
       c.beginPath(); c.arc(px - r * 0.45, py - r * 0.1, r * 0.11, 0, 7); c.fillStyle = "#ffe9a8"; c.fill();
+      c.beginPath(); c.arc(px + r * 0.3, py + r * 0.42, r * 0.07, 0, 7); c.fillStyle = "#ffe9a8cc"; c.fill();
     } else if (skinFx === "prism") {
-      // spectral rim: hue sweeps around the band — reads as iridescence
-      for (let i = 0; i < 6; i++) {
-        c.strokeStyle = "hsla(" + (i * 60) + ",90%,70%,0.55)";
-        c.lineWidth = 1.6;
-        c.beginPath(); c.arc(px, py, r - 0.9, i * 1.047 - 0.6, i * 1.047 + 0.62); c.stroke();
-      }
+      // iridescence as a diagonal spectral WASH inside the ball (soap-bubble
+      // sheen) + sparkle — replaces the spectral rim arcs (a rainbow ring)
+      c.save(); c.beginPath(); c.arc(px, py, r, 0, 7); c.clip();
+      const g = c.createLinearGradient(px - r, py - r, px + r, py + r);
+      g.addColorStop(0, "hsla(300,90%,70%,0.30)"); g.addColorStop(0.33, "hsla(180,90%,70%,0.20)");
+      g.addColorStop(0.66, "hsla(60,90%,70%,0.20)"); g.addColorStop(1, "hsla(0,90%,70%,0.30)");
+      c.fillStyle = g; c.fillRect(px - r, py - r, 2 * r, 2 * r);
+      c.restore();
       c.beginPath(); c.arc(px + r * 0.4, py + r * 0.25, r * 0.09, 0, 7); c.fillStyle = "#ffffffd0"; c.fill();
     }
   }
@@ -882,10 +890,22 @@
   // primitives + the same physics = perfectly consistent motion and look).
   function drawMarbleAt(c, px, py, col, r, locked, roll) {
     c.beginPath(); c.ellipse(px, py + r * 0.55, r * 0.85, r * 0.5, 0, 0, 7); c.fillStyle = "#00000052"; c.fill();
-    c.beginPath(); c.arc(px, py, r, 0, 7);
-    c.fillStyle = marbleGrad(c, px, py, col, r);
-    c.fill();
-    c.lineWidth = 1.2; c.strokeStyle = shade(col, -85) + "88"; c.stroke();
+    // 3-D by DIRECTIONAL light, NOTHING concentric on the silhouette. (The
+    // "circle around the ball" Qi hunted across three sessions was never this
+    // shading — it was the equipped PEARL skin's rim stroke, found by pulling the
+    // device save: desktop tests run a fresh save = classic skin, so the ring
+    // never reproduced locally. Skins are ring-free now, see drawSkinFx.)
+    // Body: lit gradient ending AT the body colour + a form shadow pooled on the
+    // far (down-right) side, clipped to the ball. No edge stop, no outline
+    // stroke. marbleGrad remains only for the recessed captured ball in-hole.
+    const bg = c.createRadialGradient(px - r * 0.35, py - r * 0.42, r * 0.08, px, py, r);
+    bg.addColorStop(0, "#ffffff"); bg.addColorStop(0.18, shade(col, 55)); bg.addColorStop(0.6, col); bg.addColorStop(1, shade(col, -8));
+    c.beginPath(); c.arc(px, py, r, 0, 7); c.fillStyle = bg; c.fill();
+    c.save(); c.beginPath(); c.arc(px, py, r, 0, 7); c.clip();
+    const fs = c.createRadialGradient(px + r * 0.55, py + r * 0.6, r * 0.15, px + r * 0.55, py + r * 0.6, r * 1.5);
+    fs.addColorStop(0, shade(col, -78) + "cc"); fs.addColorStop(0.55, shade(col, -70) + "55"); fs.addColorStop(1, shade(col, -70) + "00");
+    c.fillStyle = fs; c.fillRect(px - r, py - r, 2 * r, 2 * r);
+    c.restore();
     drawSkinFx(c, px, py, r);   // equipped cosmetic finish (colour identity untouched)
     // rolling-texture cue: a dark swirl revolving with the roll — without it the
     // marble reads as a sliding puck no matter how good the dynamics are
