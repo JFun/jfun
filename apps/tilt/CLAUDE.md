@@ -53,7 +53,13 @@ playing out.
 
 ## Discipline (non-negotiable)
 
-- **`bash scripts/dev/test.sh` after EVERY edit** (syntax + 137 engine + 115 physics assertions, incl. the tutorial-story, dead-end, slope, gem/worlds/medal, per-world sawtooth-shape, sand/ice-zone, and world-param-invariant pins).
+- **`bash scripts/dev/test.sh` after EVERY edit** — the four machine verification
+  layers (see docs/handbook/10-verification.md): syntax + engine determinism/
+  fairness + physics unit assertions, **Layer 2** physics fuzz (seeded random play,
+  invariants every step — the net that catches vanishing-ball/well-freeze classes),
+  and **Layer 3** dead-end coverage audit (`deadend-audit.cjs`: every provably-dead
+  state must fire a card — the "silent stuck" class Qi kept finding by hand).
+  Layer 1 (`certify.cjs`) gates new worlds; Layer 4 (`difficulty.cjs`) gates tuning.
 
 **W3 = CHIME (bumper posts) — BUILT 2026-07-14 (Sirocco parked to W4; wind stays behind its prototype-gate):**
 - **Element: BUMPER POSTS** — a fixed circle a marble rebounds off LIVELY
