@@ -2124,9 +2124,44 @@
     }
     return false;
   }
+  // PROVABLE no-helper dead-lock (verified false-fire-proof over every gate level in
+  // scratchpad/helper-invariant.cjs — "0 self-finishable balls" is dead on 0 winnable
+  // states). To sink a GATED-pocket ball you need ANOTHER ball to hold its plate, so
+  // the LAST ball sunk must be self-finishable: its home is an OPEN hole, or it already
+  // sits at its own gate/pocket (anti-crush walks it in). If NO uncaptured ball is
+  // self-finishable — every remaining ball is gated and none is pre-positioned — the
+  // last one can never get a helper → unwinnable. A COUNTING proof, not a solver, so
+  // unlike a general "is it dead?" check it CANNOT false-fire. Returns deadInfo or null.
+  function noHelperDead() {
+    const un = world.marbles.filter(m => !m.captured);
+    if (!un.length) return null;
+    if (un.some(m => Math.hypot(m.vx, m.vy) > 0.15)) return null;   // only judge a SETTLED board, never mid-action
+    const near = (m, cx, cy) => Math.hypot(m.x - (cx + 0.5), m.y - (cy + 0.5)) < 0.7;
+    for (const m of un) {
+      const home = P.holesArr.find(h => h.c === m.c);
+      if (!home || !isGatePocketHole(home.x, home.y)) return null;   // an OPEN-home ball = a free helper
+      const gate = (P.gates || []).find(g => Math.abs(g.x - home.x) + Math.abs(g.y - home.y) === 1);
+      if (near(m, home.x, home.y) || (gate && near(m, gate.x, gate.y))) return null;   // pre-positioned to self-sink
+    }
+    const m = un[0], home = P.holesArr.find(h => h.c === m.c);
+    return { bx: m.x, by: m.y, home: { x: home.x, y: home.y }, seals: [], color: m.c };
+  }
   let deadInfo = null;
   function checkSeal() {
     if (won || lost || !world || tiltPhase !== "running") return;
+    const nh = noHelperDead();
+    if (nh) {
+      lost = true; sndFail(); haptic("heavy");
+      track("dead_end", { level: level, cause: "no_helper" });
+      deadInfo = nh; tiltPhase = "dead";
+      // copy must survive the player's "but one ball CAN open the gate!" objection
+      // (Qi): with 2+ balls left a helper still exists — the doom is that the LAST
+      // ball won't have one. Only the 1-ball case says "no ball left".
+      const unN = world.marbles.filter(m => !m.captured).length;
+      showDeadEnd(unN > 1 ? "The last ball would have no helper for its gate"
+                          : "No ball left to open the gate");
+      return;
+    }
     const blocked = new Set(), capCells = new Set();
     for (const b of (P.walls || [])) blocked.add(b.x + "," + b.y);
     for (const m of world.marbles) if (m.captured) { const k = Math.round(m.x - 0.5) + "," + Math.round(m.y - 0.5); blocked.add(k); capCells.add(k); }
