@@ -291,14 +291,25 @@
     wake(w, cx, cy, rad * 2);
     for (const o of w.objectives) if (o.kind === "pop" && o.color === color && o.rem > 0) o.rem = Math.max(0, o.rem - cl.length);
     w.events.push({ type: "pop", color, size: cl.length, x: cx, y: cy });
-    // ELEMENT callbacks in the crack radius: T3 shell cracks, T4 balloon pops
+    // ELEMENT callbacks in the crack radius: T3 shell cracks, T4 balloon pops.
+    // A shell only cracks from a SAME-COLOUR pop (Qi 2026-07-17: the crate shows its
+    // bead's colour, so players read it as "pop this colour next to it"). MERCY: once
+    // a crate's colour is exhausted from the board (no free bead of it remains to bring
+    // adjacent), the colour rule would STRAND it forever — so it becomes crackable by
+    // ANY adjacent pop. Removes the dead-end the colour gate introduced (measured on
+    // L27/30/32/105) while keeping the strict rule whenever the colour is still poppable.
+    // Bomb blasts stay colour-blind (see explodeBombs).
     const crackRad = R * 2.6;
+    const colourLive = {};   // memoised: is there a free (non-shell) bead of colour c?
+    const canCrack = b => b.c === color || (colourLive[b.c] == null
+      ? (colourLive[b.c] = w.balls.some(o => o.alive && !o.shelled && o.c === b.c))
+      : colourLive[b.c]) === false;
     for (const b of w.balls) {
       if (!b.alive) continue;
       let near = false;
       for (const m of cl) { const dx = b.x - m.x, dy = b.y - m.y; if (dx * dx + dy * dy < crackRad * crackRad) { near = true; break; } }
       if (!near) continue;
-      if (b.shelled) { b.shelled = false; b.sleepN = 0; w.events.push({ type: "crack", x: b.x, y: b.y }); decObj(w, "shells", 1); }
+      if (b.shelled) { if (canCrack(b)) { b.shelled = false; b.sleepN = 0; w.events.push({ type: "crack", x: b.x, y: b.y }); decObj(w, "shells", 1); } }
       else if (b.el === "balloon") { b.alive = false; w.events.push({ type: "balloonpop", x: b.x, y: b.y }); decObj(w, "balloons", 1); }
     }
     // T7 bomb: any bomb in the popped cluster detonates (AoE, chains)
@@ -359,6 +370,13 @@
     if (i < 0) return doRattle(w);                 // empty space → rattle
     const b = w.balls[i];
     if (b.duck) { w.events.push({ type: "quack" }); wake(w, b.x, b.y, b.r * 2.2); return { kind: "duck" }; }
+    // a CRATE is locked — tapping it must NOT pop it. clusterOf excludes shelled
+    // beads from the flood but not the SEED, so a direct tap made the crate join
+    // its colour-neighbours and die as a popped bead WITHOUT decrementing the
+    // shells objective (Qi's ghost-crates: chip said 2, both crates alive=0 in the
+    // device flight-recorder). Bots never tap crates, so every fuzz/beam missed
+    // this — the human's action space included a move the search's didn't.
+    if (b.shelled) { w.events.push({ type: "wobble", i }); return { kind: "locked" }; }   // free no-op
     const cl = clusterOf(w, b);
     if (cl.length < 2) { w.events.push({ type: "wobble", i }); return { kind: "singleton" }; }   // free no-op
     if (w.taps <= 0) return { kind: "none" };

@@ -111,6 +111,41 @@
       else if (e.type === "nopairs") { if (!deadOffered && !cardUp && world.taps > 0) { deadOffered = true; showNoPairs(); } }
     }
     world.events.length = 0;
+    devLog();
+  }
+  // DEV-ONLY flight recorder: after every consumed tap, snapshot the objective +
+  // crate state into localStorage (rolling 150). Pullable off-device via
+  // `devicectl copy --domain-type appDataContainer` → localstorage.sqlite3, so a
+  // "chip says 2, board shows none" report becomes a readable board history
+  // instead of a screenshot argument. Dev builds only — never ships.
+  let devLogSig = "";
+  function devLog() {
+    if (!(typeof DEV_UNLOCK !== "undefined" && DEV_UNLOCK) || !world) return;
+    try {
+      // consume() runs every frame — only record actual STATE CHANGES (tap spent /
+      // objective moved / level switch), or 150 entries is 2.5s of noise.
+      const sig = level + "|" + world.taps + "|" + world.objectives.map(o => o.rem).join(",");
+      if (sig === devLogSig) return;
+      devLogSig = sig;
+      // board bounds + the full render mapping: detects BOTH physics-out-of-bounds
+      // (bead beyond walls/floor) AND a device-side mapping anomaly (ox/oy/s/insets)
+      // — the two live hypotheses for "counted crate, empty screen, no ring".
+      let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+      for (const b of world.balls) { if (!b.alive) continue; if (b.x < minX) minX = b.x; if (b.x > maxX) maxX = b.x; if (b.y < minY) minY = b.y; if (b.y > maxY) maxY = b.y; }
+      const log = JSON.parse(localStorage.getItem("rattle.devlog") || "[]");
+      log.push({
+        t: Date.now(), lv: level, taps: world.taps, phase: world.phase,
+        objs: world.objectives.map(o => ({ k: o.kind, c: o.color, rem: o.rem })),
+        // every bead that IS or EVER WAS shelled — alive:0 on a shelled bead would
+        // prove a kill-without-decrement, the one path all fuzzing says can't happen
+        crates: world.balls.filter(b => b.shelled).map(b => ({ c: b.c, x: Math.round(b.x), y: Math.round(b.y), alive: b.alive ? 1 : 0 })),
+        alive: world.balls.reduce((n, b) => n + (b.alive ? 1 : 0), 0),
+        bounds: [Math.round(minX), Math.round(maxX), Math.round(minY), Math.round(maxY)],
+        map: { W, H, s: +s.toFixed(4), ox: Math.round(ox), oy: Math.round(oy), it: INSET.top, ib: INSET.bottom, r: Math.round(world.L.ballR) },
+      });
+      while (log.length > 150) log.shift();
+      localStorage.setItem("rattle.devlog", JSON.stringify(log));
+    } catch (e) {}
   }
 
   /* ---------------- cards ---------------- */
@@ -222,29 +257,22 @@
   // element debut copy — the on-board coach-mark's bubble text. NEW ELEMENT eyebrow ·
   // Lilita name · honey rule + dim detail. (ice + tar cut — see design-4-rattle.md;
   // their engine rules remain dormant but no level spawns them.)
+  /* Qi 2026-07-17: "too much wording — less text, more visual." One short
+     imperative per card; the SPOTLIGHT + per-element animation do the teaching
+     (the duck gets a chevron trail down to a glowing floor target). */
   const ELEM_INTRO = {
-    stone:   { name: "STONE BEAD",   c: 0, rule: "It's dead weight — you can't pop it",                detail: "Undermine it and dig the pile out around it." },
-    shell:   { name: "SHELL BEAD",   c: 0, rule: "A pop right beside it cracks the crate open",        detail: "The freed bead turns normal — then clear it by colour." },
-    balloon: { name: "BALLOON BEAD", c: 0, rule: "It floats up — pop a cluster beside it to burst it", detail: "Rising balloons prop the pile up from below." },
-    bomb:    { name: "BOMB BEAD",    c: 2, rule: "Pop a cluster next to it and it detonates",           detail: "Clears a 2.5-bead radius — line up your escape, then set it off." },
+    stone:   { name: "STONE BEAD",   c: 0, rule: "Dead weight — dig around it" },
+    shell:   { name: "SHELL BEAD",   c: 0, rule: "Pop the crate's colour beside it" },
+    balloon: { name: "BALLOON BEAD", c: 0, rule: "Pop beside it to burst it" },
+    bomb:    { name: "BOMB BEAD",    c: 2, rule: "Pop beside it — boom!" },
   };
   /* -------- on-board element intro: a Royal-Match-style coach-mark that
      SPOTLIGHTS the real element on the pile and explains it there, instead of a
      disconnected modal card. Dim veil + soft hole on the actual bead + pulsing
      ring + a pointer bubble; tap anywhere to continue. -------- */
   const COACH = Object.assign({
-    duck: { name: "RUBBER DUCK", rule: "Pop clusters below it to open a channel", detail: "Bring it all the way down to the floor to collect it." },
+    duck: { name: "RUBBER DUCK", rule: "Pop below it — down to the floor" },
   }, ELEM_INTRO);
-  function wrapText(text, cx, y, maxw, lh) {
-    const words = text.split(" "); let line = "", yy = y;
-    for (const w of words) {
-      const test = line ? line + " " + w : w;
-      if (ctx.measureText(test).width > maxw && line) { ctx.fillText(line, cx, yy); line = w; yy += lh; }
-      else line = test;
-    }
-    if (line) ctx.fillText(line, cx, yy);
-    return yy;
-  }
   function startCoach(el) {
     let bead = null;
     if (el === "duck") bead = world.duck;
@@ -277,9 +305,30 @@
     ctx.strokeStyle = "rgba(255,206,107," + (0.5 + 0.4 * pulse) + ")";
     ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(sx, sy, sr * (1.28 + 0.14 * pulse), 0, 7); ctx.stroke();
     ctx.restore();
-    // pointer bubble — enlarged for readability; more clearance so the wider card
-    // clears the spotlight cleanly. Above the spotlight if there's room, else below.
-    const bw = Math.min(330, W - 30), bh = 182;
+    // DUCK: the mechanic is directional, so SHOW it — animated chevrons flowing
+    // from the duck down to a glowing target on the floor (replaces a sentence).
+    if (coach.el === "duck") {
+      const floorY = oy + world.L.vFloor * s;
+      const top = sy + sr * 1.7, span = floorY - 10 - top;
+      if (span > 50) {
+        ctx.save(); ctx.globalAlpha = fade;
+        const spacing = 34, off = (simT * 46) % spacing, chW = 11, chH = 7;
+        for (let y = top + off; y < floorY - 14; y += spacing) {
+          const p = (y - top) / span;                                  // fade in/out along the trail
+          ctx.strokeStyle = "rgba(255,206,107," + (0.85 * Math.sin(Math.PI * clamp(p, 0.04, 0.96))) + ")";
+          ctx.lineWidth = 3.5; ctx.lineCap = "round";
+          ctx.beginPath(); ctx.moveTo(sx - chW, y); ctx.lineTo(sx, y + chH); ctx.lineTo(sx + chW, y); ctx.stroke();
+        }
+        // floor target: a soft pulsing landing strip under the duck
+        ctx.strokeStyle = "rgba(255,206,107," + (0.45 + 0.35 * pulse) + ")";
+        ctx.lineWidth = 4; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(sx - 26, floorY - 4); ctx.lineTo(sx + 26, floorY - 4); ctx.stroke();
+        ctx.restore();
+      }
+    }
+    // pointer bubble — COMPACT (Qi: less text, more visual): eyebrow + name +
+    // one short imperative. Above the spotlight if there's room, else below.
+    const bw = Math.min(300, W - 30), bh = 124;
     const above = sy - hole - bh - 24 > INSET.top + 14;
     const by = above ? sy - hole - bh - 22 : sy + hole + 22;
     const bx = clamp(sx - bw / 2, 14, W - bw - 14);
@@ -296,16 +345,14 @@
     ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
     if ("letterSpacing" in ctx) ctx.letterSpacing = "3px";
     ctx.fillStyle = "#ff5a3c"; ctx.font = "900 12px " + F;                    // eyebrow 12
-    ctx.fillText(coach.el === "duck" ? "NEW FRIEND" : "NEW ELEMENT", bx + bw / 2, by + 31);
+    ctx.fillText(coach.el === "duck" ? "NEW FRIEND" : "NEW ELEMENT", bx + bw / 2, by + 30);
     if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
     ctx.fillStyle = "#fff"; ctx.font = "25px 'Lilita One', " + F;             // title (Lilita display)
-    ctx.fillText(info.name, bx + bw / 2, by + 65);
-    ctx.fillStyle = "#ffb648"; ctx.font = "800 14.5px " + F;                  // body (rule) 14
-    ctx.fillText(info.rule, bx + bw / 2, by + 93);
-    ctx.fillStyle = "#b3a3c4"; ctx.font = "700 13px " + F;                    // detail, roomier line-height (fits 2 lines)
-    wrapText(info.detail, bx + bw / 2, by + 116, bw - 48, 18);
+    ctx.fillText(info.name, bx + bw / 2, by + 62);
+    ctx.fillStyle = "#ffb648"; ctx.font = "800 14.5px " + F;                  // the ONE line
+    ctx.fillText(info.rule, bx + bw / 2, by + 88);
     ctx.fillStyle = "#8b7c98"; ctx.font = "800 12px " + F;
-    ctx.fillText("TAP TO CONTINUE ▸", bx + bw / 2, by + bh - 18);
+    ctx.fillText("TAP TO CONTINUE ▸", bx + bw / 2, by + bh - 16);
     ctx.restore();
   }
 
@@ -422,12 +469,33 @@
       ctx.fillStyle = "rgba(255,182,72,0.06)"; ctx.fillRect(L.vx0 + L.wallHalf, zy, L.innerW, L.vFloor - L.wallHalf - zy);
       ctx.save(); ctx.setLineDash([6, 7]); ctx.strokeStyle = "rgba(255,182,72,0.35)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(L.vx0 + L.wallHalf + 3, zy); ctx.lineTo(L.vx1 - L.wallHalf - 3, zy); ctx.stroke(); ctx.restore();
     }
+    // when crates are ALL that's left, spotlight each remaining one — a camouflaged
+    // (dark bead + planks) or edge-clipped crate is genuinely unfindable, and Qi hit
+    // exactly that on L27 (chip said 2, both crates invisible-in-plain-sight). The
+    // ring protrudes past the bead so even a wall-hugging clipped crate shows an arc.
+    const shellsLeftOnly = world.objectives.some(o => o.kind === "shells" && o.rem > 0) &&
+      world.objectives.every(o => o.kind === "shells" || o.rem <= 0 || (o.kind === "duck" && world.duckDone));
     // beads
     for (let i = 0; i < world.balls.length; i++) {
       const b = world.balls[i]; if (!b.alive || b.duck) continue;
       let x = b.x; if (wob[i] > 0) x += Math.sin(simT * 40) * wob[i] * b.r * 0.14;
       drawBead(x, b.y, b.r, b, i);
       if (b.popG && world.settled) { ctx.globalAlpha = 0.20 + 0.14 * Math.sin(simT * 3 + (b.x + b.y) * 0.02); ctx.beginPath(); ctx.arc(x, b.y, b.r * 1.04, 0, 7); ctx.lineWidth = 1.5; ctx.strokeStyle = "#ffffff"; ctx.stroke(); ctx.globalAlpha = 1; }
+    }
+    // crate spotlight — drawn AFTER the whole bead pass so neighbouring beads can't
+    // occlude the ring (inside the loop it was painted over and read as no cue at all)
+    if (shellsLeftOnly) {
+      const p = 0.5 + 0.5 * Math.sin(simT * 4);
+      for (const b of world.balls) {
+        if (!b.alive || !b.shelled) continue;
+        ctx.globalAlpha = 0.6 + 0.35 * p;
+        ctx.strokeStyle = "#ffce6b"; ctx.lineWidth = 3.5;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * (1.14 + 0.10 * p), 0, 7); ctx.stroke();
+        ctx.globalAlpha = 0.25 + 0.18 * p;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * (1.40 + 0.18 * p), 0, 7); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
     }
     if (world.duck && world.duck.alive) drawDuck(world.duck.x, world.duck.y, world.duck.r, wob.duck || 0);
     // fx
@@ -440,8 +508,10 @@
   function drawHUD() {
     const top = INSET.top + 12;
     ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-    ctx.font = "800 13px " + F; ctx.fillStyle = "rgba(179,163,196,0.9)";
-    ctx.fillText("LEVEL " + level, 16, top + 11);
+    // labeled beats keep a persistent tinted tag next to the level number
+    const tier = world.spec.hard ? HARD_TIERS[world.spec.hard] : null;
+    ctx.font = "800 13px " + F; ctx.fillStyle = tier ? tier.c : "rgba(179,163,196,0.9)";
+    ctx.fillText("LEVEL " + level + (tier ? " · " + tier.label : ""), 16, top + 11);
     ctx.font = "44px 'Lilita One', " + F; ctx.fillStyle = world.taps <= 2 ? "#ffb648" : "#f3ecfa";
     ctx.fillText(String(world.taps), 15, top + 50);
     const tw = ctx.measureText(String(world.taps)).width;
@@ -480,13 +550,29 @@
   }
   function drawShellIcon(x, y, r) { ctx.fillStyle = "#976a2b"; rrect(x - r, y - r, r * 2, r * 2, r * 0.4); ctx.fill(); ctx.strokeStyle = "#5c3a16"; ctx.lineWidth = r * 0.22; ctx.beginPath(); ctx.moveTo(x - r * 0.8, y - r * 0.8); ctx.lineTo(x + r * 0.8, y + r * 0.8); ctx.moveTo(x + r * 0.8, y - r * 0.8); ctx.lineTo(x - r * 0.8, y + r * 0.8); ctx.stroke(); }
   function drawBalloonIcon(x, y, r) { const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.12, x, y, r); g.addColorStop(0, "#ff9ab6"); g.addColorStop(1, "#d6467e"); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y - r * 0.08, r * 0.88, 0, 7); ctx.fill(); ctx.fillStyle = "#d6467e"; ctx.beginPath(); ctx.moveTo(x - r * 0.16, y + r * 0.7); ctx.lineTo(x + r * 0.16, y + r * 0.7); ctx.lineTo(x, y + r * 0.95); ctx.closePath(); ctx.fill(); ctx.fillStyle = "rgba(255,255,255,0.75)"; ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.34, r * 0.16, 0, 7); ctx.fill(); }
+  // labeled hard tiers (flow research: TELEGRAPH the spikes — a hard level the
+  // player sees coming reads as challenge, a blindside one as ambush)
+  const HARD_TIERS = {
+    hard:    { label: "HARD",           c: "#ffb648" },
+    super:   { label: "SUPER HARD",     c: "#ff5a3c" },
+    extreme: { label: "EXTREMELY HARD", c: "#c86bff" },
+  };
   function drawBanner() {
-    if (bannerT >= 1.2) return;
-    const a = bannerT < 0.15 ? bannerT / 0.15 : bannerT > 0.8 ? Math.max(0, (1.2 - bannerT) / 0.4) : 1;
+    const tier = world && world.spec.hard ? HARD_TIERS[world.spec.hard] : null;
+    const life = tier ? 1.9 : 1.2;                 // labeled beats linger a beat longer
+    if (bannerT >= life) return;
+    const a = bannerT < 0.15 ? bannerT / 0.15 : bannerT > life - 0.4 ? Math.max(0, (life - bannerT) / 0.4) : 1;
     const sc = 0.8 + 0.2 * easeOutBack(clamp(bannerT / 0.35, 0, 1));
     ctx.save(); ctx.globalAlpha = a * 0.95; ctx.translate(W / 2, H * 0.32); ctx.scale(sc, sc);
     ctx.font = "900 " + Math.max(20, Math.min(W, H) * 0.09).toFixed(1) + "px " + F; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.shadowColor = "rgba(255,182,72,0.5)"; ctx.shadowBlur = 16; ctx.fillStyle = "#f3ecfa"; ctx.fillText(banner, 0, 0); ctx.restore();
+    ctx.shadowColor = "rgba(255,182,72,0.5)"; ctx.shadowBlur = 16; ctx.fillStyle = "#f3ecfa"; ctx.fillText(banner, 0, 0);
+    if (tier) {
+      if ("letterSpacing" in ctx) ctx.letterSpacing = "4px";
+      ctx.font = "900 17px " + F; ctx.shadowColor = tier.c; ctx.shadowBlur = 18;
+      ctx.fillStyle = tier.c; ctx.fillText(tier.label, 0, 38);
+      if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+    }
+    ctx.restore();
   }
   function render() {
     relayout();
@@ -503,8 +589,23 @@
   }
 
   /* ---------------- input ---------------- */
+  // DEV-ONLY level jump (Qi: "so I don't have to play all the way through").
+  // Gate = Cut's pattern: native #if-DEBUG injects window.__DEV_BUILD (compiled out
+  // of Release, so nothing ships to the App Store) OR a plain-http dev origin.
+  const DEV_UNLOCK = !!(typeof window !== "undefined" && (window.__DEV_BUILD ||
+    (location && location.protocol === "http:" && /^(localhost|127\.|192\.168\.|10\.)/.test(location.hostname))));
+  function devJump() {
+    const raw = window.prompt("DEV — jump to level (1–" + LV.length + "):", String(level));
+    const n = parseInt(raw, 10);
+    if (!isNaN(n) && n >= 1 && n <= LV.length) {
+      const sv = loadSave(); sv.level = n; writeSave(sv);   // persist so relaunch stays here
+      build(n);
+    }
+  }
   canvas.addEventListener("pointerdown", e => {
     e.preventDefault(); initAudio();
+    // dev builds: tapping the "LEVEL N" HUD label opens the jump prompt
+    if (DEV_UNLOCK && e.clientY < INSET.top + 34 && e.clientX < 190) { devJump(); return; }
     if (coach) { dismissCoach(); return; }               // tap to dismiss the on-board intro
     if (cardUp || world.phase !== "play") return;
     if (!firstTap) { firstTap = true; $("#hint").classList.add("off"); }

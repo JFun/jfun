@@ -39,7 +39,12 @@ function refBeam(spec, W, Dd) {
   return null;
 }
 function m32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-function objColors(w) { return new Set(w.objectives.filter(o => o.kind === "pop" && o.rem > 0).map(o => o.color)); }
+function objColors(w) {
+  const s = new Set(w.objectives.filter(o => o.kind === "pop" && o.rem > 0).map(o => o.color));
+  if (w.objectives.some(o => o.kind === "shells" && o.rem > 0))
+    for (const b of w.balls) if (b.alive && b.shelled) s.add(b.c);   // colour-gated crates (matches adapter)
+  return s;
+}
 function pickCasual(w, cls, rng) { if (!cls.length) return null; if (rng() < 0.20) return cls[(rng() * cls.length) | 0]; return cls.reduce((a, b) => b.length > a.length ? b : a); }
 function pickSkilled(w, cls, rng) { if (!cls.length) return null; const oc = objColors(w); const oj = cls.filter(c => oc.has(w.balls[c[0]].c)); const pool = oj.length && rng() > 0.10 ? oj : cls; return pool.reduce((a, b) => b.length > a.length ? b : a); }
 function refRun(spec, pick, rng) { const w = E.createWorld(spec); let g = 0; while (w.phase === "play" && w.taps > 0 && g++ < spec.taps + 8) { const c = E.poppableClusters(w); const mv = pick(w, c, rng); if (mv === null) { if (w.taps <= 0) break; w.taps--; w.tapCounter++; E.applyRattle(w); } else { w.taps--; w.tapCounter++; E.popClusterIdx(w, mv); } E.settle(w); } return E.isWin(w); }

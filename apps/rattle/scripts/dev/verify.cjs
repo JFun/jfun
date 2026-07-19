@@ -72,6 +72,10 @@ function greedy(spec, seed) {
   let guard = 0;
   while (w.phase === "play" && w.taps > 0 && guard++ < spec.taps + 4) {
     const objColors = new Set(w.objectives.filter(o => o.kind === "pop" && o.rem > 0).map(o => o.color));
+    // colour-gated crates: while shells remain, their colours ARE objective colours —
+    // a real player reads the crate and pops its colour (Qi 2026-07-17).
+    if (w.objectives.some(o => o.kind === "shells" && o.rem > 0))
+      for (const b of w.balls) if (b.alive && b.shelled) objColors.add(b.c);
     const cls = ENG.poppableClusters(w).map(idxs => ({ idxs, color: w.balls[idxs[0]].c, size: idxs.length }));
     let pick = null;
     const objCls = cls.filter(c => objColors.has(c.color));
