@@ -62,6 +62,22 @@ measures the win-rate per seed and accepts one in a target *band*, biased to the
 side — and rejects un-tunable or nightmare seeds. This smoothed Rattle's curve from
 jagged 79/38/85/54 to a clean sawtooth.
 
+**Continuous / time-scored games need a TIME-MINIMIZING bot — and validate the bot.**
+Tilt (tilt-the-phone marble physics: infinite retries, no move budget, graded on solve
+*time*) borrows the curve math but not the forward win-rate; the useful measure is the
+bot's optimal solve *time*, and the bot MUST minimize time (best-first by
+uncaptured-then-cumulative-time), never captures-first. A capture-first / gentlest-input
+bot finds *a* solve but a slow one — so it lies GENEROUS in the wrong direction,
+reporting nearly every skill threshold "impossible" (it screamed 51 of 59 levels; the
+time-minimizing bot showed the truth was 18). **Validate the bot's numbers before
+trusting them — a lazy bot mis-reports as loudly as a wrong one.** And grade thresholds
+from a par-COUNT *formula* are a guess: Tilt shipped IMPOSSIBLE diamond medals on 18/60
+levels (faster than the physics can solve) because a formula tuned for fast early boards
+didn't know gate/bank boards are slower per input. Derive thresholds from the MEASURED
+solve time. Bot ≠ human (the bot fully settles between inputs; a human flows), so the
+absolute numbers still want one feel-test pass. Adapter: `apps/tilt/scripts/dev/
+difficulty-adapter.cjs` (a "move" is one sustained tilt gesture) + `difficulty.cjs`.
+
 ## The curve shape (cozy / no-IAP default)
 
 Teach ~90% first-try → normal ~72–80% → hard beats ~55–60%, **no sub-45% cliff**
