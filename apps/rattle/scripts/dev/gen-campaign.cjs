@@ -66,6 +66,9 @@ function greedy(spec, seed) {
   let guard = 0;
   while (w.phase === "play" && w.taps > 0 && guard++ < spec.taps + 6) {
     const objColors = new Set(w.objectives.filter(o => o.kind === "pop" && o.rem > 0).map(o => o.color));
+    // colour-gated crates: while shells remain, their colours ARE objective colours
+    if (w.objectives.some(o => o.kind === "shells" && o.rem > 0))
+      for (const b of w.balls) if (b.alive && b.shelled) objColors.add(b.c);
     const cls = ENG.poppableClusters(w).map(idxs => ({ idxs, color: w.balls[idxs[0]].c, size: idxs.length }));
     let pick = null;
     const objCls = cls.filter(c => objColors.has(c.color));
@@ -103,8 +106,8 @@ function findSeed(spec, n) {
   const tgt = targetWR(n);
   let best = null, scanned = 0;
   for (let seed = 101; seed <= 800; seed++) {
-    const s = Object.assign({}, spec, { seed, taps: 24 });
-    let bot; try { bot = beam(s, 8, 24); } catch (e) { continue; }
+    const s = Object.assign({}, spec, { seed, taps: 12 });
+    let bot; try { bot = beam(s, 8, 12); } catch (e) { continue; }   // depth 12: bot>10 is rejected anyway — identical accepts, ~2x faster rejects
     if (bot === null || bot < 2 || bot > 10) continue;
     if (!balloonsReachable(s)) continue;
     const taps = fairBudget(spec, seed, bot, n);   // bot + scheduled slack, greedy-winnable
@@ -113,9 +116,13 @@ function findSeed(spec, n) {
     const cand = { seed, bot, taps, wr };
     // accept the first acceptable board, biased to the HARD side (allow a little harder
     // than target, less easier) so the campaign trends tough. Fallback = closest to target.
-    if (wr <= tgt + 0.14 && wr >= tgt - 0.22) return cand;
+    // NORMAL levels get a TIGHT low band — they must never accidentally land hard next
+    // to a labeled beat (the cadence guarantees hard levels are never adjacent).
+    const isBeat = !!hardTier(n);
+    const bandLo = isBeat ? 0.22 : 0.12, bandHi = isBeat ? 0.07 : 0.14;   // beats must not land soft — a HARD label at normal-WR lies
+    if (wr <= tgt + bandHi && wr >= tgt - bandLo) return cand;
     if (!best || Math.abs(wr - tgt) < Math.abs(best.wr - tgt)) best = cand;
-    if (++scanned >= 30) break;                    // bound the search; take the closest seen
+    if (++scanned >= (hardTier(n) ? 60 : 30)) break;   // beats scan deeper — tight-budget seeds are rarer
   }
   return best;   // closest certifiable board (null only if nothing certified at all)
 }
@@ -131,7 +138,13 @@ const clampi = (v, a, b) => v < a ? a : v > b ? b : v;
    under-modelled a real player and left the game far too easy (Qi cleared ~everything
    to L50). Tighter budgets = fewer taps = the fix. measure.cjs reports both bots. ---- */
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-function objColors(w) { return new Set(w.objectives.filter(o => o.kind === "pop" && o.rem > 0).map(o => o.color)); }
+function objColors(w) {
+  const s = new Set(w.objectives.filter(o => o.kind === "pop" && o.rem > 0).map(o => o.color));
+  // colour-gated crates: while shells remain, their colours ARE objective colours
+  if (w.objectives.some(o => o.kind === "shells" && o.rem > 0))
+    for (const b of w.balls) if (b.alive && b.shelled) s.add(b.c);
+  return s;
+}
 function pickPlay(w, cls, rng) {
   if (!cls.length) return "rattle";
   const oc = objColors(w);
@@ -158,16 +171,36 @@ function playWR(spec, nRoll) {
 // first-try target for a NORMAL attentive player (tighter than the old casual-tuned
 // curve): teach ~0.92 → normal baseline ~0.70–0.80 → hard beats (cycle end) dip to
 // ~0.54, breathers ~0.84; floor 0.50. Sawtooth on a ~10-level cycle.
+/* ---- 3-TIER HARD CADENCE (Qi 2026-07-17 after the flow/Royal-Match research):
+   predictable, labeled, evenly-spaced hard beats — never adjacent, breather right
+   after each X9. Old curve dipped cyc 8 AND 9 → consecutive hard levels BY DESIGN
+   (measured collisions at L68-69/L88-90/L98-100/L105-106); this replaces it.
+     X4  (L24,34,44…)             → HARD            tgt 65%
+     X9  (L29,49,59,79,89…)       → SUPER HARD      tgt 55%
+     X9 every 3rd cycle (39,69,99) + finale 106 → EXTREMELY HARD  tgt 45%
+   Normals hold a gentle 84→76% decline; the X10/X1 after a super are breathers.
+   Magnitudes match the genre (RM inferred: normal ~83 / hard ~60 / super ~40). */
+function hardTier(n) {
+  if (n <= 20) return null;   // teach + toy ramps, then stone settles in before the first labeled beat (L24)
+  if (n === 106) return { key: "extreme", tgt: 0.45 };   // campaign finale
+  const cyc = (n - 1) % 10;
+  if (cyc === 3) return { key: "hard", tgt: 0.65 };
+  if (cyc === 8) return ((n - 9) % 30 === 0) ? { key: "extreme", tgt: 0.45 } : { key: "super", tgt: 0.55 };
+  return null;
+}
 function targetWR(n) {
+  const ht = hardTier(n);
+  if (ht) return ht.tgt;
   let base;
   if (n <= 8) base = lerp(0.94, 0.88, (n - 1) / 7);
   else if (n <= 16) base = lerp(0.86, 0.58, (n - 9) / 7);   // TOY tier: low target → accept band forces hard boards
-  else if (n <= 24) base = lerp(0.86, 0.78, (n - 8) / 16);
-  else base = lerp(0.78, 0.70, (n - 24) / (106 - 24));
-  const cyc = (n - 1) % 10;
-  let mod = 0;
-  if (n > 16) { if (cyc >= 8) mod = -0.16; else if (cyc <= 1) mod = 0.05; }
-  return Math.max(0.50, Math.min(0.95, base + mod));
+  else {
+    base = lerp(0.84, 0.76, (n - 17) / (106 - 17));         // normal levels: gentle decline
+    const cyc = (n - 1) % 10;
+    if (cyc === 9) base += 0.07;                            // breather right after the X9 beat
+    else if (cyc === 0) base += 0.05;
+  }
+  return Math.max(0.42, Math.min(0.95, base));
 }
 // colour count is the sharpest lever in a collapse game: 3 = giant clusters (teach),
 // 4 = normal, 5 = clusters starve → forced rattles → real planning depth.
@@ -185,11 +218,10 @@ function slackFor(n) {
                                          // (breather→hard beat) — the 10-cycle misaligns here,
                                          // leaving the duck tier flat; a tier-relative ramp fixes it.
   else {
-    const cyc = (n - 1) % 10;            // position in the difficulty cycle
-    if (cyc <= 1) s = 3;                 // breather right after a hard beat
-    else if (cyc <= 5) s = 2;            // normal
-    else if (cyc <= 7) s = 1;            // ramping
-    else s = 1;                          // cyc 8–9: hard beat, par+1 (tight, but never par-exact)
+    const cyc = (n - 1) % 10;            // position in the 3-tier cadence
+    if (hardTier(n)) s = 1;              // every labeled beat (X4/X9/finale) is par+1 tight
+    else if (cyc === 9 || cyc === 0) s = 3;   // breather right after the X9 beat
+    else s = 2;                          // normals
   }
   if (n > 40) s = Math.max(1, s - 1);    // back half: one tap tighter across the board
   if (n > 80) s = Math.max(1, s - 1);    // finale: tightest
@@ -202,7 +234,9 @@ function slackFor(n) {
 // that window, return null so findSeed REJECTS this seed and tries a greedy-friendlier one.
 function fairBudget(spec, seed, bot, n) {
   const sched = bot + slackFor(n);
-  const cap = Math.min(sched + 2, bot + 5);   // hard ceiling on slack — kills loose boards
+  // labeled beats ship at par+slack EXACTLY — the +2 greedy pad softened L59 to 73%.
+  // If greedy cannot win this seed at the tight budget, findSeed rejects the SEED.
+  const cap = hardTier(n) ? sched : Math.min(sched + 2, bot + 5);   // pad only for normals
   for (let taps = sched; taps <= cap; taps++) {
     if (greedy(Object.assign({}, spec, { seed, taps }), seed)) return taps;
   }
@@ -226,7 +260,7 @@ const ELDENS = { stone: [4, 11], shell: [3, 8], balloon: [3, 6], bomb: [3, 6] };
 const COMBO_POOL = ["stone", "shell", "balloon", "bomb"];
 const HINTS = {
   pop: "tap same-colour groups", duckpop: "bring the duck down",
-  stone: "stones are dead weight — dig around them", shell: "pop right beside a crate to crack it",
+  stone: "stones are dead weight — dig around them", shell: "pop the crate's own colour right beside it",
   balloon: "pop beside a balloon to burst it", bomb: "pop beside a bomb to blow a hole",
   combo: "everything at once — plan the cascade",
 };
@@ -275,6 +309,16 @@ function makeLevel(n) {
     return m;
   }
 
+  // LABELED BEATS get intrinsically HARDER SPECS — a target alone can't harden a
+  // board whose physics ceiling sits above it (first cadence regen shipped a "SUPER
+  // HARD" L79 measuring 82%: every seed was too easy, so the fallback won). Bigger
+  // objective + denser elements + scarcer colour pull the ceiling down into band;
+  // the relax loop still walks it back if the spec over-shoots into uncertifiable.
+  const beat = hardTier(n);
+  const bump = beat ? (beat.key === "extreme" ? 3 : beat.key === "super" ? 2 : 1) : 0;
+  if (bump) bias.share = Math.max(0.24, +(bias.share - bump * 0.02).toFixed(3));
+  const NEED_BUMP = [0, 2, 3, 5];
+
   // findSeed picks a seed AND a tight sawtooth tap budget (bot + slackFor), then
   // certifies the attentive-player win-rate lands near this level's target. Degrade the
   // objective if a board is too dense to certify, so generation never aborts mid-run.
@@ -282,7 +326,18 @@ function makeLevel(n) {
   let found = null, objs = null, mixUsed = null;
   for (let relax = 0; relax <= 3 && !found; relax++) {
     objs = buildObjs(relax);
+    if (bump) for (const o of objs) if (o.kind === "pop") o.need += NEED_BUMP[bump];
     mixUsed = trimMix(relax);
+    // Element bumps on a beat must respect what each element DOES:
+    //   bomb  = PLAYER POWER → REDUCE it (more bombs made L99 read 80%; a hard level
+    //           hands you fewer helpers — the CC/RM pattern). Floor 2 keeps identity.
+    //   shell = RAISES PAR → leave alone (more crates → bigger budget → difficulty
+    //           washes out; L39 measured 58%→85% with shell×10).
+    //   stone/balloon = genuine constraints → bump. Real levers stay need + scarcity.
+    if (bump && mixUsed) mixUsed = mixUsed.map(m =>
+      m.el === "bomb" ? Object.assign({}, m, { n: Math.max(2, m.n - bump) })
+      : m.el === "shell" ? m
+      : Object.assign({}, m, { n: Math.min(m.n + bump, 12) }));
     found = findSeed({ count, colors, duck: !!tier.duck, objs, bias, mix: mixUsed }, n);
   }
   if (!found) return { fail: true, n };
@@ -292,6 +347,8 @@ function makeLevel(n) {
   if (mixUsed && mixUsed.length) lv.mix = mixUsed;
   // flag the debut level of each new element / the toy for the on-board coach-mark
   if (j === 0 && (tier.el || tier.duck)) lv.intro = tier.el || "duck";
+  const ht = hardTier(n);
+  if (ht) lv.hard = ht.key;   // labeled beat → the game shows a HARD/SUPER/EXTREME badge
   lv._bot = found.bot; lv._wr = found.wr; lv._tgt = tgt;
   return lv;
 }
@@ -303,6 +360,7 @@ function fmt(lv) {
   if (lv.mix) parts.push("mix: " + JSON.stringify(lv.mix));
   parts.push("bias: " + JSON.stringify(lv.bias));
   if (lv.intro) parts.push('intro: "' + lv.intro + '"');
+  if (lv.hard) parts.push('hard: "' + lv.hard + '"');
   parts.push('hint: ' + JSON.stringify(lv.hint));
   return "    { " + parts.join(", ") + " },";
 }
@@ -323,6 +381,27 @@ for (let n = lo; n <= hi; n++) {
 }
 console.error(`\n${hi - lo + 1 - fails}/${hi - lo + 1} generated in ${((Date.now() - t0) / 1000).toFixed(0)}s, ${fails} fails`);
 
+// CADENCE ASSERTION — the structural guarantee the flow research demands: hard
+// levels are never adjacent (measured, not just targeted), and the level right
+// after an X9 beat is a genuine breather. Runs on the generated range's measured
+// _wr; violations print loudly so the offending level gets hand-retuned.
+function assertCadence(levels, lo) {
+  let bad = 0;
+  for (let i = 0; i + 1 < levels.length; i++) {
+    const a = levels[i], b = levels[i + 1];
+    if (!a || !b || a._wr == null || b._wr == null) continue;
+    const nA = lo + i, nB = lo + i + 1;
+    if (nA > 16 && a._wr <= 0.66 && b._wr <= 0.66)
+      { console.error(`⚠ CADENCE: L${nA} (${Math.round(a._wr * 100)}%) and L${nB} (${Math.round(b._wr * 100)}%) are ADJACENT HARD`); bad++; }
+    const ht = hardTier(nA);
+    if (ht && (ht.key === "super" || ht.key === "extreme") && nB <= 106 && b._wr < 0.72)
+      { console.error(`⚠ CADENCE: L${nB} (${Math.round(b._wr * 100)}%) is no breather after the L${nA} ${ht.key} beat`); bad++; }
+  }
+  if (bad) console.error(`⚠ ${bad} cadence violation(s) — retune the flagged level(s) with a single-level splice`);
+  else console.error("cadence OK: no adjacent hards, breathers hold after every X9 beat");
+  return bad;
+}
+
 // SPLICE: replace levels lo..hi in the EXISTING levels.js, keep the other 98 as-is
 // (only the toy tier changed — no need to pay for a full 106-level regen).
 if (splice && !fails) {
@@ -333,7 +412,7 @@ if (splice && !fails) {
   const rebuilt = file.replace(/const LEVELS = \[[\s\S]*?\n  \];/, "const LEVELS = [\n" + body + "\n  ];");
   fs.writeFileSync(path.join(__dirname, "..", "..", "web", "js", "levels.js"), rebuilt);
   console.error(`→ spliced levels ${lo}-${hi} into web/js/levels.js (${existing.length} total)`);
-  process.exit(0);
+  process.exit(assertCadence(out, lo) ? 2 : 0);   // exit 2 = written but cadence flagged
 }
 
 if (write && !fails) {
@@ -359,5 +438,6 @@ ${body}
 `;
   fs.writeFileSync(path.join(__dirname, "..", "..", "web", "js", "levels.js"), file);
   console.error("→ wrote web/js/levels.js (" + out.length + " levels)");
+  process.exit(assertCadence(out, 1) ? 2 : 0);
 }
 process.exit(fails ? 1 : 0);

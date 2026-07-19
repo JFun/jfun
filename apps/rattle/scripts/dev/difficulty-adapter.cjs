@@ -16,7 +16,13 @@ function remaining(w) {
   }
   return r;
 }
-const objColors = w => new Set(w.objectives.filter(o => o.kind === "pop" && o.rem > 0).map(o => o.color));
+const objColors = w => {
+  const s = new Set(w.objectives.filter(o => o.kind === "pop" && o.rem > 0).map(o => o.color));
+  // colour-gated crates: while shells remain, their colours ARE objective colours
+  if (w.objectives.some(o => o.kind === "shells" && o.rem > 0))
+    for (const b of w.balls) if (b.alive && b.shelled) s.add(b.c);
+  return s;
+};
 const pops = moves => moves.filter(m => m.pop);
 const rattleMove = moves => moves.find(m => m.rattle);
 const biggest = ms => ms.reduce((a, b) => b.pop.length > a.pop.length ? b : a);
