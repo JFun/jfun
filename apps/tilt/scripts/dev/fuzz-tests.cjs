@@ -63,31 +63,31 @@ function checkSettled(w) {
 const LEVELS = [2, 8, 16, 31, 37, 39, 44, 46, 53, 60];
 const TRIALS = 6, GESTURES = 6;   // bounded smoke slice — the deep hunt (600-3000 trials) stays a scratch tool
 
+// the trial/round loop + violation tagging is @jfun/test-harness t.fuzz (Layer 2,
+// shared); this file supplies only Tilt's truth: the gesture model + invariants.
 for (const L of LEVELS) {
-  const rng = Core.makeRNG((0xF0220 ^ L) >>> 0);
-  let violation = null, steps = 0;
-  for (let trial = 0; trial < TRIALS && !violation; trial++) {
-    const { w } = mkWorld(L);
-    for (let g = 0; g < GESTURES && !violation; g++) {
+  t.fuzz(`L${L}: ${TRIALS}×${GESTURES} random gestures, invariants hold`, {
+    trials: TRIALS, rounds: GESTURES,
+    rng: Core.makeRNG((0xF0220 ^ L) >>> 0),
+    setup: () => mkWorld(L).w,
+    round: (w, rng) => {
       const d = DIRS[Math.floor(rng() * DIRS.length)], mag = MAGS[Math.floor(rng() * MAGS.length)];
       const hold = Math.round((0.4 + rng() * 1.1) / PH.DT);
+      let violation = null;
       for (let s = 0; s < hold && !violation; s++) {
-        PH.step(w, { gx: d[0] * mag, gy: d[1] * mag }); w.events.length = 0; steps++;
+        PH.step(w, { gx: d[0] * mag, gy: d[1] * mag }); w.events.length = 0;
         violation = checkStep(w);
       }
       let settled = 0;
       for (let s = 0; s < 240 && !violation; s++) {              // ≤2s ease-flat
-        PH.step(w, { gx: 0, gy: 0 }); w.events.length = 0; steps++;
+        PH.step(w, { gx: 0, gy: 0 }); w.events.length = 0;
         violation = checkStep(w);
         const vmax = Math.max(0, ...w.marbles.map(m => m.captured ? 0 : Math.hypot(m.vx, m.vy)));
         if (vmax < 0.04) { if (++settled > 25) break; } else settled = 0;
       }
-      if (!violation) violation = checkSettled(w);
-      if (violation) violation += ` [L${L} trial ${trial} gesture ${g}]`;
-    }
-  }
-  t.ok(`L${L}: ${TRIALS}×${GESTURES} random gestures, invariants hold (${steps} steps)` +
-    (violation ? " — " + violation : ""), !violation);
+      return violation || checkSettled(w);
+    },
+  });
 }
 
 process.exit(t.summary());

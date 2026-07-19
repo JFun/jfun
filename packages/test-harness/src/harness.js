@@ -57,6 +57,29 @@ function harness(label) {
       return api.ok(name + " (×" + items.length + ")", true);
     },
 
+    // Verification Layer 2 (docs/handbook/10-verification.md): seeded invariant
+    // FUZZ as a first-class test shape. Runs `trials` fresh worlds × `rounds`
+    // random actions each; `round(world, rng, trial, round)` performs ONE action
+    // (with per-step invariant checks inside) and returns a violation string or
+    // null/undefined. Deterministic given a seeded rng — a failure reproduces
+    // exactly and is tagged with its trial/round. The technique that found
+    // Tilt's 1e-9 collision explosion and well-freeze capture bug, which unit
+    // assertions plus weeks of human play had missed.
+    fuzz(name, cfg) {
+      const trials = cfg.trials == null ? 6 : cfg.trials;
+      const rounds = cfg.rounds == null ? 6 : cfg.rounds;
+      let violation = null;
+      for (let tr = 0; tr < trials && !violation; tr++) {
+        const world = cfg.setup(tr);
+        for (let r = 0; r < rounds && !violation; r++) {
+          try { violation = cfg.round(world, cfg.rng, tr, r) || null; }
+          catch (e) { violation = "THREW: " + (e && e.message); }
+          if (violation) violation += ` [trial ${tr} round ${r}]`;
+        }
+      }
+      return api.ok(name + (violation ? " — " + violation : ""), !violation);
+    },
+
     // Print the tally and return an exit code (0 = all passed). Pass to
     // process.exit(t.summary()).
     summary() {

@@ -12,8 +12,8 @@ Each answers a different question about a level; together they bracket the game.
 | # | Layer | Question | Tool shape | Tilt reference |
 |---|---|---|---|---|
 | 1 | **Winnability certification** | Can it be beaten at all? | Search the REAL engine for one winning line; also prove mechanics load-bearing (board must FAIL with the mechanic removed) | `apps/tilt/scripts/dev/certify.cjs` |
-| 2 | **Invariant fuzzing** | Can any play sequence break the engine? | Seeded random input over the real physics, invariants asserted EVERY step (in-bounds, finite, captured⟹own-hole, settled-on-own-hole⟹captured) | `fuzz-tests.cjs` (bounded, in test.sh) + deep scratch fuzz |
-| 3 | **Dead-state coverage audit** | If the player is hopeless, does the game KNOW? | Enumerate reachable states, prove the dead set, assert every dead state fires a detector (card/offer) | `deadend-audit.cjs` (in test.sh) |
+| 2 | **Invariant fuzzing** | Can any play sequence break the engine? | Seeded random input over the real physics, invariants asserted EVERY step (in-bounds, finite, captured⟹own-hole, settled-on-own-hole⟹captured); the trial loop is `t.fuzz` in `@jfun/test-harness` | `fuzz-tests.cjs` (bounded, in test.sh) + deep scratch fuzz |
+| 3 | **Dead-state coverage audit** | If the player is hopeless, does the game KNOW? | `@jfun/statespace` audit + a per-game adapter (transitions/oracle/detectors): enumerate, prove dead, assert detection | `deadend-audit.cjs` (adapter, in test.sh) |
 | 4 | **Bot-play at volume** | Is it TUNED right on realistic paths? | Bot policies × N rollouts → win-rates, solve-times, grade thresholds ([09-difficulty](09-difficulty.md)) | `difficulty.cjs` + `@jfun/difficulty` |
 
 One-line contrast: **1** proves a good path exists · **2** proves no path breaks
@@ -49,10 +49,10 @@ sound way:
 
 1. Ship Layer 1 first — never let a human play an uncertified level (standing
    studio rule since the prototype rounds).
-2. Add Layer 2 the first time the game has continuous state: fuzz + the
+2. Add Layer 2 the first time the game has continuous state: `t.fuzz` (@jfun/test-harness) + the
    invariant list, grown by converting EVERY human-found bug into a permanent
    invariant (that's the real spec-mining loop).
-3. Add Layer 3 the moment a mechanic can make progress irreversible (captures,
+3. Add Layer 3 (@jfun/statespace + an adapter) the moment a mechanic can make progress irreversible (captures,
    consumed resources, one-way doors): enumerate, prove dead, assert detection.
 4. Layer 4 when tuning difficulty/grades ([09-difficulty](09-difficulty.md)).
 
