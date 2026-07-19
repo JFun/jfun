@@ -396,14 +396,31 @@
     ctx.strokeStyle = "rgba(18,16,12,0.4)"; ctx.lineWidth = r * 0.12; ctx.beginPath(); ctx.arc(x, y, r * 0.93, 0, 7); ctx.stroke();
     ctx.fillStyle = "rgba(255,255,255,0.13)"; ctx.beginPath(); ctx.ellipse(x - r * 0.3, y - r * 0.38, r * 0.3, r * 0.17, -0.5, 0, 7); ctx.fill();
   }
-  function drawShell(x, y, r, c) {   // T3: coloured bead behind a wooden X-crate
-    ctx.save(); ctx.globalAlpha = 0.9; drawBall(x, y, r, c); ctx.restore();
-    ctx.fillStyle = "rgba(18,12,4,0.3)"; circle(x, y, r);
+  function drawShell(x, y, r, c) {   // T3: coloured bead behind wooden crate slats
+    // Qi 2026-07-19: the crate's COLOUR must read at a glance (it's the whole rule —
+    // "pop this colour beside it"). Full-strength bead, NO dark wash, THIN + TRANSLUCENT
+    // wooden slats (colour tints through) crossed in an X, and a bold BRIGHT-colour rim
+    // as the unmistakable colour cue. (Qi preferred these wooden bars over steel ones.)
+    // Qi 2026-07-19: the ball must look IDENTICAL to its neighbours — ANY translucent
+    // layer tints it (alpha compositing; 50% wood still pulled red→brown, measured).
+    // Jail-bar look, made to work: the exact plain bead, then vertical wooden bars that
+    // are FULLY OPAQUE — no alpha, no blending — so every strip of ball showing between
+    // the bars is 100% the bead's own colour. Wood (not steel) per Qi's earlier call.
+    drawBall(x, y, r, c);
     ctx.save(); ctx.beginPath(); ctx.arc(x, y, r * 0.98, 0, 7); ctx.clip();
-    const plank = a => { ctx.save(); ctx.translate(x, y); ctx.rotate(a); const g = ctx.createLinearGradient(0, -r * 0.32, 0, r * 0.32); g.addColorStop(0, "#bd883c"); g.addColorStop(0.5, "#976a2b"); g.addColorStop(1, "#77521f"); ctx.fillStyle = g; ctx.fillRect(-r * 1.25, -r * 0.28, r * 2.5, r * 0.56); ctx.strokeStyle = "rgba(58,36,12,0.5)"; ctx.lineWidth = r * 0.04; ctx.strokeRect(-r * 1.25, -r * 0.28, r * 2.5, r * 0.56); ctx.restore(); };
+    // the classic crossed-X planks (the shape Qi picked), kept FULLY OPAQUE
+    const plank = a => {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+      const g = ctx.createLinearGradient(0, -r * 0.16, 0, r * 0.16);
+      g.addColorStop(0, "#c58f42"); g.addColorStop(0.5, "#9e702f"); g.addColorStop(1, "#6f4e1f");
+      ctx.fillStyle = g; ctx.fillRect(-r * 1.25, -r * 0.16, r * 2.5, r * 0.32);
+      ctx.strokeStyle = "#4a3010"; ctx.lineWidth = r * 0.03; ctx.strokeRect(-r * 1.25, -r * 0.16, r * 2.5, r * 0.32);
+      ctx.restore();
+    };
     plank(-0.7); plank(0.7); ctx.restore();
-    ctx.strokeStyle = "rgba(92,60,22,0.72)"; ctx.lineWidth = r * 0.12; ctx.beginPath(); ctx.arc(x, y, r * 0.93, 0, 7); ctx.stroke();
-    ctx.fillStyle = "#e8c98a"; for (const [dx, dy] of [[-.52, -.52], [.52, -.52], [-.52, .52], [.52, .52]]) { ctx.beginPath(); ctx.arc(x + dx * r, y + dy * r, r * 0.075, 0, 7); ctx.fill(); }
+    // brass bolt heads at the plank ends
+    ctx.fillStyle = "#eccf92";
+    for (const [dx, dy] of [[-.5, -.5], [.5, -.5], [-.5, .5], [.5, .5]]) { ctx.beginPath(); ctx.arc(x + dx * r, y + dy * r, r * 0.07, 0, 7); ctx.fill(); }
   }
   function drawBalloon(x, y, r, i) {   // T4: glossy translucent + knot + string
     ctx.strokeStyle = "rgba(255,255,255,0.34)"; ctx.lineWidth = Math.max(1, r * 0.05); ctx.beginPath(); ctx.moveTo(x, y + r * 0.92); ctx.quadraticCurveTo(x + r * 0.32 * Math.sin(simT * 2 + i), y + r * 1.45, x + r * 0.05, y + r * 1.95); ctx.stroke();
@@ -488,8 +505,13 @@
       const p = 0.5 + 0.5 * Math.sin(simT * 4);
       for (const b of world.balls) {
         if (!b.alive || !b.shelled) continue;
+        // ring = the crate's OWN colour (Qi 2026-07-19: "pop this colour beside it").
+        // Once that colour is gone from the board, mercy lets ANY pop crack it, so a
+        // coloured ring would lie — fall back to neutral gold to signal "any pop now".
+        const live = world.balls.some(o => o.alive && !o.shelled && o.c === b.c);
+        const ring = live ? PALETTE[b.c].b : "#ffce6b";
         ctx.globalAlpha = 0.6 + 0.35 * p;
-        ctx.strokeStyle = "#ffce6b"; ctx.lineWidth = 3.5;
+        ctx.strokeStyle = ring; ctx.lineWidth = 3.5;
         ctx.beginPath(); ctx.arc(b.x, b.y, b.r * (1.14 + 0.10 * p), 0, 7); ctx.stroke();
         ctx.globalAlpha = 0.25 + 0.18 * p;
         ctx.lineWidth = 1.5;
