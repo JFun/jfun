@@ -13,10 +13,11 @@ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const PORT = 9457;
 const BASE = process.env.SHOT_BASE || 'http://localhost:4173';
 const SHOTS = [
-  ['01-play', 'shot=play&lvl=12'],
-  ['02-win', 'shot=win&lvl=6&s=3'],
-  ['03-levels', 'shot=levels'],
-  ['04-howto', 'shot=howto'],
+  ['01-play', 'shot=play&lvl=12'],       // World 1 — roll & sink (recognizable core)
+  ['02-foundry', 'shot=play&lvl=39'],    // World 2 (NEW) — plates & gates
+  ['03-chime', 'shot=play&lvl=60'],      // World 3 (NEW) — bumper posts (finale, busiest board)
+  ['04-worlds', 'shot=worlds'],          // the 3-world / 60-level ladder (depth)
+  ['05-win', 'shot=win&lvl=6&s=3'],      // the win moment
 ];
 const SIZES = [          // slot, cssW, cssH, deviceScaleFactor  -> output = cssW*dsr x cssH*dsr
   ['iphone-6.7', 430, 932, 3],   // 1290 x 2796
