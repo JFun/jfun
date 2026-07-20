@@ -1,0 +1,149 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rattle icon options</title>
+<style>
+  body{margin:0;background:#241b2f;color:#f3ecfa;font:14px/1.4 -apple-system,system-ui,sans-serif;padding:18px}
+  h1{font-size:16px;margin:0 0 14px;color:#ffce6b}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:22px;max-width:760px}
+  .cell{text-align:center}
+  .cell canvas{width:100%;max-width:340px;border-radius:22%;box-shadow:0 10px 30px -12px #000}
+  .cell .lab{margin-top:10px;font-weight:700;color:#ffb648;font-size:15px}
+  .cell .sub{color:#b3a3c4;font-size:12.5px;margin-top:2px}
+</style></head><body>
+<h1>RATTLE — app icon options (rendered at 1024, shown small: legibility test)</h1>
+<div class="grid" id="grid"></div>
+<script>
+const PALETTE=[{b:"#ffce6b",d:"#8a5f16"},{b:"#6ea8ff",d:"#1d4faf"},{b:"#ff6b6b",d:"#a02733"},{b:"#4bd48a",d:"#136e42"},{b:"#9d7bff",d:"#5a35c2"}];
+function glyph(x,y,r,c,ctx){ctx.fillStyle=PALETTE[c].d;ctx.strokeStyle=PALETTE[c].d;
+  if(c===0){ctx.beginPath();ctx.arc(x,y,r*.32,0,7);ctx.fill();}
+  else if(c===1){ctx.beginPath();ctx.moveTo(x,y-r*.42);ctx.lineTo(x+r*.38,y+r*.28);ctx.lineTo(x-r*.38,y+r*.28);ctx.closePath();ctx.fill();}
+  else if(c===2){ctx.fillRect(x-r*.3,y-r*.3,r*.6,r*.6);}
+  else if(c===3){ctx.beginPath();ctx.moveTo(x,y-r*.42);ctx.lineTo(x+r*.38,y);ctx.lineTo(x,y+r*.42);ctx.lineTo(x-r*.38,y);ctx.closePath();ctx.fill();}
+  else{ctx.lineWidth=r*.18;ctx.beginPath();ctx.arc(x,y,r*.30,0,7);ctx.stroke();}}
+function ball(x,y,r,c,ctx){const P=PALETTE[c];
+  ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle=P.b;ctx.fill();
+  ctx.globalAlpha=.5;ctx.beginPath();ctx.arc(x,y,r*.90,0,7);ctx.lineWidth=r*.18;ctx.strokeStyle=P.d;ctx.stroke();ctx.globalAlpha=1;
+  glyph(x,y,r,c,ctx);
+  ctx.fillStyle="rgba(255,255,255,0.7)";ctx.beginPath();ctx.arc(x-r*.36,y-r*.40,r*.15,0,7);ctx.fill();}
+function bg(ctx,S){const g=ctx.createRadialGradient(S*.5,S*.12,S*.1,S*.5,S*.55,S*.85);
+  g.addColorStop(0,"#2f1e3a");g.addColorStop(.55,"#1c1226");g.addColorStop(1,"#100a18");
+  ctx.fillStyle=g;ctx.fillRect(0,0,S,S);}
+
+// the game's real duck painter (drawDuck from game.js), scaled for icons
+function duck(x,y,r,ctx){
+  ctx.save();ctx.translate(x,y);
+  ctx.fillStyle="#ffd44d";
+  ctx.beginPath();ctx.arc(0,r*.18,r*.72,0,7);ctx.fill();          // body
+  ctx.beginPath();ctx.arc(-r*.22,-r*.42,r*.42,0,7);ctx.fill();    // head
+  ctx.fillStyle="#ff9d3b";                                          // beak
+  ctx.beginPath();ctx.moveTo(-r*.58,-r*.52);ctx.lineTo(-r*.95,-r*.40);ctx.lineTo(-r*.56,-r*.28);ctx.closePath();ctx.fill();
+  ctx.fillStyle="#20242e";ctx.beginPath();ctx.arc(-r*.30,-r*.50,r*.075,0,7);ctx.fill();  // eye
+  ctx.fillStyle="rgba(200,150,30,0.55)";ctx.beginPath();ctx.ellipse(r*.16,r*.22,r*.32,r*.20,-0.4,0,7);ctx.fill();  // wing shade
+  // white sheen on the head, like the beads' highlight
+  ctx.fillStyle="rgba(255,255,255,0.55)";ctx.beginPath();ctx.arc(-r*.34,-r*.56,r*.09,0,7);ctx.fill();
+  ctx.restore();
+}
+const OPTIONS=[
+ ["G — hero duck","the mascot, front and centre",(ctx,S)=>{
+   bg(ctx,S);
+   // soft honey halo behind the duck
+   const h=ctx.createRadialGradient(S*.5,S*.5,S*.05,S*.5,S*.5,S*.48);
+   h.addColorStop(0,"rgba(255,182,72,0.28)");h.addColorStop(1,"rgba(255,182,72,0)");
+   ctx.fillStyle=h;ctx.fillRect(0,0,S,S);
+   duck(S*.54,S*.52,S*.34,ctx);
+ }],
+ ["H — duck on the pile","riding the avalanche home",(ctx,S)=>{
+   bg(ctx,S); const r=S*.16;
+   duck(S*.52,S*.30,S*.21,ctx);
+   ball(S*.21,S*.80,r,1,ctx); ball(S*.50,S*.83,r,2,ctx); ball(S*.79,S*.80,r,3,ctx);
+   ball(S*.35,S*.61,r,0,ctx); ball(S*.66,S*.61,r,1,ctx);
+ }],
+ ["I — duck in the jar","the mascot floating among the beads",(ctx,S)=>{
+   bg(ctx,S);
+   const jx=S*.20,jw=S*.60,jy=S*.30,jh=S*.52,rr=S*.09;
+   ctx.fillStyle="rgba(255,255,255,0.10)";
+   ctx.beginPath();ctx.moveTo(jx+rr,jy);ctx.arcTo(jx+jw,jy,jx+jw,jy+jh,rr);ctx.arcTo(jx+jw,jy+jh,jx,jy+jh,rr);ctx.arcTo(jx,jy+jh,jx,jy,rr);ctx.arcTo(jx,jy,jx+jw,jy,rr);ctx.closePath();ctx.fill();
+   ctx.strokeStyle="rgba(255,206,107,0.85)";ctx.lineWidth=S*.028;ctx.stroke();
+   ctx.fillStyle="#c98f3d";ctx.beginPath();const lx=S*.30,lw=S*.40,ly=S*.215,lh=S*.075,lr=S*.03;
+   ctx.moveTo(lx+lr,ly);ctx.arcTo(lx+lw,ly,lx+lw,ly+lh,lr);ctx.arcTo(lx+lw,ly+lh,lx,ly+lh,lr);ctx.arcTo(lx,ly+lh,lx,ly,lr);ctx.arcTo(lx,ly,lx+lw,ly,lr);ctx.closePath();ctx.fill();
+   ctx.save();ctx.beginPath();ctx.rect(jx+S*.014,jy+S*.014,jw-S*.028,jh-S*.028);ctx.clip();
+   const r=S*.115;
+   ball(S*.335,S*.74,r,2,ctx); ball(S*.545,S*.77,r,1,ctx); ball(S*.72,S*.72,r,3,ctx);
+   duck(S*.52,S*.50,S*.155,ctx);
+   ctx.restore();
+ }],
+ ["J — duck peeking over the trio","mascot + the pop verb",(ctx,S)=>{
+   bg(ctx,S); const r=S*.20;
+   duck(S*.60,S*.33,S*.20,ctx);
+   ball(S*.34,S*.52,r,1,ctx); ball(S*.66,S*.58,r,2,ctx); ball(S*.48,S*.78,r,0,ctx);
+ }],
+ ["A — the hero bead","one big bead, maximum legibility",(ctx,S)=>{
+   bg(ctx,S); ball(S*.5,S*.52,S*.34,0,ctx);
+ }],
+ ["B — the pop trio","a touching cluster = the game verb",(ctx,S)=>{
+   bg(ctx,S); const r=S*.21;
+   ball(S*.35,S*.40,r,1,ctx); ball(S*.65,S*.40,r,2,ctx); ball(S*.50,S*.66,r,0,ctx);
+ }],
+ ["C — the jar","beads piled in the namesake jar",(ctx,S)=>{
+   bg(ctx,S);
+   // jar silhouette
+   const jx=S*.20,jw=S*.60,jy=S*.30,jh=S*.52,rr=S*.09;
+   ctx.fillStyle="rgba(255,255,255,0.10)";
+   ctx.beginPath();ctx.moveTo(jx+rr,jy);ctx.arcTo(jx+jw,jy,jx+jw,jy+jh,rr);ctx.arcTo(jx+jw,jy+jh,jx,jy+jh,rr);ctx.arcTo(jx,jy+jh,jx,jy,rr);ctx.arcTo(jx,jy,jx+jw,jy,rr);ctx.closePath();ctx.fill();
+   ctx.strokeStyle="rgba(255,206,107,0.85)";ctx.lineWidth=S*.028;ctx.stroke();
+   // lid
+   ctx.fillStyle="#c98f3d";ctx.beginPath();const lx=S*.30,lw=S*.40,ly=S*.215,lh=S*.075,lr=S*.03;
+   ctx.moveTo(lx+lr,ly);ctx.arcTo(lx+lw,ly,lx+lw,ly+lh,lr);ctx.arcTo(lx+lw,ly+lh,lx,ly+lh,lr);ctx.arcTo(lx,ly+lh,lx,ly,lr);ctx.arcTo(lx,ly,lx+lw,ly,lr);ctx.closePath();ctx.fill();
+   // beads piled inside
+   ctx.save();ctx.beginPath();ctx.rect(jx+S*.014,jy+S*.014,jw-S*.028,jh-S*.028);ctx.clip();
+   const r=S*.115;
+   ball(S*.335,S*.72,r,2,ctx); ball(S*.545,S*.75,r,1,ctx); ball(S*.72,S*.70,r,3,ctx);
+   ball(S*.43,S*.55,r,0,ctx); ball(S*.635,S*.56,r,4,ctx);
+   ctx.restore();
+ }],
+ ["D — mid-avalanche","pile below, one bead popping",(ctx,S)=>{
+   bg(ctx,S); const r=S*.155;
+   // burst ring + sparks where a bead just popped
+   ctx.strokeStyle="#ffce6b";ctx.lineWidth=S*.02;ctx.globalAlpha=.9;
+   ctx.beginPath();ctx.arc(S*.50,S*.30,S*.13,0,7);ctx.stroke();ctx.globalAlpha=1;
+   ctx.fillStyle="#ffce6b";
+   for(const[a,d]of[[0.3,.20],[1.4,.22],[2.6,.19],[3.8,.21],[5.0,.20],[5.9,.22]]){
+     ctx.save();ctx.translate(S*.5+Math.cos(a)*S*d,S*.30+Math.sin(a)*S*d);ctx.rotate(a);
+     ctx.fillRect(-S*.016,-S*.010,S*.032,S*.020);ctx.restore();}
+   // the pile
+   ball(S*.22,S*.80,r,1,ctx); ball(S*.50,S*.83,r,0,ctx); ball(S*.78,S*.80,r,2,ctx);
+   ball(S*.36,S*.60,r,3,ctx); ball(S*.64,S*.60,r,1,ctx);
+ }],
+ ["E — bead + rattle ring","one bead mid-shake, motion arcs",(ctx,S)=>{
+   bg(ctx,S);
+   // motion arcs left+right of a big bead (the RATTLE verb)
+   ctx.strokeStyle="rgba(255,206,107,0.9)";ctx.lineCap="round";
+   ctx.lineWidth=S*.030;ctx.beginPath();ctx.arc(S*.5,S*.52,S*.44,Math.PI*0.80,Math.PI*1.20);ctx.stroke();
+   ctx.beginPath();ctx.arc(S*.5,S*.52,S*.44,-Math.PI*0.20,Math.PI*0.20);ctx.stroke();
+   ctx.globalAlpha=.45;ctx.lineWidth=S*.020;
+   ctx.beginPath();ctx.arc(S*.5,S*.52,S*.52,Math.PI*0.85,Math.PI*1.15);ctx.stroke();
+   ctx.beginPath();ctx.arc(S*.5,S*.52,S*.52,-Math.PI*0.15,Math.PI*0.15);ctx.stroke();ctx.globalAlpha=1;
+   ball(S*.5,S*.52,S*.30,2,ctx);
+ }],
+ ["F — trio + jar lid","cluster under the honey lid",(ctx,S)=>{
+   bg(ctx,S);
+   // honey lid band across the top
+   ctx.fillStyle="#c98f3d";ctx.fillRect(0,0,S,S*.16);
+   ctx.fillStyle="rgba(0,0,0,0.18)";ctx.fillRect(0,S*.13,S,S*.03);
+   const r=S*.20;
+   ball(S*.34,S*.46,r,2,ctx); ball(S*.66,S*.46,r,3,ctx);
+   ball(S*.50,S*.72,r,0,ctx);
+ }],
+];
+const grid=document.getElementById('grid');
+for(const[name,sub,draw]of OPTIONS){
+  const cell=document.createElement('div');cell.className='cell';
+  const cv=document.createElement('canvas');cv.width=1024;cv.height=1024;
+  draw(cv.getContext('2d'),1024);
+  cell.appendChild(cv);
+  const l=document.createElement('div');l.className='lab';l.textContent=name;cell.appendChild(l);
+  const s=document.createElement('div');s.className='sub';s.textContent=sub;cell.appendChild(s);
+  grid.appendChild(cell);
+}
+// export hook: window.__icon(i) returns the ith option's 1024 PNG dataURL
+window.__icon=i=>{const cv=document.createElement('canvas');cv.width=1024;cv.height=1024;OPTIONS[i][2](cv.getContext('2d'),1024);return cv.toDataURL('image/png');};
+</script></body></html>
