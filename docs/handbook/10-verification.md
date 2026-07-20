@@ -4,6 +4,8 @@ Born from the Tilt L37 saga (2026-07): four device-found bugs in one week —
 a vanishing ball, a "looks complete, won't win" capture freeze, and two
 silent dead-ends — each of which a machine layer could have caught first. The
 goal of this net: **a human tester should only ever discover *feel* bugs.**
+Once the logic is proven, [11-browser-verify](11-browser-verify.md) is how you
+confirm the *render* is what you think — the last check before a device trip.
 
 ## The four machine layers
 
@@ -44,6 +46,24 @@ sound way:
   have no plate-holder") — model-independent, cannot false-fire, and the only
   honest basis for a definitive in-game "DEAD END" verdict. Solver-guessed
   deadness only ever warrants a non-destructive restart *offer*.
+
+## Search the player's action space, not the solver's
+
+A certifier proves winnability by searching the moves *it generates*. If that
+move set is narrower than what a human can physically do, the search is
+exhaustive over the WRONG space — and a bug lives in the gap. Rattle's "ghost
+crates" (a 606K-state exhaustive search declared the board sound; players still
+softlocked) was exactly this: the search drew moves from `poppableClusters`
+(crates excluded at the cluster seed), but a human could **tap the crate
+directly** — a move the search never expressed, which killed the crate without
+decrementing its objective. The deepest discrete-oracle scar: an "exhaustive"
+proof over the wrong action set is not exhaustive.
+
+- Generate the search's moves from **raw player inputs** (tap coordinates,
+  swipes) mapped through the *same* input handler the game ships — not from an
+  already-abstracted "legal move" list.
+- When a device bug survives a clean certifier, suspect the **action space**
+  before the physics: the human did something the search couldn't express.
 
 ## Adopting in a new game
 

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rattle-web",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["../../packages/web-game-core/scripts/dev/serve.cjs", "web", "8784"],
+      "port": 8784
+    }
+  ]
+}
