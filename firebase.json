@@ -1,6 +1,7 @@
 {
   "hosting": [
-    { "target": "tilt", "public": "docs/tilt", "ignore": ["**/.*"], "cleanUrls": true },
-    { "target": "cut",  "public": "docs/cut",  "ignore": ["**/.*"], "cleanUrls": true }
+    { "target": "tilt",   "public": "docs/tilt",   "ignore": ["**/.*"], "cleanUrls": true },
+    { "target": "cut",    "public": "docs/cut",    "ignore": ["**/.*"], "cleanUrls": true },
+    { "target": "rattle", "public": "docs/rattle", "ignore": ["**/.*"], "cleanUrls": true }
   ]
 }
