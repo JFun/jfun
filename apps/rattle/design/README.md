@@ -41,10 +41,29 @@ CHANGED:
   margins), pointer triangle fine-tunes to exact x, pointer tip touches the
   glow ring (bubble top = beadY − 1.8r − 170 at r24). Copy stays one-line
   imperative ("Pop the crate's colour beside it").
-- Pause card: RESUME / Restart / Level map / Home / Settings — quick toggles moved to
-  the dedicated Settings screen. Home MUST be reachable from in-game (pause).
+- In-game: the gear in the play HUD opens ONE combined card (1m) — "SETTINGS"
+  with Sound / Haptics / Screen shake toggles inline, then RESUME / Restart /
+  Level map / Home. Opening it pauses the game; no nested Settings button.
+  Home MUST be reachable from in-game (this card).
+
+## First-run coach (2a-2c) — FTUE on the real level-1 board
+
+Three steps, each advanced by DOING the action (no separate tutorial screens),
+SKIP TUTORIAL always available in a glass capsule with progress dots:
+- 2a TAP TO POP! — dim the whole board 72%, re-draw ONLY the biggest
+  same-colour cluster bright (gold ring per bead + white tap ripple at its
+  centroid). Never enclose non-cluster beads in a spotlight.
+- 2b STUCK? RATTLE! — spotlight empty space (radial veil hole), honey shake
+  arrows at the jar edges, tap ripple in the hole.
+- 2c EVERY TAP COUNTS — dim board, highlight the HUD taps card (gold border +
+  glow), card with pointer + LET'S PLAY CTA ends the coach.
+Toggles: settings has Sound + Haptics only (screen shake is always-on).
 
 ## New screens (no build equivalent yet)
+
+MVP scope note: TOY CHEST and DAILY JAR are CUT for the core-loop test — no
+home chips, no collection/daily screens, no toy-unlock strip on the cleared
+card (buttons: Replay / Level map). The specs below are kept for post-MVP.
 
 - **1f Home** — wordmark (Lilita 66, `#ffc45c`, `text-shadow 0 4px 0 #8a5210` +
   soft glow; letters individually rotated ±2-5°), "POP · TUMBLE · CLEAR" tagline

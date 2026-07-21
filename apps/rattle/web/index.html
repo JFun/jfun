@@ -26,10 +26,6 @@
     <div class="home-cta">
       <button class="primary playbtn" id="playBtn">PLAY&nbsp;&nbsp;▸</button>
       <div class="home-sub" id="homeSub">LEVEL 1 · CHAPTER 1</div>
-      <div class="home-chips">
-        <button class="hchip" id="dailyChip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#ffce6b" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="7" width="14" height="14" rx="4"></rect><path d="M8 7V5h8v2"></path></svg><div class="hl"><b>DAILY JAR</b><span id="dailySub">new today</span></div></button>
-        <button class="hchip" id="chestChip"><svg width="20" height="20" viewBox="0 0 24 24" fill="#ffd44d"><circle cx="13" cy="14" r="6.4"></circle><circle cx="9.4" cy="9.2" r="3.8"></circle><path d="M6.6 8.2 3.2 9.2 6.7 10.6z" fill="#ff9d3b"></path><circle cx="8.6" cy="8.6" r="0.8" fill="#20242e"></circle></svg><div class="hl"><b>TOY CHEST</b><span id="chestSub">0 of 50</span></div></button>
-      </div>
     </div>
   </div>
 
@@ -43,7 +39,6 @@
       <div class="set-group"><div class="set-label">GAME</div>
         <button class="set-row tog-row" id="setSound"><span>Sound</span><span class="tog"></span></button>
         <button class="set-row tog-row" id="setHaptics"><span>Haptics</span><span class="tog"></span></button>
-        <button class="set-row tog-row" id="setShake"><span>Screen shake</span><span class="tog"></span></button>
       </div>
       <div class="set-group"><div class="set-label">LEARN</div>
         <button class="set-row" id="setReplay"><span class="rw2"><b>Replay element intros</b><small>duck · stone · shell · balloon · bomb</small></span><i class="chev"></i></button>
@@ -69,34 +64,6 @@
       <div class="lp-bar"><div class="lp-fill" id="lpBarFill"></div></div>
       <div class="lp-progress" id="lpProgress">0 CLEARED · 106 TOTAL</div>
     </div>
-  </div>
-
-  <!-- ══ TOY CHEST ══ -->
-  <div id="toychest" class="screen">
-    <div class="tc-top">
-      <button id="tcBack" class="scircle sm" aria-label="Back"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M10 2L2 10l8 8" stroke="#c9b8dc" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
-      <div class="tc-title">TOY CHEST</div>
-      <div class="tc-count"><span id="tcOwned" style="font-family:'Lilita One';color:#ffce6b">0</span><span class="tc-slash"> / 50</span></div>
-    </div>
-    <div class="tc-scroll"><div class="tc-inner" id="tcInner"></div></div>
-    <div class="tc-foot">a new toy every few levels · sets unlock jar themes</div>
-  </div>
-
-  <!-- ══ DAILY JAR ══ -->
-  <div id="dailyjar" class="screen">
-    <div class="dj-glow"></div>
-    <div class="dj-top">
-      <button id="djBack" class="scircle sm" aria-label="Back"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M10 2L2 10l8 8" stroke="#c9b8dc" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
-      <div class="dj-title">DAILY JAR</div>
-      <div class="dj-streak"><span class="dj-dot"></span><span id="djStreak">DAY 0</span></div>
-    </div>
-    <div class="dj-date" id="djDate">—</div>
-    <canvas id="djJar" width="480" height="560" class="dj-jar"></canvas>
-    <div class="dj-line">one jar · everyone gets the same shake</div>
-    <div class="dj-pips" id="djPips"></div>
-    <div class="dj-best" id="djBest" style="display:none"><span></span></div>
-    <button class="dj-play" id="djPlay">PLAY TODAY'S JAR&nbsp;&nbsp;▸</button>
-    <button class="dj-share" id="djShare">SHARE RESULT</button>
   </div>
 
   <div id="ov"><div id="card"></div></div>
