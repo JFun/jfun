@@ -343,11 +343,18 @@
   // RATTLE: a seeded shake, re-derived from (seed, tapCounter) so it's snapshot-free
   function applyRattle(w) {
     const rng = mulberry32((w.seed ^ (w.tapCounter * 0x9e3779b9)) >>> 0);
-    const R = w.L.ballR, kick = HREF * 0.16 * FDT;
+    // kick 0.16 was a sub-pixel jiggle (~0.05R mean churn) that gravity instantly
+    // damped back into the SAME rest config — Qi: "nothing happened, never
+    // implemented?". 0.5 + a real upward loft lifts the pile and re-tumbles it
+    // into fresh clusters (~0.55R mean churn = 11× the old jiggle, clusters
+    // always reshuffle; bounded, ball-count-safe & deterministic over 8× rattles
+    // × 106 levels). Capped at 0.5 because 0.6 scatters too hard and breaks L28's
+    // rattle-dependent certified solve — keep the escape hatch inside the ladder.
+    const R = w.L.ballR, kick = HREF * 0.5 * FDT;
     for (const b of w.balls) {
       if (!b.alive) continue;
-      const a = rng() * 6.2832, s = (0.4 + rng() * 0.6) * kick;
-      b.px -= Math.cos(a) * s; b.py -= Math.sin(a) * s - kick * 0.4;   // slight upward bias
+      const a = rng() * 6.2832, s = (0.5 + rng() * 0.7) * kick;
+      b.px -= Math.cos(a) * s; b.py -= Math.sin(a) * s - kick * 1.4;   // strong upward loft → the jar jumps & re-settles
       b.sleepN = 0;
     }
     w.events.push({ type: "rattle" });

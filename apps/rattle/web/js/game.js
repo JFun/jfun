@@ -20,8 +20,15 @@
   const writeSave = o => { try { localStorage.setItem(SK, JSON.stringify(o)); } catch (e) {} };
   const F = "Nunito, -apple-system, system-ui, sans-serif";
 
+  // player prefs (persisted in the save) — both default ON. Sound gates ALL SFX at the
+  // tone() source (the native session forces .playback, so muting the phone won't silence
+  // the game — this is the only way to). Haptics drives the native @capacitor/haptics.
+  let sfxOn = loadSave().sfx !== false, hapticsOn = loadSave().haptics !== false;
+  const HAP = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics) || null;
+  function vibe(style) { if (!hapticsOn || !HAP) return; try { HAP.impact({ style: style }); } catch (e) {} }
+
   let W = 390, H = 844, DPR = 1, s = 1, ox = 0, oy = 0;   // screen; s/ox/oy = world→screen
-  let world = null, level = 1, simT = 0, firstTap = false, cardUp = false, deadOffered = false, coach = null, rattledThisLevel = false;
+  let world = null, level = 1, simT = 0, firstTap = false, cardUp = false, deadOffered = false, coach = null, rattledThisLevel = false, menuUp = false, dailyMode = false;
   // real device safe-area insets (notch / home indicator) — read from a CSS probe
   const INSET = { top: 0, bottom: 0 };
   const insetProbe = document.createElement("div");
@@ -62,7 +69,7 @@
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") wakeAudio(); });
   window.addEventListener("pageshow", wakeAudio);
   function tone(type, f0, f1, dur, vol, when) {
-    if (!AC) return;
+    if (!AC || !sfxOn) return;
     try { const t0 = AC.currentTime + (when || 0); const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.setValueAtTime(Math.max(1, f0), t0); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t0 + dur); g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + 0.03); } catch (e) {}
   }
   function sClack(v) { if (!AC) return; if (simT - clackT > 0.07) { clackT = simT; clackN = 0; } if (clackN >= 5) return; clackN++; const f = 480 + Math.random() * 320; tone("triangle", f, f * 0.6, 0.045, Math.min(0.28, v * 0.5)); }
@@ -82,32 +89,35 @@
   function confetti() { for (let i = 0; i < 44; i++) { const c = PALETTE[(Math.random() * world.spec.colors) | 0].b; const L = world.L; const x = L.vx0 + Math.random() * (L.vx1 - L.vx0), y = L.vTop + Math.random() * (L.vFloor - L.vTop) * 0.4; if (parts.length > 240) parts.shift(); const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.8, sp = HREF * (0.3 + Math.random() * 0.5); parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0, life: 0.7 + Math.random() * 0.6, color: c, r: L.ballR * (0.14 + Math.random() * 0.16), rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 14 }); } }
 
   /* ---------------- level flow ---------------- */
-  function build(n) {
+  function build(n, daily) {
+    dailyMode = !!daily;
     level = clamp(n | 0, 1, LV.length);
     world = E.createWorld(LV[level - 1]);
     simT = 0; firstTap = false; cardUp = false; deadOffered = false; coach = null; rattledThisLevel = false;
     parts = []; rings = []; shakeA = 0; wob = {};
-    banner = "LEVEL " + level; bannerT = 0;
+    banner = dailyMode ? "DAILY JAR" : "LEVEL " + level; bannerT = 0;
     $("#hint").textContent = world.spec.hint; $("#hint").classList.remove("off");
     $("#ov").classList.remove("show");
-    const sv = loadSave(); sv.level = level; writeSave(sv);
+    const sv = loadSave();
+    if (!dailyMode) { sv.level = level; writeSave(sv); }   // the daily never advances campaign progress
     // element debut: on-board coach-mark the first time this element appears
     const intro = world.spec.intro;
-    if (intro && !(sv.seen && sv.seen[intro])) startCoach(intro);
+    if (!dailyMode && intro && !(sv.seen && sv.seen[intro])) startCoach(intro);
   }
+  const rebuild = () => build(level, dailyMode);   // retry/restart, preserving daily mode
   function consume() {
     for (const e of world.events) {
       if (e.type === "clack") sClack(e.v);
-      else if (e.type === "pop") { const P = PALETTE[e.color]; sPop(e.size); for (let k = 0; k < e.size; k++) {} burst(e.x, e.y, P.b, 6 + e.size, HREF * 0.35); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * (2 + e.size * 0.5), P.b, 0.42); if (e.size >= 6) shakeA = Math.min(6, 2 + e.size * 0.4); }
-      else if (e.type === "rattle") { sRattle(); shakeA = Math.max(shakeA, 3.5); }
+      else if (e.type === "pop") { const P = PALETTE[e.color]; sPop(e.size); vibe("LIGHT"); for (let k = 0; k < e.size; k++) {} burst(e.x, e.y, P.b, 6 + e.size, HREF * 0.35); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * (2 + e.size * 0.5), P.b, 0.42); if (e.size >= 6) shakeA = Math.min(6, 2 + e.size * 0.4); }
+      else if (e.type === "rattle") { sRattle(); vibe("HEAVY"); shakeA = Math.max(shakeA, 6); }   // bigger jar-shake now re-tumbles the pile — sell it
       else if (e.type === "wobble") { wob[e.i] = 1; sThud(); }
-      else if (e.type === "crack") { sCrack(); burst(e.x, e.y, "#a9762e", 10, HREF * 0.3); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 2, "#d3a35a", 0.4); shakeA = Math.max(shakeA, 2); }
-      else if (e.type === "balloonpop") { sBalloonPop(); burst(e.x, e.y, "#e95c84", 12, HREF * 0.4); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 2.4, "#ff9ab6", 0.4); }
-      else if (e.type === "bomb") { sBoom(); burst(e.x, e.y, "#ff8a3c", 22, HREF * 0.55); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 5, "#ff5a2a", 0.5); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 3.5, "#ffd24d", 0.4); shakeA = Math.min(8, shakeA + 5); }
+      else if (e.type === "crack") { sCrack(); vibe("LIGHT"); burst(e.x, e.y, "#a9762e", 10, HREF * 0.3); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 2, "#d3a35a", 0.4); shakeA = Math.max(shakeA, 2); }
+      else if (e.type === "balloonpop") { sBalloonPop(); vibe("LIGHT"); burst(e.x, e.y, "#e95c84", 12, HREF * 0.4); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 2.4, "#ff9ab6", 0.4); }
+      else if (e.type === "bomb") { sBoom(); vibe("HEAVY"); burst(e.x, e.y, "#ff8a3c", 22, HREF * 0.55); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 5, "#ff5a2a", 0.5); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 3.5, "#ffd24d", 0.4); shakeA = Math.min(8, shakeA + 5); }
       else if (e.type === "quack") sQuack();
-      else if (e.type === "duck") { sChime(); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 2.6, "#ffd44d", 0.6); burst(e.x, e.y, "#ffd44d", 14, HREF * 0.4); }
-      else if (e.type === "win") { sWin(); confetti(); setTimeout(() => showCleared(e.spare), 620); }
-      else if (e.type === "lose") { if (!cardUp) showLose(); }
+      else if (e.type === "duck") { sChime(); vibe("MEDIUM"); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 2.6, "#ffd44d", 0.6); burst(e.x, e.y, "#ffd44d", 14, HREF * 0.4); }
+      else if (e.type === "win") { sWin(); vibe("HEAVY"); confetti(); setTimeout(() => showCleared(e.spare), 620); }
+      else if (e.type === "lose") { if (!cardUp) { vibe("MEDIUM"); showLose(); } }
       else if (e.type === "nopairs") { if (!deadOffered && !cardUp && world.taps > 0) { deadOffered = true; showNoPairs(); } }
     }
     world.events.length = 0;
@@ -174,6 +184,7 @@
     // always ≥ par+1, so a full-budget clear can never fake a PERFECT. 3★ = within a tap of par.
     const perfect = used === par && !rattledThisLevel;
     const stars = used <= par + 1 ? 3 : used <= par + 3 ? 2 : 1;
+    if (dailyMode) { recordDaily(spare); showDailyClear(spare, stars); return; }   // daily never touches campaign save
     const sv = loadSave();
     sv.stars = sv.stars || {}; const prevStars = sv.stars[level] || 0; const bestStars = Math.max(prevStars, stars); sv.stars[level] = bestStars;
     sv.perfect = sv.perfect || {}; if (perfect) sv.perfect[level] = 1;
@@ -181,40 +192,437 @@
     writeSave(sv);
     // the stars ARE the grade — no par/used numbers on the card (reads like a debug
     // readout, and it's redundant with the stars). Just a warm line + a Perfect flourish.
-    const gotToy = level % 2 === 1;
-    const toyN = 3 + level;   // deterministic toy-chest slot (Excavate collection pattern)
-    const toyBit = gotToy ? ' · <span style="color:#4bd48a">new toy' + (perfect ? '!' : ' unlocked!') + '</span>' : '';
+    const last = level >= LV.length;
+    if (last) { const sv2 = loadSave(); sv2.completed = 1; writeSave(sv2); }   // campaign milestone
     const sub = perfect
-      ? '<span style="color:#ffce6b">★ PERFECT</span>' + toyBit
-      : (spare + (spare === 1 ? ' tap spare' : ' taps spare') + toyBit);
+      ? '<span style="color:#ffce6b">★ PERFECT</span>'
+      : (spare + (spare === 1 ? ' tap spare' : ' taps spare'));
+    if (last) {
+      // FINALE — every jar in the pantry emptied. Extra confetti + a campaign badge,
+      // so L106 celebrates instead of silently looping "REPLAY" forever.
+      setTimeout(confetti, 160); setTimeout(confetti, 520);
+      $("#card").innerHTML =
+        '<div class="glow"></div>' +
+        '<div class="eyebrow" style="color:#4bd48a">CAMPAIGN COMPLETE</div>' +
+        starsArc(stars) +
+        '<h2>ALL ' + LV.length + ' CLEARED!</h2>' +
+        '<div class="sub">You emptied every jar in the pantry.</div>' +
+        '<div class="btns">' +
+          '<button class="primary" id="againB">▸ PLAY FROM LEVEL 1</button>' +
+          '<button class="ghost" id="replayB" style="flex:none;width:100%"><span>' + refreshIcon + 'Replay this level</span></button>' +
+        '</div>';
+      $("#ov").classList.add("show");
+      $("#againB").onclick = () => build(1);
+      $("#replayB").onclick = () => build(level);
+      return;
+    }
     $("#card").innerHTML =
       '<div class="glow"></div>' +
       starsArc(stars) +
       '<h2>CLEARED!</h2>' +
       '<div class="sub">' + sub + '</div>' +
-      (gotToy ? '<div class="toy">' + DUCK_SVG + '<div class="lab"><b>Rubber Duck</b><span>toy ' + toyN + ' of 50 · Bath-Time set</span></div></div>' : '') +
       '<div class="btns">' +
-        '<button class="primary" id="nextB">' + (level < LV.length ? "NEXT ▸" : "REPLAY ▸") + '</button>' +
+        '<button class="primary" id="nextB">NEXT ▸</button>' +
+        '<button class="ghost" id="replayB" style="flex:none;width:100%"><span>' + refreshIcon + 'Replay</span></button>' +
+      '</div>';
+    $("#ov").classList.add("show");
+    $("#nextB").onclick = () => build(level + 1);
+    $("#replayB").onclick = () => build(level);
+  }
+
+  /* -------- settings / pause overlay (the gear) --------
+     Opened mid-play; pauses the sim, blocks board taps. Sound gate is the only way to
+     silence the game (native session forces .playback). All prefs persist in the save. */
+  /* ── SCREEN ROUTER (design v2): home / play / settings; pause is a card ── */
+  let screen = "home", prevScreen = "home", homePile = null;
+  let shakeOn = loadSave().shake !== false;
+  const CHAPTER = n => Math.ceil(n / 10);
+  const gearIcon = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none"><g fill="currentColor"><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(45 12 12)"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(90 12 12)"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(135 12 12)"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(180 12 12)"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(225 12 12)"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(270 12 12)"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(315 12 12)"/></g><circle cx="12" cy="12" r="6" stroke="currentColor" stroke-width="2.6"/></svg>';
+  const homeIcon = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7"/><path d="M6 9.5V20h12V9.5"/></svg>';
+  function showScreen(name) {
+    if (screen !== "settings") prevScreen = screen;    // so Back returns whence we came
+    screen = name;
+    $("#home").classList.toggle("show", name === "home");
+    $("#settings").classList.toggle("show", name === "settings");
+    $("#levelpath").classList.toggle("show", name === "levelpath");
+    $("#toychest").classList.toggle("show", name === "toychest");
+    $("#dailyjar").classList.toggle("show", name === "dailyjar");
+    $("#gear").classList.toggle("hide", name !== "play");
+    if (name !== "play") $("#hint").classList.add("off");
+    if (name === "home") { if (!homePile) buildHome(); updateHomeChrome(); }
+    if (name === "settings") renderSettingsScreen();
+    if (name === "levelpath") renderLevelPath();
+    if (name === "toychest") renderToyChest();
+    if (name === "dailyjar") renderDailyScreen();
+  }
+  function updateHomeChrome() {
+    const sv = loadSave(), lv = sv.level || 1, st = sv.stars || {};
+    $("#homeSub").textContent = "LEVEL " + lv + " · CHAPTER " + CHAPTER(lv);
+    let toys = 0; for (let i = 1; i <= LV.length; i++) if (st[i] && i % 2 === 1) toys++;
+    $("#chestSub").textContent = Math.min(50, toys) + " of 50";
+    const dy = sv.daily; $("#dailySub").textContent = (dy && dy.streak) ? "day " + dy.streak + " streak" : "new today";
+  }
+  // a SHORT decorative pile of DESIGN-SIZED beads. The engine sizes beads by area over
+  // a fixed half-screen region (ballR ∝ 1/√count), so it can't make a short small-bead
+  // pile — build our own hex-packed pile at a fixed small radius (design 1f).
+  let hseed = 0; const hrng = () => { hseed = (hseed * 1664525 + 1013904223) >>> 0; return hseed / 4294967296; };
+  const HR = WREF / 18;   // ~21.7 world units → ~43px bead, matching the design
+  function buildHome() {
+    hseed = 20250719 >>> 0; homePile = [];
+    const R = HR, rowH = R * 1.72, floorY = HREF - R - 2, rows = 4;
+    for (let row = 0; row < rows; row++) {
+      const y = floorY - row * rowH, stag = (row % 2) ? R : 0;
+      for (let x = R + stag; x <= WREF - R; x += R * 2 + (hrng() - 0.5) * R * 0.12) {
+        if (row === rows - 1 && hrng() < 0.42) continue;   // thin the crown → natural top
+        homePile.push({ x: x + (hrng() - 0.5) * R * 0.2, y: y + (hrng() - 0.5) * R * 0.16, r: R, c: (hrng() * 5) | 0, alive: true });
+      }
+    }
+  }
+  // duck on an arbitrary 2d context (settings footer) — mirrors drawDuck, no wobble
+  function duckOnCtx(g, x, y, r) {
+    g.save(); g.translate(x, y); g.fillStyle = "#ffd44d";
+    g.beginPath(); g.arc(0, r * 0.18, r * 0.72, 0, 7); g.fill();
+    g.beginPath(); g.arc(-r * 0.22, -r * 0.42, r * 0.42, 0, 7); g.fill();
+    g.fillStyle = "#ff9d3b"; g.beginPath(); g.moveTo(-r * 0.58, -r * 0.52); g.lineTo(-r * 0.95, -r * 0.40); g.lineTo(-r * 0.56, -r * 0.28); g.closePath(); g.fill();
+    g.fillStyle = "#20242e"; g.beginPath(); g.arc(-r * 0.30, -r * 0.50, r * 0.075, 0, 7); g.fill(); g.restore();
+  }
+  // pause card (play gear → here; design 1m). menuUp pauses the sim.
+  function openPause() {
+    if (cardUp || menuUp || coach || screen !== "play") return;
+    menuUp = true;
+    $("#card").innerHTML =
+      '<h2 style="font-size:28px">PAUSED</h2>' +
+      '<div style="font:800 10.5px Nunito;letter-spacing:.2em;color:#8b7c98;margin:5px 0 18px">LEVEL ' + level + ' · CHAPTER ' + CHAPTER(level) + '</div>' +
+      '<div class="btns">' +
+        '<button class="primary" id="resumeB">RESUME&nbsp;&nbsp;▸</button>' +
         '<div class="row">' +
-          '<button class="ghost" id="replayB"><span>' + refreshIcon + 'Replay</span></button>' +
-          '<button class="ghost" id="chestB">Toy chest</button>' +
+          '<button class="ghost" id="restartB"><span>' + refreshIcon + 'Restart</span></button>' +
+          '<button class="ghost" id="mapB">Level map</button>' +
+        '</div>' +
+        '<div class="row">' +
+          '<button class="ghost" id="homeB"><span>' + homeIcon + 'Home</span></button>' +
+          '<button class="ghost" id="setB"><span>' + gearIcon + 'Settings</span></button>' +
         '</div>' +
       '</div>';
     $("#ov").classList.add("show");
-    $("#nextB").onclick = () => build(level < LV.length ? level + 1 : level);
-    $("#replayB").onclick = () => build(level);
-    $("#chestB").onclick = () => showToyChest(spare);
+    $("#resumeB").onclick = closePause;
+    $("#restartB").onclick = () => { closePause(); rebuild(); };
+    $("#mapB").onclick = () => { closePause(); showScreen("levelpath"); };
+    $("#homeB").onclick = () => { closePause(); dailyMode = false; showScreen("home"); };
+    $("#setB").onclick = () => { closePause(); showScreen("settings"); };
   }
-  function showToyChest(spare) {   // placeholder — full collection screen is a follow-up
+  function closePause() { menuUp = false; $("#ov").classList.remove("show"); }
+  // full settings screen (design 1p)
+  function renderSettingsScreen() {
+    $("#setSound").classList.toggle("on", sfxOn);
+    $("#setHaptics").classList.toggle("on", hapticsOn);
+    $("#setShake").classList.toggle("on", shakeOn);
+    const dc = $("#setDuck"); if (dc) { const g = dc.getContext("2d"); g.clearRect(0, 0, dc.width, dc.height); duckOnCtx(g, dc.width / 2, dc.height / 2 + 4, 22); }
+  }
+  const persist = (k, v) => { const sv = loadSave(); sv[k] = v; writeSave(sv); };
+  function openURL(u) { try { window.open(u, "_system") || window.open(u, "_blank"); } catch (e) { try { location.href = u; } catch (e2) {} } }
+  function flashRow(id, msg) { const sm = $(id).querySelector("small"); if (sm) { const o = sm.textContent; sm.textContent = "✓ " + msg; setTimeout(() => { sm.textContent = o; }, 1400); } }
+  function comingSoon(name) {
+    $("#card").innerHTML = '<div class="eyebrow" style="color:var(--honey)">' + name + '</div><h2>Coming soon</h2>' +
+      '<div class="msg" style="margin-top:10px">This is on the way — look for it after launch.</div>' +
+      '<div class="btns"><button class="primary" id="csB">◂ BACK</button></div>';
+    $("#ov").classList.add("show"); $("#csB").onclick = () => $("#ov").classList.remove("show");
+  }
+  /* ── VISUAL paged gallery — used by "How to play" + "Replay element intros".
+     Renders the REAL bead/element painters (Qi: text-only felt like a test). ── */
+  function withCtx(g, fn) { const old = ctx; ctx = g; try { fn(); } finally { ctx = old; } }
+  function galDots(i, n) { let s = ""; for (let k = 0; k < n; k++) s += '<span style="width:6px;height:6px;border-radius:50%;background:' + (k === i ? "#ffce6b" : "rgba(150,130,175,.35)") + '"></span>'; return s; }
+  function openGallery(title, pages) {
+    let i = 0;
+    function render() {
+      const p = pages[i];
+      $("#card").innerHTML =
+        '<div class="eyebrow" style="color:var(--honey)">' + title + '</div>' +
+        '<canvas class="galcv" width="260" height="200" style="width:160px;height:123px;display:block;margin:2px auto 8px"></canvas>' +
+        '<h2 style="font-size:24px">' + p.title + '</h2>' +
+        '<div class="msg" style="margin:6px 0 14px">' + p.caption + '</div>' +
+        '<div class="btns"><button class="primary" id="galB">' + (i < pages.length - 1 ? "NEXT ▸" : "◂ DONE") + '</button>' +
+        '<div style="display:flex;gap:6px;justify-content:center;margin-top:10px">' + galDots(i, pages.length) + '</div></div>';
+      const cv = $(".galcv"); p.draw(cv.getContext("2d"), cv.width, cv.height);
+      $("#galB").onclick = () => { if (i < pages.length - 1) { i++; render(); } else $("#ov").classList.remove("show"); };
+    }
+    $("#ov").classList.add("show"); render();
+  }
+  function drawHowPop(g, w, h) {
+    withCtx(g, () => { const R = w * 0.15, cx = w / 2, cy = h * 0.5; drawBallScreen(cx - R, cy + R * 0.5, R, 2); drawBallScreen(cx + R, cy + R * 0.5, R, 2); drawBallScreen(cx, cy - R, R, 2); });
+    g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = w * 0.018; g.beginPath(); g.arc(w / 2, h * 0.5 - w * 0.075, w * 0.26, 0, 7); g.stroke();
+    g.fillStyle = "rgba(255,255,255,0.9)"; g.beginPath(); g.arc(w / 2, h * 0.5 - w * 0.075, w * 0.045, 0, 7); g.fill();
+  }
+  function drawHowTumble(g, w, h) {
+    withCtx(g, () => { const R = w * 0.11; drawBallScreen(w * 0.32, h * 0.78, R, 1); drawBallScreen(w * 0.5, h * 0.78, R, 3); drawBallScreen(w * 0.68, h * 0.78, R, 0); drawBallScreen(w * 0.41, h * 0.55, R, 2); drawBallScreen(w * 0.59, h * 0.55, R, 1); });
+    g.strokeStyle = "rgba(255,206,107,0.85)"; g.lineWidth = w * 0.022; g.lineCap = "round";
+    for (const yy of [0.16, 0.28]) { g.beginPath(); g.moveTo(w * 0.5 - w * 0.06, h * yy); g.lineTo(w * 0.5, h * (yy + 0.06)); g.lineTo(w * 0.5 + w * 0.06, h * yy); g.stroke(); }
+  }
+  function drawHowRattle(g, w, h) {
+    withCtx(g, () => { const R = w * 0.12; drawBallScreen(w * 0.4, h * 0.55, R, 2); drawBallScreen(w * 0.6, h * 0.48, R, 1); drawBallScreen(w * 0.5, h * 0.74, R, 3); });
+    g.strokeStyle = "rgba(255,206,107,0.9)"; g.lineWidth = w * 0.028; g.lineCap = "round";
+    g.beginPath(); g.arc(w / 2, h * 0.58, w * 0.36, Math.PI * 0.78, Math.PI * 1.22); g.stroke();
+    g.beginPath(); g.arc(w / 2, h * 0.58, w * 0.36, -Math.PI * 0.22, Math.PI * 0.22); g.stroke();
+  }
+  function openHowto() {
+    openGallery("HOW TO PLAY", [
+      { title: "POP", caption: "Tap a group of two or more touching beads of the same colour.", draw: drawHowPop },
+      { title: "TUMBLE", caption: "The pile avalanches and re-clusters under gravity, setting up your next move.", draw: drawHowTumble },
+      { title: "RATTLE", caption: "Stuck? Tap empty space to rattle the jar — fresh groups (costs one tap).", draw: drawHowRattle },
+    ]);
+  }
+  /* ── element intros: not a mugshot + a sentence, but a little DIAGRAM of the
+     rule — the element, a same-colour neighbour cluster, a tap-ring showing
+     WHERE to tap, and an outcome glyph (Qi: "make those visual, text is painful"). ── */
+  function tapRing(g, cx, cy, r) {
+    g.strokeStyle = "rgba(255,255,255,0.92)"; g.lineWidth = Math.max(2, r * 0.13);
+    g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke();
+    g.fillStyle = "rgba(255,255,255,0.92)"; g.beginPath(); g.arc(cx, cy, r * 0.17, 0, 7); g.fill();
+  }
+  function arrow(g, x0, y0, x1, y1, col, lw) {
+    g.strokeStyle = col; g.lineWidth = lw; g.lineCap = "round"; g.lineJoin = "round";
+    const a = Math.atan2(y1 - y0, x1 - x0), ah = lw * 2.4;
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1);
+    g.lineTo(x1 - Math.cos(a - 0.5) * ah, y1 - Math.sin(a - 0.5) * ah);
+    g.moveTo(x1, y1); g.lineTo(x1 - Math.cos(a + 0.5) * ah, y1 - Math.sin(a + 0.5) * ah); g.stroke();
+  }
+  function spark(g, cx, cy, r, col) {
+    g.strokeStyle = col; g.lineWidth = 3; g.lineCap = "round";
+    for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; g.beginPath(); g.moveTo(cx + Math.cos(a) * r * 0.5, cy + Math.sin(a) * r * 0.5); g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); g.stroke(); }
+  }
+  // shared layout: element on the right, a tappable same-colour pair on the left
+  function demoPair(g, w, h, col, drawEl) {
+    const R = w * 0.095;
+    withCtx(g, () => { drawEl(w * 0.6, h * 0.5); drawBallScreen(w * 0.26, h * 0.42, R, col); drawBallScreen(w * 0.26, h * 0.64, R, col); });
+    tapRing(g, w * 0.26, h * 0.53, R * 1.95);
+    arrow(g, w * 0.4, h * 0.53, w * 0.46, h * 0.53, "rgba(255,255,255,0.5)", 4);   // "…beside it"
+  }
+  function demoDuck(g, w, h) {
+    g.fillStyle = "rgba(255,206,107,0.42)"; g.fillRect(w * 0.16, h * 0.9, w * 0.68, h * 0.035);   // the floor
+    const R = w * 0.1;
+    withCtx(g, () => { duckOnCtx(g, w * 0.5, h * 0.26, h * 0.15); drawBallScreen(w * 0.5 - R * 1.02, h * 0.6, R, 2); drawBallScreen(w * 0.5 + R * 1.02, h * 0.6, R, 2); });
+    tapRing(g, w * 0.5, h * 0.6, R * 2.0);
+    arrow(g, w * 0.83, h * 0.3, w * 0.83, h * 0.82, "rgba(255,255,255,0.5)", 4);   // duck sinks to floor
+  }
+  function demoStone(g, w, h) {
+    demoPair(g, w, h, 2, (x, y) => drawStone(x, y, w * 0.15));
+    const cx = w * 0.6, cy = h * 0.5, rr = w * 0.075;                              // ✗ = can't pop
+    g.strokeStyle = "#ff5a6a"; g.lineWidth = 6; g.lineCap = "round";
+    g.beginPath(); g.moveTo(cx - rr, cy - rr); g.lineTo(cx + rr, cy + rr); g.moveTo(cx + rr, cy - rr); g.lineTo(cx - rr, cy + rr); g.stroke();
+  }
+  function demoCrate(g, w, h) {
+    demoPair(g, w, h, 2, (x, y) => drawShell(x, y, w * 0.15, 2));
+    const cx = w * 0.6, cy = h * 0.5;                                              // crack glyph
+    g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 3; g.lineCap = "round"; g.lineJoin = "round";
+    g.beginPath(); g.moveTo(cx, cy - w * 0.12); g.lineTo(cx - w * 0.035, cy - w * 0.02); g.lineTo(cx + w * 0.035, cy + w * 0.04); g.lineTo(cx - w * 0.02, cy + w * 0.12); g.stroke();
+  }
+  function demoBalloon(g, w, h) {
+    demoPair(g, w, h, 1, (x, y) => drawBalloon(x, y - h * 0.02, w * 0.13, 0));
+    spark(g, w * 0.6, h * 0.44, w * 0.15, "rgba(255,255,255,0.85)");               // burst
+  }
+  function demoBomb(g, w, h) {
+    g.strokeStyle = "rgba(255,146,60,0.7)"; g.lineWidth = 4;                       // blast radius
+    g.beginPath(); g.arc(w * 0.6, h * 0.5, w * 0.23, 0, 7); g.stroke();
+    demoPair(g, w, h, 3, (x, y) => drawBomb(x, y, w * 0.12, 2, 0));
+  }
+  function elementGallery() {
+    const P = (t, c, d) => ({ title: t, caption: c, draw: d });
+    openGallery("ELEMENT INTROS", [
+      P("RUBBER DUCK", "Pop below → it sinks to the floor.", demoDuck),
+      P("STONE BEAD", "Can't pop — clear around it.", demoStone),
+      P("CRATE", "Pop its colour beside → it cracks.", demoCrate),
+      P("BALLOON", "Pop beside → it bursts.", demoBalloon),
+      P("BOMB", "Pop beside → a big blast.", demoBomb),
+    ]);
+  }
+  function wireChrome() {
+    $("#playBtn").onclick = () => { initAudio(); build((loadSave().level) || 1); showScreen("play"); };
+    $("#homeGear").onclick = () => showScreen("settings");
+    $("#homeSub").onclick = () => showScreen("levelpath");   // tap "LEVEL N · CHAPTER M" → the map
+    $("#homeSub").style.cursor = "pointer";
+    $("#lpBack").onclick = () => showScreen("home");
+    $("#dailyChip").onclick = () => playDaily();   // one tap → today's jar (design update)
+    $("#chestChip").onclick = () => showScreen("toychest");
+    $("#tcBack").onclick = () => showScreen("home");
+    $("#djBack").onclick = () => showScreen("home");
+    $("#djPlay").onclick = playDaily;
+    $("#djShare").onclick = shareDaily;
+    $("#setSound").onclick = () => { sfxOn = !sfxOn; persist("sfx", sfxOn); if (sfxOn) { initAudio(); sChime(); } renderSettingsScreen(); };
+    $("#setHaptics").onclick = () => { hapticsOn = !hapticsOn; persist("haptics", hapticsOn); if (hapticsOn) vibe("MEDIUM"); renderSettingsScreen(); };
+    $("#setShake").onclick = () => { shakeOn = !shakeOn; persist("shake", shakeOn); renderSettingsScreen(); };
+    $("#setReplay").onclick = () => { const sv = loadSave(); sv.seen = {}; writeSave(sv); elementGallery(); };   // show the visual gallery + re-arm in-game coaches
+    $("#setHowto").onclick = openHowto;
+    $("#setSupport").onclick = () => openURL("https://rattle-jfun.web.app/support");
+    $("#setPrivacy").onclick = () => openURL("https://rattle-jfun.web.app/privacy");
+    $("#setBack").onclick = () => showScreen(prevScreen === "settings" ? "home" : prevScreen);
+  }
+  // decorative home backdrop: the settled pile + a bobbing duck perched on top
+  function renderHome() {
+    relayout();
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
+    ctx.save(); ctx.translate(ox, oy); ctx.scale(s, s);
+    for (let i = 0; i < homePile.length; i++) { const b = homePile[i]; drawBead(b.x, b.y, b.r, b, i); }
+    let topY = 1e9; for (const b of homePile) { if (Math.abs(b.x - WREF / 2) < WREF * 0.26 && b.y < topY) topY = b.y; }
+    if (topY > 1e8) topY = HREF - HR * 5;
+    const bob = Math.sin(simT * 1.85) * (7 / s);
+    drawDuck(WREF / 2, topY - HR * 1.5 + bob, HR * 2.6, 0);
+    ctx.restore();
+  }
+
+  /* ── LEVEL PATH (map): serpentine of 106 nodes; tap an unlocked one to play it ── */
+  function starStr(n) { let s = ""; for (let k = 0; k < 3; k++) s += k < n ? "★" : '<span class="off">★</span>'; return s; }
+  function renderLevelPath() {
+    const sv = loadSave(), stars = sv.stars || {}, N = LV.length;
+    const frontier = Math.min(N, sv.level || 1);
+    let cleared = 0, starTotal = 0;
+    for (let i = 1; i <= N; i++) { if (stars[i] > 0) cleared++; starTotal += stars[i] || 0; }
+    $("#lpChapter").textContent = "CHAPTER " + CHAPTER(frontier);
+    $("#lpStarCount").textContent = starTotal;
+    $("#lpProgress").textContent = cleared + " CLEARED · " + N + " TOTAL";
+    $("#lpBarFill").style.width = Math.round(cleared / N * 100) + "%";
+    const W0 = Math.max(320, window.innerWidth || 390);
+    const SP = 82, padTop = 150, padBot = 130, amp = Math.min(W0 * 0.30, 118), H0 = N * SP + padTop + padBot;
+    const inner = $("#lpInner"); inner.style.height = H0 + "px";
+    let html = "";
+    for (let i = 1; i <= N; i++) {
+      const spec = LV[i - 1], cx = W0 / 2 + Math.sin(i * 0.62) * amp, y = H0 - padBot - (i - 1) * SP;
+      const done = (stars[i] || 0) > 0, cur = i === frontier, w = cur ? 66 : 54;
+      const cls = cur ? "current" : (done ? "done" : "locked");
+      let badge = "";
+      if (spec.intro) badge = '<div class="lp-badge newel">NEW ELEMENT</div>';
+      else if (spec.hard) badge = '<div class="lp-badge ' + spec.hard + '">' + (spec.hard === "super" ? "SUPER" : spec.hard === "extreme" ? "EXTREME" : "HARD") + '</div>';
+      const tb = cur && (spec.hard === "super" || spec.hard === "extreme") ? " " + spec.hard : "";
+      const starRow = (done && !cur) ? '<div class="lp-stars">' + starStr(stars[i]) + '</div>' : '';
+      const duck = cur ? '<div class="duck"><canvas class="lpduck" width="76" height="76" style="width:38px;height:38px"></canvas></div>' : '';
+      html += '<div class="lp-node ' + cls + '" data-lv="' + i + '" style="left:' + Math.round(cx - w / 2) + 'px;top:' + Math.round(y) + 'px">' +
+        badge + '<div class="disc' + tb + '">' + (cur ? '<div class="pulse"></div>' : '') + i + '</div>' + starRow + duck + '</div>';
+    }
+    inner.innerHTML = html;
+    const dk = inner.querySelector(".lpduck"); if (dk) duckOnCtx(dk.getContext("2d"), 38, 42, 26);
+    inner.querySelectorAll(".lp-node").forEach(n => { const lv = +n.dataset.lv; if (lv <= frontier) n.onclick = () => { initAudio(); build(lv); showScreen("play"); }; });
+    const sc = $("#lpScroll"); sc.scrollTop = Math.max(0, H0 - padBot - (frontier - 1) * SP - sc.clientHeight * 0.5);
+  }
+
+  /* ── TOY CHEST (collection): a toy unlocks per odd-level cleared, grouped in themed
+     sets of 6. 8 reusable painters cycle across ~50 toys. ── */
+  const TP = {
+    duck: (g, x, y, r) => duckOnCtx(g, x, y + r * 0.05, r * 0.92),
+    ball: (g, x, y, r) => { const cs = ["#ff6b6b", "#6ea8ff", "#ffce6b", "#4bd48a"]; for (let k = 0; k < 6; k++) { g.beginPath(); g.moveTo(x, y); g.arc(x, y, r, k * 1.047, (k + 1) * 1.047); g.closePath(); g.fillStyle = cs[k % 4]; g.fill(); } g.fillStyle = "rgba(255,255,255,.6)"; g.beginPath(); g.arc(x - r * 0.32, y - r * 0.34, r * 0.16, 0, 7); g.fill(); },
+    marble: (g, x, y, r) => { const gr = g.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r); gr.addColorStop(0, "#cfe8ff"); gr.addColorStop(.5, "#6ea8ff"); gr.addColorStop(1, "#2a5bbf"); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.strokeStyle = "rgba(255,255,255,.5)"; g.lineWidth = r * 0.14; g.beginPath(); g.arc(x, y, r * 0.55, -0.4, 2.2); g.stroke(); g.fillStyle = "rgba(255,255,255,.8)"; g.beginPath(); g.arc(x - r * 0.32, y - r * 0.34, r * 0.16, 0, 7); g.fill(); },
+    star: (g, x, y, r) => { g.fillStyle = "#ffce6b"; g.strokeStyle = "#c8891f"; g.lineWidth = r * 0.1; g.beginPath(); for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * 0.44 : r; g[k ? "lineTo" : "moveTo"](x + Math.cos(a) * rr, y + Math.sin(a) * rr); } g.closePath(); g.fill(); g.stroke(); },
+    boat: (g, x, y, r) => { g.fillStyle = "#ff6b6b"; g.beginPath(); g.moveTo(x - r, y + r * 0.2); g.lineTo(x + r, y + r * 0.2); g.lineTo(x + r * 0.6, y + r * 0.72); g.lineTo(x - r * 0.6, y + r * 0.72); g.closePath(); g.fill(); g.strokeStyle = "#c9b8dc"; g.lineWidth = r * 0.09; g.beginPath(); g.moveTo(x, y + r * 0.2); g.lineTo(x, y - r * 0.9); g.stroke(); g.fillStyle = "#ffce6b"; g.beginPath(); g.moveTo(x + r * 0.08, y - r * 0.85); g.lineTo(x + r * 0.75, y - r * 0.2); g.lineTo(x + r * 0.08, y - r * 0.1); g.closePath(); g.fill(); },
+    top: (g, x, y, r) => { g.fillStyle = "#9d7bff"; g.beginPath(); g.moveTo(x - r * 0.8, y - r * 0.35); g.lineTo(x + r * 0.8, y - r * 0.35); g.lineTo(x, y + r * 0.9); g.closePath(); g.fill(); g.fillStyle = "#ffce6b"; g.fillRect(x - r * 0.8, y - r * 0.55, r * 1.6, r * 0.24); g.strokeStyle = "#c8a15a"; g.lineWidth = r * 0.12; g.beginPath(); g.moveTo(x, y - r * 0.55); g.lineTo(x, y - r * 0.95); g.stroke(); },
+    ring: (g, x, y, r) => { g.strokeStyle = "#ff9ab6"; g.lineWidth = r * 0.5; g.beginPath(); g.arc(x, y, r * 0.7, 0, 7); g.stroke(); g.strokeStyle = "rgba(255,255,255,.5)"; g.lineWidth = r * 0.12; g.beginPath(); g.arc(x, y, r * 0.7, -0.5, 1.4); g.stroke(); },
+    block: (g, x, y, r) => { g.fillStyle = "#4bd48a"; rrectOn(g, x - r * 0.8, y - r * 0.8, r * 1.6, r * 1.6, r * 0.28); g.fill(); g.fillStyle = "#136e42"; g.font = "700 " + (r * 1.1).toFixed(0) + "px 'Lilita One', " + F; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("A", x, y + r * 0.06); g.textBaseline = "alphabetic"; g.textAlign = "left"; },
+  };
+  function rrectOn(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+  const TOY_SETS = [
+    ["BATH-TIME", [["Rubber Duck", "duck"], ["Beach Ball", "ball"], ["Marble", "marble"], ["Soap Boat", "boat"], ["Bubble Wand", "ring"], ["Foam Block", "block"]]],
+    ["PICNIC", [["Kite Star", "star"], ["Frisbee", "ring"], ["Spin Top", "top"], ["Glass Marble", "marble"], ["Bouncy Ball", "ball"], ["Toy Boat", "boat"]]],
+    ["GARDEN", [["Daisy Top", "top"], ["Ladybug Ball", "ball"], ["Pond Duck", "duck"], ["Petal Ring", "ring"], ["Seed Block", "block"], ["Sun Star", "star"]]],
+    ["OCEAN", [["Sail Boat", "boat"], ["Pearl", "marble"], ["Sea Star", "star"], ["Buoy Ring", "ring"], ["Wave Ball", "ball"], ["Deck Duck", "duck"]]],
+    ["SPACE", [["Comet Star", "star"], ["Planet Ball", "ball"], ["Orbit Ring", "ring"], ["Rover Block", "block"], ["Meteor Marble", "marble"], ["Rocket Top", "top"]]],
+    ["CIRCUS", [["Big Top", "top"], ["Juggle Ball", "ball"], ["Ring Toss", "ring"], ["Star Wand", "star"], ["Clown Duck", "duck"], ["Cart Boat", "boat"]]],
+    ["WINTER", [["Snow Marble", "marble"], ["Sled Boat", "boat"], ["Ice Star", "star"], ["Frost Ring", "ring"], ["Gift Block", "block"], ["Cocoa Top", "top"]]],
+    ["SWEETS", [["Gumball", "ball"], ["Candy Star", "star"], ["Lolly Top", "top"], ["Donut Ring", "ring"], ["Jelly Duck", "duck"], ["Fudge Block", "block"]]],
+    ["GRAND", [["Golden Duck", "duck"], ["Crown Star", "star"]]],
+  ];
+  const TOYS_TOTAL = TOY_SETS.reduce((a, s) => a + s[1].length, 0);   // 50
+  const toysOwned = () => { const st = loadSave().stars || {}; let n = 0; for (let i = 1; i <= LV.length; i++) if (st[i] > 0 && i % 2 === 1) n++; return Math.min(TOYS_TOTAL, n); };
+  const setUnlockLevel = k => k === 0 ? 1 : 12 * k + 1;
+  function renderToyChest() {
+    const owned = toysOwned(), sv = loadSave(), lv = sv.level || 1;
+    $("#tcOwned").textContent = owned;
+    const newlyAt = (sv.chestSeen || 0) < owned ? owned : 0;   // the just-unlocked toy gets a NEW ring
+    let html = "", gi = 0;
+    for (let k = 0; k < TOY_SETS.length; k++) {
+      const [name, toys] = TOY_SETS[k], unlock = setUnlockLevel(k), setLocked = lv < unlock;
+      const setOwned = toys.reduce((a, _, t) => a + ((gi + t) < owned ? 1 : 0), 0);
+      html += '<div class="tc-set">' +
+        '<div class="tc-head"><span class="' + (setLocked ? "off" : "on") + '">' + name + ' SET</span><span class="tc-n">' + setOwned + ' of ' + toys.length + '</span></div>' +
+        '<div class="tc-gridwrap">' +
+        '<div class="tc-grid' + (setLocked ? " locked" : "") + '">';
+      for (let t = 0; t < toys.length; t++) {
+        const idx = gi + t, got = idx < owned, isNew = got && idx === newlyAt - 1;
+        if (got) html += '<div class="tc-well' + (isNew ? " new" : "") + '">' + (isNew ? '<div class="tc-newbadge">NEW</div>' : '') + '<canvas class="tc-toy" width="120" height="120" data-p="' + toys[t][1] + '"></canvas><span>' + toys[t][0] + '</span></div>';
+        else html += '<div class="tc-well q">?</div>';
+      }
+      html += '</div>';
+      if (setLocked) html += '<div class="tc-lockpill">unlocks at level ' + unlock + '</div>';
+      html += '</div><div class="tc-shelf"></div></div>';
+      gi += toys.length;
+    }
+    const inner = $("#tcInner"); inner.innerHTML = html;
+    inner.querySelectorAll(".tc-toy").forEach(cv => { const g = cv.getContext("2d"); (TP[cv.dataset.p] || TP.ball)(g, 60, 60, 40); });
+    if (owned > (sv.chestSeen || 0)) { sv.chestSeen = owned; writeSave(sv); }
+  }
+
+  /* ── DAILY JAR: one date-seeded level a day + a streak; never touches campaign save ── */
+  const DAY = 86400000;
+  function dateKey(d) { d = d || new Date(); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+  function hashStr(s) { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  const dailyIdx = () => hashStr(dateKey()) % LV.length;   // same jar for everyone that day
+  function dailyState() { return loadSave().daily || { streak: 0, last: "", best: {}, played: [] }; }
+  function recordDaily(spare) {
+    const sv = loadSave(), d = sv.daily || { streak: 0, last: "", best: {}, played: [] }, today = dateKey();
+    if (d.last !== today) {
+      const yk = dateKey(new Date(Date.now() - DAY));
+      d.streak = (d.last === yk) ? (d.streak || 0) + 1 : 1;
+      d.last = today; d.played = d.played || []; if (!d.played.includes(today)) d.played.push(today);
+    }
+    d.best = d.best || {}; d.best[today] = Math.max(d.best[today] || 0, spare);
+    sv.daily = d; writeSave(sv);
+  }
+  function playDaily() { initAudio(); build(dailyIdx() + 1, true); showScreen("play"); }
+  function showDailyClear(spare, stars) {
     cardUp = true;
-    const owned = 3 + level;
     $("#card").innerHTML =
-      '<div class="eyebrow" style="color:var(--honey)">TOY CHEST</div>' +
-      '<h2 style="text-shadow:0 3px 0 #140c22">' + owned + ' <span style="color:var(--dim2);font-size:20px">/ 50</span></h2>' +
-      '<div class="msg" style="margin-top:10px">Every couple of levels drops a toy. The full collection screen is on the way.</div>' +
-      '<div class="btns"><button class="primary" id="backB">◂ BACK</button></div>';
+      '<div class="glow"></div><div class="eyebrow" style="color:#ffce6b">DAILY JAR</div>' + starsArc(stars) +
+      '<h2>NICE SHAKE!</h2>' +
+      '<div class="sub">' + spare + (spare === 1 ? ' tap spare' : ' taps spare') + ' · day ' + dailyState().streak + ' streak</div>' +
+      '<div class="btns"><button class="primary" id="djDoneB">◂ BACK TO JAR</button>' +
+      '<button class="ghost" id="djHomeB" style="flex:none;width:100%">Home</button></div>';
     $("#ov").classList.add("show");
-    $("#backB").onclick = () => showCleared(spare);
+    $("#djDoneB").onclick = () => { cardUp = false; dailyMode = false; $("#ov").classList.remove("show"); showScreen("dailyjar"); };
+    $("#djHomeB").onclick = () => { cardUp = false; dailyMode = false; $("#ov").classList.remove("show"); showScreen("home"); };
+  }
+  function drawDailyJar() {
+    const cv = $("#djJar"); if (!cv) return; const g = cv.getContext("2d"); g.clearRect(0, 0, cv.width, cv.height);
+    const W2 = cv.width, H2 = cv.height, jx = W2 * 0.13, jw = W2 * 0.74, jy = H2 * 0.16, jh = H2 * 0.76, rr = W2 * 0.11;
+    const old = ctx; ctx = g;
+    try {
+      rrect(jx, jy, jw, jh, rr); g.fillStyle = "rgba(255,255,255,0.05)"; g.fill();
+      g.save(); rrect(jx + 4, jy + 4, jw - 8, jh - 8, rr); g.clip();
+      const R = W2 * 0.105; let hs = hashStr(dateKey()); const rng = () => { hs = (hs * 1664525 + 1013904223) >>> 0; return hs / 4294967296; };
+      const floorY = jy + jh - R - 6;
+      for (let row = 0; row < 4; row++) { const y = floorY - row * R * 1.7, stag = (row % 2) ? R : 0; for (let x = jx + R + stag; x < jx + jw - R; x += R * 2) { if (row === 3 && rng() < 0.4) continue; drawBallScreen(x + (rng() - 0.5) * R * 0.2, y, R, (rng() * 5) | 0); } }
+      g.restore();
+      g.strokeStyle = "rgba(255,206,107,0.6)"; g.lineWidth = W2 * 0.012; rrect(jx, jy, jw, jh, rr); g.stroke();
+      g.strokeStyle = "rgba(255,255,255,0.18)"; g.lineWidth = W2 * 0.02; g.beginPath(); g.moveTo(jx + rr * 0.8, jy + 4); g.lineTo(jx + jw - rr * 0.8, jy + 4); g.stroke();
+      const lx = jx - W2 * 0.035, lw = jw + W2 * 0.07, ly = jy - H2 * 0.055, lh = H2 * 0.075;
+      const lg = g.createLinearGradient(0, ly, 0, ly + lh); lg.addColorStop(0, "#ffdf8f"); lg.addColorStop(1, "#c98f3d");
+      rrect(lx, ly, lw, lh, lh * 0.4); g.fillStyle = lg; g.fill();
+      g.fillStyle = "rgba(255,255,255,0.3)"; rrect(lx + 6, ly + 3, lw - 12, lh * 0.3, lh * 0.15); g.fill();
+    } finally { ctx = old; }
+  }
+  const DOW = ["S", "M", "T", "W", "T", "F", "S"];
+  function renderDailyScreen() {
+    const d = dailyState(), today = dateKey(), now = new Date();
+    $("#djStreak").textContent = "DAY " + (d.streak || 0);
+    $("#djDate").textContent = now.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }).toUpperCase();
+    drawDailyJar();
+    let pips = "";
+    for (let i = 6; i >= 0; i--) { const dd = new Date(Date.now() - i * DAY), k = dateKey(dd); pips += '<div class="dj-pip' + ((d.played || []).includes(k) ? " on" : "") + (k === today ? " today" : "") + '">' + DOW[dd.getDay()] + '</div>'; }
+    $("#djPips").innerHTML = pips;
+    const best = (d.best || {})[today], bp = $("#djBest");
+    if (best != null) { bp.style.display = ""; bp.querySelector("span").textContent = "YOUR BEST · " + best + " TAPS SPARE"; } else bp.style.display = "none";
+    $("#djShare").style.opacity = best != null ? 1 : 0.5;
+  }
+  function shareDaily() {
+    const d = dailyState(), best = (d.best || {})[dateKey()];
+    const txt = "Rattle Daily Jar — " + (best != null ? "cleared with " + best + " taps to spare!" : "give today's jar a shake!") + " day " + (d.streak || 0) + " streak.";
+    try { if (navigator.share) { navigator.share({ text: txt }); return; } } catch (e) {}
+    try { navigator.clipboard.writeText(txt); const el = $("#djShare"), o = el.textContent; el.textContent = "COPIED!"; setTimeout(() => { el.textContent = o; }, 1400); } catch (e) {}
   }
   function showNoPairs() {
     cardUp = true;
@@ -229,7 +637,7 @@
       '<div class="foot">rattle costs 1 tap · the pile is never a dead end</div>';
     $("#ov").classList.add("show");
     $("#ratB").onclick = () => { $("#ov").classList.remove("show"); cardUp = false; deadOffered = false; rattledThisLevel = true; initAudio(); E.doRattle(world); };
-    $("#restB").onclick = () => build(level);
+    $("#restB").onclick = () => rebuild();
   }
   // out of taps with the level unfinished — a genuine loss (rattle can't help at 0 taps)
   function showLose() {
@@ -252,7 +660,7 @@
       '<div class="btns"><button class="primary" id="retryB"><span>' + refreshIcon + '</span>TRY AGAIN</button></div>' +
       '<div class="foot">every restart re-forms the pile from the same seed</div>';
     $("#ov").classList.add("show");
-    $("#retryB").onclick = () => build(level);
+    $("#retryB").onclick = () => rebuild();
   }
   // element debut copy — the on-board coach-mark's bubble text. NEW ELEMENT eyebrow ·
   // Lilita name · honey rule + dim detail. (ice + tar cut — see design-4-rattle.md;
@@ -527,35 +935,69 @@
     ctx.globalAlpha = 1;
   }
   // HUD (screen space, in the safe area): LEVEL + big TAPS readout · chips
+  // design v2 "elevated toy-jar" glass tray — bg rgba(26,16,42,.88), 1.5px #4d3c60
+  // border, inset top light, soft drop shadow. Ported from design_source 1h.
+  function glassTray(x, y, w, h, r) {
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6;
+    rrect(x, y, w, h, r); ctx.fillStyle = "rgba(26,16,42,0.9)"; ctx.fill();
+    ctx.restore();
+    rrect(x, y, w, h, r); ctx.lineWidth = 1.5; ctx.strokeStyle = "#4d3c60"; ctx.stroke();
+    ctx.save(); rrect(x, y, w, h, r); ctx.clip();
+    ctx.strokeStyle = "rgba(255,255,255,0.13)"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x + r * 0.7, y + 1); ctx.lineTo(x + w - r * 0.7, y + 1); ctx.stroke();
+    ctx.restore();
+  }
+  const LS = v => { if ("letterSpacing" in ctx) ctx.letterSpacing = v + "px"; };
   function drawHUD() {
-    const top = INSET.top + 12;
-    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-    // labeled beats keep a persistent tinted tag next to the level number
-    const tier = world.spec.hard ? HARD_TIERS[world.spec.hard] : null;
-    ctx.font = "800 13px " + F; ctx.fillStyle = tier ? tier.c : "rgba(179,163,196,0.9)";
-    ctx.fillText("LEVEL " + level + (tier ? " · " + tier.label : ""), 16, top + 11);
-    ctx.font = "44px 'Lilita One', " + F; ctx.fillStyle = world.taps <= 2 ? "#ffb648" : "#f3ecfa";
-    ctx.fillText(String(world.taps), 15, top + 50);
-    const tw = ctx.measureText(String(world.taps)).width;
-    ctx.font = "800 12px " + F; ctx.fillStyle = "rgba(179,163,196,0.8)";
-    ctx.fillText("TAPS", 15 + tw + 7, top + 50);
-    // chips (right-aligned): bead icon + count
-    const ch = 30, fs = 17;
-    ctx.font = "800 " + fs + "px " + F;
-    const items = world.objectives.map(o => { const done = o.rem <= 0; const txt = done ? "✓" : (o.kind === "duck" ? "↓" : String(o.rem)); return { o, txt, done, w: ch * 1.05 + ctx.measureText(txt).width + ch * 0.5 }; });
-    let x = W - 14 - items.reduce((a, i) => a + i.w + 6, 0) + 6, y = top + 2;
-    for (const it of items) {
-      rrect(x, y, it.w, ch, ch / 2); ctx.fillStyle = "rgba(28,19,48,0.92)"; ctx.fill();
-      ctx.strokeStyle = it.done ? "rgba(75,212,138,0.85)" : "rgba(120,105,160,0.4)"; ctx.lineWidth = 1.2; ctx.stroke();
-      const ir = ch * 0.31, ix = x + ch * 0.56, iy = y + ch / 2;
-      if (it.o.kind === "pop") drawBallScreen(ix, iy, ir, it.o.color);
-      else if (it.o.kind === "shells") drawShellIcon(ix, iy, ir);
-      else if (it.o.kind === "balloons") drawBalloonIcon(ix, iy, ir);
-      else drawDuck(ix, iy, ir * 1.1, 0);
-      ctx.fillStyle = it.done ? "#4bd48a" : "#e9eefb"; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.font = "800 " + fs + "px " + F;
-      ctx.fillText(it.txt, x + ch * 1.06, y + ch / 2 + 0.5); ctx.textBaseline = "alphabetic";
-      x += it.w + 6;
+    const top = INSET.top + 14;
+    // ── TAPS card (glass tray, left) ──
+    const tcW = 66, tcH = 74, tcX = 12;
+    glassTray(tcX, top, tcW, tcH, 22);
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    ctx.font = "36px 'Lilita One', " + F; ctx.fillStyle = world.taps <= 2 ? "#ffb648" : "#f3ecfa";
+    ctx.fillText(String(world.taps), tcX + tcW / 2, top + 45);
+    ctx.font = "800 9.5px " + F; LS(2); ctx.fillStyle = "#8b7c98";
+    ctx.fillText("TAPS", tcX + tcW / 2 + 1, top + 61); LS(0);
+    // ── objective capsule (centered glass pill) ──
+    const iconR = 12.5, countF = "21px 'Lilita One', " + F, padIn = 12, gap = 7, capH = 48, capPad = 6, divW = 1.5;
+    ctx.font = countF; ctx.textAlign = "left";
+    const segs = world.objectives.map(o => {
+      const done = o.rem <= 0, txt = done ? "✓" : (o.kind === "duck" ? "↓" : String(o.rem));
+      return { o, done, txt, w: padIn + 25 + gap + ctx.measureText(txt).width + padIn };
+    });
+    const capW = capPad * 2 + segs.reduce((a, s) => a + s.w, 0) + (segs.length - 1) * divW;
+    const capX = Math.round(W / 2 - capW / 2);
+    glassTray(capX, top, capW, capH, capH / 2);
+    let sx = capX + capPad;
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i], cy = top + capH / 2, cx = sx + padIn + 12.5;
+      if (s.o.kind === "pop") drawBallScreen(cx, cy, iconR, s.o.color);
+      else if (s.o.kind === "shells") drawShellIcon(cx, cy, iconR);
+      else if (s.o.kind === "balloons") drawBalloonIcon(cx, cy, iconR);
+      else drawDuck(cx, cy, iconR * 1.15, 0);
+      ctx.font = countF; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      ctx.fillStyle = s.done ? "#4bd48a" : (s.o.kind === "duck" ? "#ffce6b" : "#f6f0fc");
+      ctx.fillText(s.txt, sx + padIn + 25 + gap, cy + 1); ctx.textBaseline = "alphabetic";
+      sx += s.w;
+      if (i < segs.length - 1) { ctx.fillStyle = "rgba(120,105,160,0.3)"; ctx.fillRect(sx, top + capH / 2 - 11, divW, 22); sx += divW; }
     }
+    // ── level pill (under the capsule) ──
+    const tier = world.spec.hard ? HARD_TIERS[world.spec.hard] : null;
+    const lvTxt = "LEVEL " + level, pillPad = 11, pg = 6, pillH = 22;
+    ctx.font = "800 10px " + F; LS(1.4); const lvW = ctx.measureText(lvTxt).width;
+    ctx.font = "900 10px " + F; const tierW = tier ? ctx.measureText(tier.label).width : 0; LS(0);
+    const pillW = pillPad * 2 + lvW + (tier ? pg + 4 + pg + tierW : 0);
+    const pillX = Math.round(W / 2 - pillW / 2), pillY = top + capH + 6;
+    rrect(pillX, pillY, pillW, pillH, pillH / 2); ctx.fillStyle = "rgba(26,16,42,0.78)"; ctx.fill();
+    ctx.lineWidth = 1; ctx.strokeStyle = "#3d2f52"; ctx.stroke();
+    ctx.textBaseline = "middle"; ctx.textAlign = "left"; let px = pillX + pillPad, my = pillY + pillH / 2 + 0.5;
+    ctx.font = "800 10px " + F; LS(1.4); ctx.fillStyle = "#b3a3c4"; ctx.fillText(lvTxt, px, my); px += lvW; LS(0);
+    if (tier) {
+      px += pg; ctx.fillStyle = tier.c; ctx.beginPath(); ctx.arc(px + 2, pillY + pillH / 2, 2, 0, 7); ctx.fill(); px += 4 + pg;
+      ctx.font = "900 10px " + F; LS(1.4); ctx.fillStyle = tier.c; ctx.fillText(tier.label, px, my); LS(0);
+    }
+    ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
   }
   // bead drawn at native (unscaled) screen size for the chips — glyph per colour MUST
   // match the on-board drawGlyph (0 dot · 1 triangle · 2 square · 3 diamond · 4 ring) so
@@ -601,13 +1043,15 @@
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, H);
     ctx.save();
-    if (shakeA > 0.05) ctx.translate((Math.random() - 0.5) * shakeA, (Math.random() - 0.5) * shakeA);
+    if (shakeOn && shakeA > 0.05) ctx.translate((Math.random() - 0.5) * shakeA, (Math.random() - 0.5) * shakeA);
     ctx.translate(ox, oy); ctx.scale(s, s);   // world → screen
     drawWorld();
     ctx.restore();
     drawHUD();
     drawBanner();
     if (coach) drawCoach();
+    // the gear hides whenever an overlay/coach owns the screen (its own overlay covers it)
+    $("#gear").classList.toggle("hide", cardUp || menuUp || !!coach || world.phase !== "play");
   }
 
   /* ---------------- input ---------------- */
@@ -629,7 +1073,7 @@
     // dev builds: tapping the "LEVEL N" HUD label opens the jump prompt
     if (DEV_UNLOCK && e.clientY < INSET.top + 34 && e.clientX < 190) { devJump(); return; }
     if (coach) { dismissCoach(); return; }               // tap to dismiss the on-board intro
-    if (cardUp || world.phase !== "play") return;
+    if (cardUp || menuUp || world.phase !== "play") return;
     if (!firstTap) { firstTap = true; $("#hint").classList.add("off"); }
     const wx = (e.clientX - ox) / s, wy = (e.clientY - oy) / s;
     const r = E.tap(world, wx, wy);
@@ -637,6 +1081,7 @@
     if (r.kind === "pop" || r.kind === "rattle" || r.kind === "singleton" || r.kind === "duck") consume();
   });
   canvas.addEventListener("contextmenu", e => e.preventDefault());
+  $("#gear").addEventListener("click", () => { initAudio(); openPause(); });
   // (no persistent RATTLE button — rattle is a tap on empty space; the 1d card handles the stuck case)
 
   /* ---------------- resize + loop ---------------- */
@@ -656,7 +1101,8 @@
   }
   window.addEventListener("resize", resize);
   resize();
-  build((loadSave().level) || 1);
+  wireChrome();
+  showScreen("home");   // boot into the home screen (PLAY builds + enters play)
 
   let last = 0, acc = 0;
   function frame(t) {
@@ -664,15 +1110,20 @@
     if (!last) { last = t; return; }
     let dt = (t - last) / 1000; last = t; if (dt > 0.05) dt = 0.05; acc += dt; if (acc > 0.1) acc = 0.1;
     while (acc >= FDT) {
-      simT += FDT; bannerT += FDT; shakeA = Math.max(0, shakeA - FDT * 14);
-      if (coach) coach.t += FDT;
-      for (const k in wob) if (wob[k] > 0) wob[k] = Math.max(0, wob[k] - FDT * 3);
-      for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.t += FDT; if (p.t >= p.life) { parts.splice(i, 1); continue; } p.vy += world.L.G * 0.6 * FDT; p.x += p.vx * FDT; p.y += p.vy * FDT; p.rot += p.vr * FDT; }
-      for (let i = rings.length - 1; i >= 0; i--) { rings[i].t += FDT; if (rings[i].t >= rings[i].life) rings.splice(i, 1); }
-      if (world.phase === "play") { E.step(world); consume(); }
+      simT += FDT;
+      if (screen === "play") {
+        bannerT += FDT; shakeA = Math.max(0, shakeA - FDT * 14);
+        if (coach) coach.t += FDT;
+        for (const k in wob) if (wob[k] > 0) wob[k] = Math.max(0, wob[k] - FDT * 3);
+        for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.t += FDT; if (p.t >= p.life) { parts.splice(i, 1); continue; } p.vy += world.L.G * 0.6 * FDT; p.x += p.vx * FDT; p.y += p.vy * FDT; p.rot += p.vr * FDT; }
+        for (let i = rings.length - 1; i >= 0; i--) { rings[i].t += FDT; if (rings[i].t >= rings[i].life) rings.splice(i, 1); }
+        if (world.phase === "play" && !menuUp) { E.step(world); consume(); }
+      }
       acc -= FDT;
     }
-    render();
+    if (screen === "home") renderHome();
+    else if (screen === "play") render();
+    // settings: opaque DOM covers the canvas — no canvas work
   }
   requestAnimationFrame(frame);
 

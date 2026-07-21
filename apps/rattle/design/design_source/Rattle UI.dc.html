@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&amp;family=Nunito:wght@700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0f0a16;font-family:Nunito,system-ui,sans-serif;color:#e8ddf6}
+a{color:#ffb648}a:hover{color:#ffce6b}
+@keyframes rfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes rpulse{0%{transform:scale(1);opacity:.85}70%{transform:scale(1.6);opacity:0}100%{transform:scale(1.6);opacity:0}}
+@keyframes rtwinkle{0%,100%{opacity:.2}50%{opacity:.95}}
+</style>
+</helmet>
+<section id="t1" style="padding:42px 46px 60px">
+  <div style="max-width:1100px;margin-bottom:34px">
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px">
+      <a href="#t1" style="font:600 10px ui-monospace,Menlo,monospace;padding:3px 8px;background:#ffb648;color:#2a1505;border-radius:4px;text-decoration:none">1</a>
+      <span style="font:400 20px 'Lilita One',sans-serif;letter-spacing:.02em;color:#f6f0fc">RATTLE — full UI pass + app icon</span>
+    </div>
+    <div style="font:700 12.5px/1.65 Nunito,sans-serif;color:rgba(232,221,246,.62);max-width:860px">
+      Direction: <b style="color:#ffce6b">elevated toy-jar</b> — keeps the studio identity (Lilita One / Nunito, honey on warm aubergine, the colorblind-safe bead palette + glyphs) but rebuilt with depth: candy-gloss beads rendered by the game's actual painters, chunky press-down buttons, glass HUD trays, cozy copy. Piles are generated settled piles, not stock art. Full-bleed play field per the shipped spec. New screens the MVP lacks: home, level path, toy chest, daily jar, pause.
+    </div>
+  </div>
+
+  <!-- ══════════ APP ICON OPTIONS ══════════ -->
+  <div style="font:900 11px Nunito,sans-serif;letter-spacing:.28em;color:rgba(232,221,246,.45);margin-bottom:14px">APP ICON</div>
+  <div style="display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start;margin-bottom:52px">
+    <div id="1a" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1a" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1a</a>The Pop — cluster mid-burst</div>
+      <canvas ref="{{ icPop }}" style="width:168px;height:168px;border-radius:38px;box-shadow:0 18px 40px -14px rgba(0,0,0,.8)"></canvas>
+    </div>
+    <div id="1b" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1b" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:#ffb648;color:#2a1505;border-radius:5px;text-decoration:none">1b</a>Duck in the jar <b style="color:#ffce6b">· recommended</b></div>
+      <canvas ref="{{ icDuck }}" style="width:168px;height:168px;border-radius:38px;box-shadow:0 18px 40px -14px rgba(0,0,0,.8)"></canvas>
+    </div>
+    <div id="1c" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1c" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1c</a>The Jar</div>
+      <canvas ref="{{ icJar }}" style="width:168px;height:168px;border-radius:38px;box-shadow:0 18px 40px -14px rgba(0,0,0,.8)"></canvas>
+    </div>
+    <div id="1d" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1d" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1d</a>One Bead — minimal</div>
+      <canvas ref="{{ icBead }}" style="width:168px;height:168px;border-radius:38px;box-shadow:0 18px 40px -14px rgba(0,0,0,.8)"></canvas>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)">1b at small sizes</div>
+      <div style="display:flex;align-items:flex-end;gap:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:18px 22px;height:132px;box-sizing:border-box">
+        <canvas ref="{{ icS1 }}" style="width:96px;height:96px;border-radius:22px"></canvas>
+        <canvas ref="{{ icS2 }}" style="width:60px;height:60px;border-radius:14px"></canvas>
+        <canvas ref="{{ icS3 }}" style="width:29px;height:29px;border-radius:7px"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ SCREENS ══════════ -->
+  <div style="font:900 11px Nunito,sans-serif;letter-spacing:.28em;color:rgba(232,221,246,.45);margin-bottom:14px">SCREENS — ONE DIRECTION, END TO END</div>
+  <div style="display:flex;flex-wrap:wrap;gap:38px;align-items:flex-start">
+
+    <!-- 1e CURRENT BUILD (reference) -->
+    <div id="1e" data-screen-label="current build" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1e" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1e</a>Current build — faithful reference</div>
+      <div style="width:402px;height:874px;border-radius:48px;overflow:hidden;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 1.5px rgba(255,255,255,.07)">
+        <div style="position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(130% 100% at 50% -15%,#4a2c63,#2d1a46 55%,#180e2b)">
+          <canvas ref="{{ refCur }}" style="position:absolute;left:0;top:0;width:402px;height:874px"></canvas>
+          <div style="position:absolute;left:16px;top:58px;font:800 13px Nunito,sans-serif;color:rgba(179,163,196,.9)">LEVEL 3</div>
+          <div style="position:absolute;left:15px;top:74px;display:flex;align-items:baseline;gap:7px"><span style="font:400 44px 'Lilita One',sans-serif;color:#f3ecfa">9</span><span style="font:800 12px Nunito,sans-serif;color:rgba(179,163,196,.8)">TAPS</span></div>
+          <div style="position:absolute;right:14px;top:68px;display:flex;gap:6px">
+            <div style="display:flex;align-items:center;gap:6px;height:30px;padding:0 12px 0 7px;border-radius:15px;background:rgba(28,19,48,.92);border:1.2px solid rgba(120,105,160,.4)">
+              <svg width="19" height="19" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#ffce6b"></circle><circle cx="12" cy="12" r="9.7" fill="none" stroke="#8a5f16" stroke-width="1.9" opacity="0.5"></circle><circle cx="12" cy="12" r="3.6" fill="#8a5f16"></circle><circle cx="7.9" cy="7.4" r="1.6" fill="rgba(255,255,255,0.7)"></circle></svg>
+              <span style="font:800 17px Nunito,sans-serif;color:#e9eefb">14</span>
+            </div>
+          </div>
+          <div style="position:absolute;left:50%;top:146px;transform:translateX(-50%);background:rgba(28,19,48,.82);border:1px solid #3d2f52;color:#b3a3c4;font:700 13px Nunito,sans-serif;padding:8px 15px;border-radius:999px;white-space:nowrap">tap same-colour groups · tap empty space to rattle</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1f HOME -->
+    <div id="1f" data-screen-label="home" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1f" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1f</a>Home — new screen</div>
+      <div style="width:402px;height:874px;border-radius:48px;overflow:hidden;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 1.5px rgba(255,255,255,.07)">
+        <div style="position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(130% 100% at 50% -15%,#4a2c63,#2d1a46 55%,#180e2b)">
+          <div style="position:absolute;left:-40px;top:160px;width:220px;height:220px;border-radius:50%;background:#9d7bff;opacity:.07;filter:blur(30px)"></div>
+          <div style="position:absolute;right:-60px;top:340px;width:260px;height:260px;border-radius:50%;background:#ffb648;opacity:.06;filter:blur(34px)"></div>
+          <div style="position:absolute;left:30px;top:520px;width:140px;height:140px;border-radius:50%;background:#ff6b6b;opacity:.05;filter:blur(26px)"></div>
+          <canvas ref="{{ refHome }}" style="position:absolute;left:0;bottom:0;width:402px;height:290px"></canvas>
+          <div style="position:absolute;left:151px;bottom:156px;animation:rfloat 3.4s ease-in-out infinite"><canvas ref="{{ duckHome }}" style="width:100px;height:100px"></canvas></div>
+          <div style="position:absolute;right:16px;top:64px;width:44px;height:44px;border-radius:50%;background:rgba(36,24,52,.7);border:1.5px solid #4d3c60;box-shadow:0 6px 12px -6px rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><g fill="#c9b8dc"><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(45 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(90 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(135 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(180 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(225 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(270 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(315 12 12)"></rect></g><circle cx="12" cy="12" r="6" stroke="#c9b8dc" stroke-width="2.6"></circle></svg>
+          </div>
+          <div style="position:absolute;left:0;right:0;top:158px;display:flex;flex-direction:column;align-items:center">
+            <div style="display:flex;align-items:baseline;font-family:'Lilita One',sans-serif;font-size:66px;line-height:1;color:#ffc45c;text-shadow:0 4px 0 #8a5210,0 10px 30px rgba(255,182,72,.45)">
+              <span style="display:inline-block;transform:rotate(-5deg) translateY(3px)">R</span><span style="display:inline-block;transform:rotate(3deg)">A</span><span style="display:inline-block;transform:rotate(-2deg) translateY(4px)">T</span><span style="display:inline-block;transform:rotate(2deg) translateY(-2px)">T</span><span style="display:inline-block;transform:rotate(-3deg) translateY(3px)">L</span><span style="display:inline-block;transform:rotate(4deg)">E</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:9px;margin-top:16px;font:900 11.5px Nunito,sans-serif;letter-spacing:.34em;text-indent:.34em;color:#b3a3c4">
+              <span>POP</span><span style="width:7px;height:7px;border-radius:50%;background:#ff6b6b;box-shadow:inset 0 -1.5px 0 #a02733"></span><span>TUMBLE</span><span style="width:7px;height:7px;border-radius:50%;background:#6ea8ff;box-shadow:inset 0 -1.5px 0 #1d4faf"></span><span>CLEAR</span>
+            </div>
+          </div>
+          <div style="position:absolute;left:0;right:0;bottom:318px;display:flex;flex-direction:column;align-items:center;gap:13px">
+            <div style="width:250px;border-radius:22px;background:linear-gradient(180deg,#ffdf8f,#ffb648 45%,#ff9d3b);box-shadow:0 14px 26px -10px rgba(255,157,59,.45),0 8px 18px -10px #000,inset 0 2px 0 rgba(255,255,255,.55);padding:17px 0;text-align:center;font:400 24px 'Lilita One',sans-serif;letter-spacing:.06em;color:#3a1e05">PLAY&nbsp;&nbsp;▸</div>
+            <div style="font:800 11px Nunito,sans-serif;letter-spacing:.2em;color:#8b7c98">LEVEL 24 · CHAPTER 3</div>
+            <div style="display:flex;gap:12px;margin-top:4px">
+              <div style="display:flex;align-items:center;gap:9px;height:52px;padding:0 18px;border-radius:18px;background:linear-gradient(180deg,#2e2340,#241634);border:1.5px solid #4d3c60;box-shadow:0 8px 16px -8px #000">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#ffce6b" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="7" width="14" height="14" rx="4"></rect><path d="M8 7V5h8v2"></path></svg>
+                <div style="text-align:left"><div style="font:900 12.5px Nunito,sans-serif;color:#e8ddf6">DAILY JAR <span style="color:#ffce6b">▸</span></div><div style="font:800 9.5px Nunito,sans-serif;color:#8b7c98">plays today's shake · day 4</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:9px;height:52px;padding:0 18px;border-radius:18px;background:linear-gradient(180deg,#2e2340,#241634);border:1.5px solid #4d3c60;box-shadow:0 8px 16px -8px #000">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffd44d"><circle cx="13" cy="14" r="6.4"></circle><circle cx="9.4" cy="9.2" r="3.8"></circle><path d="M6.6 8.2 3.2 9.2 6.7 10.6z" fill="#ff9d3b"></path><circle cx="8.6" cy="8.6" r="0.8" fill="#20242e"></circle></svg>
+                <div style="text-align:left"><div style="font:900 12.5px Nunito,sans-serif;color:#e8ddf6">TOY CHEST</div><div style="font:800 9.5px Nunito,sans-serif;color:#8b7c98">12 of 50</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1g LEVEL PATH -->
+    <div id="1g" data-screen-label="level path" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1g" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1g</a>Level path — new screen (nodes are beads)</div>
+      <div style="width:402px;height:874px;border-radius:48px;overflow:hidden;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 1.5px rgba(255,255,255,.07)">
+        <div style="position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(130% 100% at 50% -15%,#4a2c63,#2d1a46 55%,#180e2b)">
+          <div style="position:absolute;left:0;right:0;top:62px;display:flex;align-items:center;padding:0 16px">
+            <div style="width:42px;height:42px;border-radius:50%;background:rgba(36,24,52,.7);border:1.5px solid #4d3c60;box-shadow:0 6px 12px -6px rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M10 2L2 10l8 8" stroke="#c9b8dc" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="flex:1;text-align:center;font:400 22px 'Lilita One',sans-serif;color:#f6f0fc;text-shadow:0 3px 0 #140c22">CHAPTER 3</div>
+            <div style="display:flex;align-items:center;gap:5px;height:32px;padding:0 12px;border-radius:16px;background:rgba(36,24,52,.7);border:1.5px solid #4d3c60"><span style="color:#ffce6b;font-size:14px">★</span><span style="font:400 15px 'Lilita One',sans-serif;color:#f6f0fc">41</span></div>
+          </div>
+          <div style="position:absolute;left:16px;right:16px;top:120px;display:flex;align-items:center;gap:12px;background:linear-gradient(180deg,#2e2340,#1b1228);border:1.5px solid #4d3c60;border-radius:20px;padding:12px 16px;box-shadow:0 8px 16px -8px #000">
+            <canvas ref="{{ stoneMini }}" style="width:36px;height:36px"></canvas>
+            <div><div style="font:400 15px 'Lilita One',sans-serif;letter-spacing:.03em;color:#f6f0fc">STONES ROLL IN</div><div style="font:700 11.5px Nunito,sans-serif;color:#b3a3c4">heavy beads you can't pop — dig around them</div></div>
+          </div>
+          <div style="position:absolute;left:0;top:196px;width:402px;height:620px">
+            <div style="position:absolute;left:79px;top:145px;width:54px;text-align:center"><div style="position:relative;width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#2e2340,#1b1228 70%);border:1.5px solid #3d2f52;display:flex;align-items:center;justify-content:center;font:400 20px 'Lilita One',sans-serif;color:#6b5d78">28</div></div>
+            <div style="position:absolute;left:199px;top:123px;width:54px;text-align:center"><div style="position:relative;width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#2e2340,#1b1228 70%);border:1.5px solid #3d2f52;display:flex;align-items:center;justify-content:center;font:400 20px 'Lilita One',sans-serif;color:#6b5d78">27</div><div style="position:absolute;left:50%;top:-11px;transform:translateX(-50%);white-space:nowrap;font:900 8px Nunito,sans-serif;letter-spacing:.14em;color:#9d7bff;background:rgba(36,24,52,.9);border:1px solid #5a35c2;border-radius:8px;padding:2px 7px">NEW ELEMENT</div></div>
+            <div style="position:absolute;left:303px;top:179px;width:54px;text-align:center"><div style="position:relative;width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#2e2340,#1b1228 70%);border:1.5px solid #3d2f52;display:flex;align-items:center;justify-content:center;font:400 20px 'Lilita One',sans-serif;color:#6b5d78">26</div></div>
+            <div style="position:absolute;left:249px;top:273px;width:54px;text-align:center"><div style="position:relative;width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#2e2340,#1b1228 70%);border:1.5px solid #3d2f52;display:flex;align-items:center;justify-content:center;font:400 20px 'Lilita One',sans-serif;color:#6b5d78">25</div></div>
+            <div style="position:absolute;left:137px;top:259px;width:66px;text-align:center">
+              <div style="position:relative;width:66px;height:66px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9b0,#ffb648 60%,#e08a1e);box-shadow:inset 0 -4px 8px rgba(138,95,22,.5),0 6px 16px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font:400 26px 'Lilita One',sans-serif;color:#5a3306" style-before="content:'';position:absolute;left:14px;top:10px;width:11px;height:11px;border-radius:50%;background:rgba(255,255,255,.65)">
+                <div style="position:absolute;inset:-7px;border-radius:50%;border:3px solid rgba(255,255,255,.75);animation:rpulse 1.8s ease-out infinite"></div>24
+              </div>
+              <div style="position:absolute;left:44px;top:-26px"><canvas ref="{{ duckPath }}" style="width:40px;height:40px"></canvas></div>
+              <div style="margin-top:6px;display:inline-block;font:900 9px Nunito,sans-serif;letter-spacing:.16em;color:#ffb648;background:rgba(36,24,52,.9);border:1px solid #8a5f16;border-radius:8px;padding:2.5px 8px">HARD</div>
+            </div>
+            <div style="position:absolute;left:39px;top:313px;width:54px;text-align:center"><div style="position:relative;width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9b0,#ffb648 60%,#e08a1e);box-shadow:inset 0 -3px 6px rgba(138,95,22,.45),0 4px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font:400 20px 'Lilita One',sans-serif;color:#5a3306" style-before="content:'';position:absolute;left:11px;top:8px;width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.6)">23</div><div style="font-size:10px;letter-spacing:-1px;color:#ffce6b;text-shadow:0 1px 0 #6b4508">★★★</div></div>
+            <div style="position:absolute;left:113px;top:393px;width:54px;text-align:center"><div style="position:relative;width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9b0,#ffb648 60%,#e08a1e);box-shadow:inset 0 -3px 6px rgba(138,95,22,.45),0 4px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font:400 20px 'Lilita One',sans-serif;color:#5a3306" style-before="content:'';position:absolute;left:11px;top:8px;width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.6)">22</div><div style="font-size:10px;letter-spacing:-1px;color:#ffce6b;text-shadow:0 1px 0 #6b4508">★★<span style="color:rgba(150,130,175,.35);text-shadow:none">★</span></div></div>
+            <div style="position:absolute;left:225px;top:371px;width:54px;text-align:center"><div style="position:relative;width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9b0,#ffb648 60%,#e08a1e);box-shadow:inset 0 -3px 6px rgba(138,95,22,.45),0 4px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font:400 20px 'Lilita One',sans-serif;color:#5a3306" style-before="content:'';position:absolute;left:11px;top:8px;width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.6)">21</div><div style="font-size:10px;letter-spacing:-1px;color:#ffce6b;text-shadow:0 1px 0 #6b4508">★★★</div></div>
+            <div style="position:absolute;left:303px;top:435px;width:54px;text-align:center"><div style="position:relative;width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9b0,#ffb648 60%,#e08a1e);box-shadow:inset 0 -3px 6px rgba(138,95,22,.45),0 4px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font:400 20px 'Lilita One',sans-serif;color:#5a3306" style-before="content:'';position:absolute;left:11px;top:8px;width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.6)">20</div><div style="font-size:10px;letter-spacing:-1px;color:#ffce6b;text-shadow:0 1px 0 #6b4508">★★<span style="color:rgba(150,130,175,.35);text-shadow:none">★</span></div></div>
+            <div style="position:absolute;left:231px;top:513px;width:54px;text-align:center">
+              <div style="position:relative;width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9b0,#ffb648 60%,#e08a1e);border:3px solid #ff5a3c;box-shadow:inset 0 -3px 6px rgba(138,95,22,.45),0 4px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font:400 20px 'Lilita One',sans-serif;color:#5a3306" style-before="content:'';position:absolute;left:11px;top:8px;width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.6)">19</div>
+              <div style="font-size:10px;letter-spacing:-1px;color:#ffce6b;text-shadow:0 1px 0 #6b4508">★★★</div>
+              <div style="position:absolute;left:50%;top:-11px;transform:translateX(-50%);font:900 8px Nunito,sans-serif;letter-spacing:.14em;color:#ff5a3c;background:rgba(36,24,52,.9);border:1px solid #ff5a3c;border-radius:8px;padding:2px 7px">SUPER</div>
+            </div>
+            <div style="position:absolute;left:93px;top:533px;width:54px;text-align:center"><div style="position:relative;width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9b0,#ffb648 60%,#e08a1e);box-shadow:inset 0 -3px 6px rgba(138,95,22,.45),0 4px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font:400 20px 'Lilita One',sans-serif;color:#5a3306" style-before="content:'';position:absolute;left:11px;top:8px;width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.6)">18</div><div style="font-size:10px;letter-spacing:-1px;color:#ffce6b;text-shadow:0 1px 0 #6b4508">★★★</div></div>
+            <div style="position:absolute;left:13px;top:473px;width:54px;text-align:center"><div style="position:relative;width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9b0,#ffb648 60%,#e08a1e);box-shadow:inset 0 -3px 6px rgba(138,95,22,.45),0 4px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font:400 20px 'Lilita One',sans-serif;color:#5a3306" style-before="content:'';position:absolute;left:11px;top:8px;width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.6)">17</div><div style="font-size:10px;letter-spacing:-1px;color:#ffce6b;text-shadow:0 1px 0 #6b4508">★★★</div></div>
+          </div>
+          <div style="position:absolute;left:24px;right:24px;bottom:34px">
+            <div style="height:10px;border-radius:999px;background:#241634;border:1px solid #3d2f52;overflow:hidden"><div style="width:22%;height:100%;background:linear-gradient(180deg,#ffce6b,#ff9d3b);border-radius:999px"></div></div>
+            <div style="margin-top:8px;text-align:center;font:800 10.5px Nunito,sans-serif;letter-spacing:.18em;color:#8b7c98">23 CLEARED · 106 TOTAL</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1h PLAY -->
+    <div id="1h" data-screen-label="play" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1h" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1h</a>Play — redesigned HUD (tweakable: hard tier, low taps)</div>
+      <div style="width:402px;height:874px;border-radius:48px;overflow:hidden;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 1.5px rgba(255,255,255,.07)">
+        <div style="position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(130% 100% at 50% -15%,#4a2c63,#2d1a46 55%,#180e2b)">
+          <canvas ref="{{ refPlay }}" style="position:absolute;left:0;top:0;width:402px;height:874px"></canvas>
+          <div style="position:absolute;left:12px;right:12px;top:62px;display:flex;align-items:flex-start;gap:10px">
+            <div style="width:66px;height:74px;border-radius:22px;background:rgba(26,16,42,.88);border:1.5px solid #4d3c60;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.12),0 6px 14px -6px rgba(0,0,0,.6);display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <span style="font-family:'Lilita One',sans-serif;font-size:36px;line-height:1;color:{{ tapsColor }}">{{ tapsNum }}</span>
+              <span style="font:800 9.5px Nunito,sans-serif;letter-spacing:.22em;text-indent:.22em;color:#8b7c98;margin-top:3px">TAPS</span>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+              <div style="display:inline-flex;align-items:center;height:48px;padding:0 6px;border-radius:999px;background:rgba(26,16,42,.88);border:1.5px solid #4d3c60;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.12),0 6px 14px -6px rgba(0,0,0,.6)">
+                <div style="display:flex;align-items:center;gap:7px;padding:0 12px">
+                  <svg width="25" height="25" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#ff6b6b"></circle><circle cx="12" cy="12" r="9.7" fill="none" stroke="#a02733" stroke-width="1.9" opacity="0.5"></circle><rect x="8.6" y="8.6" width="6.8" height="6.8" fill="#a02733"></rect><circle cx="7.9" cy="7.4" r="1.7" fill="rgba(255,255,255,0.7)"></circle></svg>
+                  <span style="font:400 21px 'Lilita One',sans-serif;color:#f6f0fc">12</span>
+                </div>
+                <div style="width:1.5px;height:22px;background:rgba(120,105,160,.3);border-radius:1px"></div>
+                <div style="display:flex;align-items:center;gap:7px;padding:0 12px">
+                  <svg width="25" height="25" viewBox="0 0 24 24" fill="#ffd44d"><circle cx="13" cy="14" r="6.4"></circle><circle cx="9.4" cy="9.2" r="3.8"></circle><path d="M6.6 8.2 3.2 9.2 6.7 10.6z" fill="#ff9d3b"></path><circle cx="8.6" cy="8.6" r="0.8" fill="#20242e"></circle></svg>
+                  <span style="font:400 19px 'Lilita One',sans-serif;color:#ffce6b">↓</span>
+                </div>
+              </div>
+              <sc-if value="{{ tierOn }}" hint-placeholder-val="{{ true }}">
+                <div style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 11px;border-radius:999px;background:rgba(26,16,42,.78);border:1px solid #3d2f52">
+                  <span style="font:800 10px Nunito,sans-serif;letter-spacing:.14em;color:#b3a3c4">LEVEL 24</span>
+                  <span style="width:4px;height:4px;border-radius:50%;background:{{ tierColor }}"></span>
+                  <span style="font:900 10px Nunito,sans-serif;letter-spacing:.14em;color:{{ tierColor }}">{{ tierLabel }}</span>
+                </div>
+              </sc-if>
+            </div>
+            <div style="width:46px;height:46px;border-radius:50%;background:rgba(26,16,42,.88);border:1.5px solid #4d3c60;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.12),0 6px 14px -6px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;gap:4.5px">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><g fill="#c9b8dc"><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(45 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(90 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(135 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(180 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(225 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(270 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(315 12 12)"></rect></g><circle cx="12" cy="12" r="6" stroke="#c9b8dc" stroke-width="2.6"></circle></svg>
+            </div>
+          </div>
+          <div style="position:absolute;left:50%;bottom:42px;transform:translateX(-50%);background:rgba(26,16,42,.82);border:1px solid #3d2f52;color:#b3a3c4;font:700 12.5px Nunito,sans-serif;padding:8px 16px;border-radius:999px;white-space:nowrap;box-shadow:0 6px 14px -6px rgba(0,0,0,.6)">tap matching groups · tap empty space to rattle</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1i COACH MARK -->
+    <div id="1i" data-screen-label="coach mark" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1i" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1i</a>Element debut — on-board coach mark (shell)</div>
+      <div style="width:402px;height:874px;border-radius:48px;overflow:hidden;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 1.5px rgba(255,255,255,.07)">
+        <div style="position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(130% 100% at 50% -15%,#4a2c63,#2d1a46 55%,#180e2b)">
+          <canvas ref="{{ refCoach }}" style="position:absolute;left:0;top:0;width:402px;height:874px"></canvas>
+          <div style="position:absolute;left:12px;right:12px;top:62px;display:flex;align-items:flex-start;gap:10px;opacity:.3">
+            <div style="width:66px;height:74px;border-radius:22px;background:rgba(26,16,42,.88);border:1.5px solid #4d3c60;display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <span style="font-family:'Lilita One',sans-serif;font-size:36px;line-height:1;color:#f6f0fc">8</span>
+              <span style="font:800 9.5px Nunito,sans-serif;letter-spacing:.22em;text-indent:.22em;color:#8b7c98;margin-top:3px">TAPS</span>
+            </div>
+            <div style="flex:1;display:flex;justify-content:center">
+              <div style="display:inline-flex;align-items:center;height:48px;padding:0 16px;border-radius:999px;background:rgba(26,16,42,.88);border:1.5px solid #4d3c60;gap:7px">
+                <svg width="25" height="25" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" fill="#9e702f"></rect><path d="M4 4l16 16M20 4L4 20" stroke="#5c3a16" stroke-width="3"></path></svg>
+                <span style="font:400 21px 'Lilita One',sans-serif;color:#f6f0fc">2</span>
+              </div>
+            </div>
+            <div style="width:46px;height:46px;border-radius:50%;background:rgba(26,16,42,.88);border:1.5px solid #4d3c60;display:flex;align-items:center;justify-content:center;gap:4.5px">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><g fill="#c9b8dc"><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(45 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(90 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(135 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(180 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(225 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(270 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(315 12 12)"></rect></g><circle cx="12" cy="12" r="6" stroke="#c9b8dc" stroke-width="2.6"></circle></svg>
+            </div>
+          </div>
+          <div style="position:absolute;left:{{ cbLeft }}px;top:{{ cbTop }}px;width:280px;background:linear-gradient(180deg,#2e2340,#1b1228);border:2px solid #4d3c60;border-radius:24px;padding:20px 18px 16px;text-align:center;box-shadow:0 24px 50px -12px #000,inset 0 1.5px 0 rgba(255,255,255,.14)">
+            <div style="font:900 11px Nunito,sans-serif;letter-spacing:.3em;text-indent:.3em;color:#ff5a3c;margin-bottom:9px">NEW ELEMENT</div>
+            <div style="font:400 26px 'Lilita One',sans-serif;color:#fff;text-shadow:0 3px 0 #140c22;margin-bottom:7px">SHELL BEAD</div>
+            <div style="font:800 14px Nunito,sans-serif;color:#ffb648;margin-bottom:12px">Pop the crate's colour beside it</div>
+            <div style="font:800 10.5px Nunito,sans-serif;letter-spacing:.18em;color:#8b7c98">TAP TO CONTINUE ▸</div>
+            <div style="position:absolute;left:{{ cbPtr }}px;bottom:-13px;transform:translateX(-50%);width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-top:14px solid #1b1228"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1j CLEARED -->
+    <div id="1j" data-screen-label="cleared" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1j" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1j</a>Cleared — win card + toy unlock</div>
+      <div style="width:402px;height:874px;border-radius:48px;overflow:hidden;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 1.5px rgba(255,255,255,.07)">
+        <div style="position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(130% 100% at 50% -15%,#4a2c63,#2d1a46 55%,#180e2b)">
+          <canvas ref="{{ bgClear }}" style="position:absolute;left:-12px;top:-12px;width:426px;height:898px;filter:blur(8px) brightness(.55)"></canvas>
+          <div style="position:absolute;inset:0;background:rgba(24,14,43,.5)"></div>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px">
+            <div style="position:relative;width:330px;background:linear-gradient(180deg,#2e2340,#1b1228);border:2px solid #4d3c60;border-radius:28px;padding:24px 22px 22px;text-align:center;box-shadow:0 30px 80px -20px #000,inset 0 1.5px 0 rgba(255,255,255,.14)">
+              <div style="position:absolute;top:-56px;left:50%;transform:translateX(-50%);width:300px;height:230px;background:radial-gradient(50% 50% at 50% 50%,rgba(255,182,72,.22) 0%,transparent 70%);pointer-events:none"></div>
+              <div style="position:absolute;left:34px;top:38px;width:8px;height:8px;background:#ff6b6b;transform:rotate(18deg);animation:rtwinkle 2.2s infinite"></div>
+              <div style="position:absolute;right:40px;top:30px;width:7px;height:7px;background:#6ea8ff;transform:rotate(-14deg);animation:rtwinkle 1.9s .4s infinite"></div>
+              <div style="position:absolute;left:56px;top:96px;width:6px;height:6px;background:#4bd48a;transform:rotate(30deg);animation:rtwinkle 2.5s .8s infinite"></div>
+              <div style="position:absolute;right:58px;top:104px;width:6px;height:6px;background:#9d7bff;transform:rotate(-24deg);animation:rtwinkle 2.1s .2s infinite"></div>
+              <div style="position:relative;display:flex;align-items:flex-end;justify-content:center;gap:7px;margin-bottom:8px">
+                <span style="font-size:42px;line-height:1;color:#ffce6b;text-shadow:0 3px 0 #9a6a12;transform:rotate(-12deg)">★</span>
+                <span style="font-size:58px;line-height:1;color:#ffce6b;text-shadow:0 4px 0 #9a6a12;margin-bottom:6px">★</span>
+                <span style="font-size:42px;line-height:1;color:#ffce6b;text-shadow:0 3px 0 #9a6a12;transform:rotate(12deg)">★</span>
+              </div>
+              <div style="position:relative;font:400 34px 'Lilita One',sans-serif;color:#fff;letter-spacing:.03em;text-shadow:0 4px 0 #140c22">CLEARED!</div>
+              <div style="position:relative;font:800 13px Nunito,sans-serif;color:#ffb648;margin:4px 0 16px">2 taps spare · <span style="color:#4bd48a">new toy unlocked!</span></div>
+              <div style="position:relative;display:flex;align-items:center;gap:12px;justify-content:center;background:#140c22;border:1px solid #3a2e4c;border-radius:16px;padding:12px;margin-bottom:16px">
+                <canvas ref="{{ toyDuckCard }}" style="width:46px;height:46px"></canvas>
+                <div style="text-align:left"><div style="color:#fff;font:900 14px Nunito,sans-serif">Rubber Duck</div><div style="color:#8b7c98;font:700 11px Nunito,sans-serif">toy 12 of 50 · Bath-Time set</div></div>
+              </div>
+              <div style="position:relative;display:flex;flex-direction:column;gap:10px">
+                <div style="width:100%;box-sizing:border-box;border-radius:18px;background:linear-gradient(180deg,#ffdf8f,#ffb648 45%,#ff9d3b);color:#3a1e05;font:900 15px Nunito,sans-serif;letter-spacing:.05em;padding:15px;box-shadow:0 6px 16px -8px #000,inset 0 2px 0 rgba(255,255,255,.5)">NEXT&nbsp;&nbsp;▸</div>
+                <div style="display:flex;gap:10px">
+                  <div style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1.5px solid #3d2f52;background:#221534;color:#c9b8dc;font:800 13.5px Nunito,sans-serif;padding:12px;border-radius:16px;box-shadow:0 6px 12px -8px #000"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>Replay</div>
+                  <div style="flex:1;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid #3d2f52;background:#221534;color:#c9b8dc;font:800 13.5px Nunito,sans-serif;padding:12px;border-radius:16px;box-shadow:0 6px 12px -8px #000">Toy chest</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1k NO PAIRS -->
+    <div id="1k" data-screen-label="no pairs left" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1k" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1k</a>No pairs left — the rattle escape</div>
+      <div style="width:402px;height:874px;border-radius:48px;overflow:hidden;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 1.5px rgba(255,255,255,.07)">
+        <div style="position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(130% 100% at 50% -15%,#4a2c63,#2d1a46 55%,#180e2b)">
+          <canvas ref="{{ bgPairs }}" style="position:absolute;left:-12px;top:-12px;width:426px;height:898px;filter:blur(8px) brightness(.55)"></canvas>
+          <div style="position:absolute;inset:0;background:rgba(24,14,43,.5)"></div>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px">
+            <div style="position:relative;width:330px;background:linear-gradient(180deg,#2e2340,#1b1228);border:2px solid #4d3c60;border-radius:28px;padding:26px 22px 20px;text-align:center;box-shadow:0 30px 80px -20px #000,inset 0 1.5px 0 rgba(255,255,255,.14)">
+              <div style="width:70px;height:70px;margin:0 auto 14px;border-radius:22px;background:#140c22;border:1px solid #3a2e4c;box-shadow:inset 0 2px 12px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center">
+                <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#ffce6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2 2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path><path d="M8 8V6M16 8V6M9 14l-1.5 3.5M15 14l1.5 3.5M12 14v3.5"></path></svg>
+              </div>
+              <div style="font:400 26px 'Lilita One',sans-serif;color:#fff;text-shadow:0 3px 0 #140c22;margin-bottom:8px">NO PAIRS LEFT</div>
+              <div style="color:#b3a3c4;font:700 13px/1.55 Nunito,sans-serif;margin:0 4px 18px">No same-colour cluster to pop — but you're not stuck. Rattle the jar and the pile re-settles into fresh clusters.</div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="width:100%;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:9px;border-radius:18px;background:linear-gradient(180deg,#ffdf8f,#ffb648 45%,#ff9d3b);color:#3a1e05;font:900 15px Nunito,sans-serif;letter-spacing:.05em;padding:15px;box-shadow:0 6px 16px -8px #000,inset 0 2px 0 rgba(255,255,255,.5)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3a1e05" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2 2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path><path d="M8 8V6M16 8V6M9 14l-1.5 3.5M15 14l1.5 3.5M12 14v3.5"></path></svg>RATTLE THE JAR</div>
+                <div style="display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1.5px solid #3d2f52;background:#221534;color:#c9b8dc;font:800 13.5px Nunito,sans-serif;padding:12px;border-radius:16px;box-shadow:0 6px 12px -8px #000"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>Restart level</div>
+              </div>
+              <div style="color:#6b5d78;font:700 10.5px Nunito,sans-serif;letter-spacing:.02em;margin-top:14px">rattle costs 1 tap · the pile is never a dead end</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1l OUT OF TAPS -->
+    <div id="1l" data-screen-label="out of taps" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1l" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1l</a>Out of taps — lose card</div>
+      <div style="width:402px;height:874px;border-radius:48px;overflow:hidden;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 1.5px rgba(255,255,255,.07)">
+        <div style="position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(130% 100% at 50% -15%,#4a2c63,#2d1a46 55%,#180e2b)">
+          <canvas ref="{{ bgLose }}" style="position:absolute;left:-12px;top:-12px;width:426px;height:898px;filter:blur(8px) brightness(.55)"></canvas>
+          <div style="position:absolute;inset:0;background:rgba(24,14,43,.5)"></div>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px">
+            <div style="position:relative;width:330px;background:linear-gradient(180deg,#2e2340,#1b1228);border:2px solid #4d3c60;border-radius:28px;padding:26px 22px 20px;text-align:center;box-shadow:0 30px 80px -20px #000,inset 0 1.5px 0 rgba(255,255,255,.14)">
+              <div style="width:70px;height:70px;margin:0 auto 14px;border-radius:22px;background:#140c22;border:1px solid #3a2e4c;box-shadow:inset 0 2px 12px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#ff5a3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M15 9l-6 6M9 9l6 6"></path></svg>
+              </div>
+              <div style="font:400 26px 'Lilita One',sans-serif;color:#fff;text-shadow:0 3px 0 #140c22;margin-bottom:8px">OUT OF TAPS</div>
+              <div style="color:#b3a3c4;font:700 13px/1.55 Nunito,sans-serif;margin:0 8px 18px">So close — 3 beads to go. The duck believes in you.</div>
+              <div style="width:100%;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:9px;border-radius:18px;background:linear-gradient(180deg,#ffdf8f,#ffb648 45%,#ff9d3b);color:#3a1e05;font:900 15px Nunito,sans-serif;letter-spacing:.05em;padding:15px;box-shadow:0 6px 16px -8px #000,inset 0 2px 0 rgba(255,255,255,.5)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3a1e05" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>TRY AGAIN</div>
+              <div style="color:#6b5d78;font:700 10.5px Nunito,sans-serif;letter-spacing:.02em;margin-top:14px">every restart re-forms the pile from the same seed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1m PAUSE -->
+    <div id="1m" data-screen-label="pause" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1m" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1m</a>Pause / settings — new screen</div>
+      <div style="width:402px;height:874px;border-radius:48px;overflow:hidden;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 1.5px rgba(255,255,255,.07)">
+        <div style="position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(130% 100% at 50% -15%,#4a2c63,#2d1a46 55%,#180e2b)">
+          <canvas ref="{{ bgPause }}" style="position:absolute;left:-12px;top:-12px;width:426px;height:898px;filter:blur(8px) brightness(.55)"></canvas>
+          <div style="position:absolute;inset:0;background:rgba(24,14,43,.5)"></div>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px">
+            <div style="position:relative;width:330px;background:linear-gradient(180deg,#2e2340,#1b1228);border:2px solid #4d3c60;border-radius:28px;padding:24px 22px 20px;text-align:center;box-shadow:0 30px 80px -20px #000,inset 0 1.5px 0 rgba(255,255,255,.14)">
+              <div style="font:400 28px 'Lilita One',sans-serif;color:#fff;text-shadow:0 3px 0 #140c22">PAUSED</div>
+              <div style="font:800 10.5px Nunito,sans-serif;letter-spacing:.2em;color:#8b7c98;margin:5px 0 18px">LEVEL 24 · CHAPTER 3</div>
+              <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+                <div style="width:100%;box-sizing:border-box;border-radius:18px;background:linear-gradient(180deg,#ffdf8f,#ffb648 45%,#ff9d3b);color:#3a1e05;font:900 15px Nunito,sans-serif;letter-spacing:.05em;padding:15px;box-shadow:0 6px 16px -8px #000,inset 0 2px 0 rgba(255,255,255,.5)">RESUME&nbsp;&nbsp;▸</div>
+                <div style="display:flex;gap:10px">
+                  <div style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1.5px solid #3d2f52;background:#221534;color:#c9b8dc;font:800 13.5px Nunito,sans-serif;padding:12px;border-radius:16px;box-shadow:0 6px 12px -8px #000"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>Restart</div>
+                  <div style="flex:1;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid #3d2f52;background:#221534;color:#c9b8dc;font:800 13.5px Nunito,sans-serif;padding:12px;border-radius:16px;box-shadow:0 6px 12px -8px #000">Level map</div>
+                </div>
+                <div style="display:flex;gap:10px"><div style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1.5px solid #3d2f52;background:#221534;color:#c9b8dc;font:800 13.5px Nunito,sans-serif;padding:12px;border-radius:16px;box-shadow:0 6px 12px -8px #000"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7"></path><path d="M6 9.5V20h12V9.5"></path></svg>Home</div><div style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1.5px solid #3d2f52;background:#221534;color:#c9b8dc;font:800 13.5px Nunito,sans-serif;padding:12px;border-radius:16px;box-shadow:0 6px 12px -8px #000"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><g fill="currentColor"><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(45 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(90 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(135 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(180 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(225 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(270 12 12)"></rect><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(315 12 12)"></rect></g><circle cx="12" cy="12" r="6" stroke="currentColor" stroke-width="2.6"></circle></svg>Settings</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1n TOY CHEST -->
+    <div id="1n" data-screen-label="toy chest" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1n" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1n</a>Toy chest — new collection screen</div>
+      <div style="width:402px;height:874px;border-radius:48px;overflow:hidden;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 1.5px rgba(255,255,255,.07)">
+        <div style="position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(130% 100% at 50% -15%,#4a2c63,#2d1a46 55%,#180e2b)">
+          <div style="position:absolute;left:0;right:0;top:62px;display:flex;align-items:center;padding:0 16px">
+            <div style="width:42px;height:42px;border-radius:50%;background:rgba(36,24,52,.7);border:1.5px solid #4d3c60;box-shadow:0 6px 12px -6px rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M10 2L2 10l8 8" stroke="#c9b8dc" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="flex:1;text-align:center;font:400 22px 'Lilita One',sans-serif;color:#f6f0fc;text-shadow:0 3px 0 #140c22">TOY CHEST</div>
+            <div style="display:flex;align-items:center;height:32px;padding:0 12px;border-radius:16px;background:rgba(36,24,52,.7);border:1.5px solid #4d3c60"><span style="font:400 15px 'Lilita One',sans-serif;color:#ffce6b">12<span style="color:#8b7c98;font-size:12px"> / 50</span></span></div>
+          </div>
+          <div style="position:absolute;left:20px;right:20px;top:128px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
+              <span style="font:900 11.5px Nunito,sans-serif;letter-spacing:.22em;color:#ffb648">BATH-TIME SET</span>
+              <span style="font:800 11px Nunito,sans-serif;color:#8b7c98">3 of 6</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+              <div style="position:relative;height:108px;border-radius:20px;background:#140c22;border:1px solid #3a2e4c;box-shadow:inset 0 2px 12px rgba(0,0,0,.5);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px">
+                <canvas ref="{{ toyDuck }}" style="width:60px;height:60px"></canvas>
+                <span style="font:800 9.5px Nunito,sans-serif;color:#b3a3c4">Rubber Duck</span>
+              </div>
+              <div style="position:relative;height:108px;border-radius:20px;background:#140c22;border:1px solid #3a2e4c;box-shadow:inset 0 2px 12px rgba(0,0,0,.5);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px">
+                <canvas ref="{{ toyBall }}" style="width:56px;height:56px"></canvas>
+                <span style="font:800 9.5px Nunito,sans-serif;color:#b3a3c4">Beach Ball</span>
+              </div>
+              <div style="position:relative;height:108px;border-radius:20px;background:#140c22;border:2px solid #ffb648;box-shadow:inset 0 2px 12px rgba(0,0,0,.5),0 0 18px rgba(255,182,72,.25);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px">
+                <div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);font:900 8.5px Nunito,sans-serif;letter-spacing:.14em;color:#2a1505;background:linear-gradient(180deg,#ffce6b,#ff9d3b);border-radius:8px;padding:2.5px 8px">NEW</div>
+                <canvas ref="{{ toyMarble }}" style="width:56px;height:56px"></canvas>
+                <span style="font:800 9.5px Nunito,sans-serif;color:#b3a3c4">Marble</span>
+              </div>
+              <div style="height:108px;border-radius:20px;background:#140c22;border:1px solid #2c2138;display:flex;align-items:center;justify-content:center;font:400 26px 'Lilita One',sans-serif;color:#4a3a5c">?</div>
+              <div style="height:108px;border-radius:20px;background:#140c22;border:1px solid #2c2138;display:flex;align-items:center;justify-content:center;font:400 26px 'Lilita One',sans-serif;color:#4a3a5c">?</div>
+              <div style="height:108px;border-radius:20px;background:#140c22;border:1px solid #2c2138;display:flex;align-items:center;justify-content:center;font:400 26px 'Lilita One',sans-serif;color:#4a3a5c">?</div>
+            </div>
+            <div style="height:9px;margin:12px 6px 0;border-radius:5px;background:linear-gradient(180deg,#3a2b4d,#241634);box-shadow:0 4px 8px rgba(0,0,0,.4)"></div>
+          </div>
+          <div style="position:absolute;left:20px;right:20px;top:472px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
+              <span style="font:900 11.5px Nunito,sans-serif;letter-spacing:.22em;color:#8b7c98">PICNIC SET</span>
+              <span style="font:800 11px Nunito,sans-serif;color:#8b7c98">0 of 6</span>
+            </div>
+            <div style="position:relative">
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;opacity:.45">
+                <div style="height:108px;border-radius:20px;background:#140c22;border:1px solid #2c2138;display:flex;align-items:center;justify-content:center;font:400 26px 'Lilita One',sans-serif;color:#4a3a5c">?</div>
+                <div style="height:108px;border-radius:20px;background:#140c22;border:1px solid #2c2138;display:flex;align-items:center;justify-content:center;font:400 26px 'Lilita One',sans-serif;color:#4a3a5c">?</div>
+                <div style="height:108px;border-radius:20px;background:#140c22;border:1px solid #2c2138;display:flex;align-items:center;justify-content:center;font:400 26px 'Lilita One',sans-serif;color:#4a3a5c">?</div>
+              </div>
+              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+                <span style="font:800 11px Nunito,sans-serif;letter-spacing:.1em;color:#b3a3c4;background:rgba(20,12,34,.92);border:1px solid #3d2f52;border-radius:999px;padding:7px 16px">unlocks at level 40</span>
+              </div>
+            </div>
+            <div style="height:9px;margin:12px 6px 0;border-radius:5px;background:linear-gradient(180deg,#3a2b4d,#241634);box-shadow:0 4px 8px rgba(0,0,0,.4)"></div>
+          </div>
+          <div style="position:absolute;left:0;right:0;bottom:34px;text-align:center;font:700 11.5px Nunito,sans-serif;color:#8b7c98">a new toy every few levels · sets unlock jar themes</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1o DAILY JAR -->
+    <div id="1o" data-screen-label="daily jar" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1o" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1o</a>Daily jar — streak &amp; results (home launches the jar in one tap)</div>
+      <div style="width:402px;height:874px;border-radius:48px;overflow:hidden;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 1.5px rgba(255,255,255,.07)">
+        <div style="position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(130% 100% at 50% -15%,#4a2c63,#2d1a46 55%,#180e2b)">
+          <div style="position:absolute;left:50%;top:210px;transform:translateX(-50%);width:340px;height:340px;border-radius:50%;background:radial-gradient(50% 50% at 50% 50%,rgba(255,182,72,.14),transparent 70%)"></div>
+          <div style="position:absolute;left:0;right:0;top:62px;display:flex;align-items:center;padding:0 16px">
+            <div style="width:42px;height:42px;border-radius:50%;background:rgba(36,24,52,.7);border:1.5px solid #4d3c60;box-shadow:0 6px 12px -6px rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M10 2L2 10l8 8" stroke="#c9b8dc" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="flex:1;text-align:center;font:400 22px 'Lilita One',sans-serif;color:#f6f0fc;text-shadow:0 3px 0 #140c22">DAILY JAR</div>
+            <div style="display:flex;align-items:center;gap:5px;height:32px;padding:0 11px;border-radius:16px;background:rgba(36,24,52,.7);border:1.5px solid #8a5f16"><span style="width:8px;height:8px;border-radius:50%;background:linear-gradient(180deg,#ffce6b,#ff9d3b)"></span><span style="font:900 10.5px Nunito,sans-serif;letter-spacing:.08em;color:#ffce6b">DAY 4</span></div>
+          </div>
+          <div style="position:absolute;left:0;right:0;top:126px;text-align:center;font:800 12px Nunito,sans-serif;letter-spacing:.28em;color:#8b7c98">SATURDAY · JUL 19</div>
+          <div style="position:absolute;left:50%;top:158px;transform:translateX(-50%)"><canvas ref="{{ refJar }}" style="width:240px;height:280px"></canvas></div>
+          <div style="position:absolute;left:0;right:0;top:452px;text-align:center;font:700 12.5px Nunito,sans-serif;color:#b3a3c4">one jar · everyone gets the same shake</div>
+          <div style="position:absolute;left:0;right:0;top:492px;display:flex;justify-content:center;gap:9px">
+            <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(180deg,#ffce6b,#ff9d3b);box-shadow:inset 0 -2px 0 rgba(138,95,22,.5);display:flex;align-items:center;justify-content:center;font:900 11px Nunito,sans-serif;color:#5a3306">W</div>
+            <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(180deg,#ffce6b,#ff9d3b);box-shadow:inset 0 -2px 0 rgba(138,95,22,.5);display:flex;align-items:center;justify-content:center;font:900 11px Nunito,sans-serif;color:#5a3306">T</div>
+            <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(180deg,#ffce6b,#ff9d3b);box-shadow:inset 0 -2px 0 rgba(138,95,22,.5);display:flex;align-items:center;justify-content:center;font:900 11px Nunito,sans-serif;color:#5a3306">F</div>
+            <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(180deg,#ffce6b,#ff9d3b);box-shadow:inset 0 -2px 0 rgba(138,95,22,.5),0 0 0 2.5px rgba(255,206,107,.45);display:flex;align-items:center;justify-content:center;font:900 11px Nunito,sans-serif;color:#5a3306">S</div>
+            <div style="width:32px;height:32px;border-radius:50%;background:#1b1228;border:1.5px solid #3d2f52;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:900 11px Nunito,sans-serif;color:#6b5d78">S</div>
+            <div style="width:32px;height:32px;border-radius:50%;background:#1b1228;border:1.5px solid #3d2f52;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:900 11px Nunito,sans-serif;color:#6b5d78">M</div>
+            <div style="width:32px;height:32px;border-radius:50%;background:#1b1228;border:1.5px solid #3d2f52;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:900 11px Nunito,sans-serif;color:#6b5d78">T</div>
+          </div>
+          <div style="position:absolute;left:0;right:0;top:548px;display:flex;justify-content:center">
+            <span style="font:800 10.5px Nunito,sans-serif;letter-spacing:.16em;color:#ffce6b;background:rgba(36,24,52,.8);border:1px solid #8a5f16;border-radius:999px;padding:6px 14px">YOUR BEST · 3 TAPS SPARE</span>
+          </div>
+          <div style="position:absolute;left:36px;right:36px;bottom:96px;box-sizing:border-box;border-radius:20px;background:linear-gradient(180deg,#ffdf8f,#ffb648 45%,#ff9d3b);color:#3a1e05;font:400 19px 'Lilita One',sans-serif;letter-spacing:.05em;padding:16px;text-align:center;box-shadow:0 14px 26px -10px rgba(255,157,59,.45),0 8px 18px -10px #000,inset 0 2px 0 rgba(255,255,255,.5)">PLAY AGAIN&nbsp;&nbsp;▸</div>
+          <div style="position:absolute;left:36px;right:36px;bottom:40px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid #3d2f52;background:#221534;color:#c9b8dc;font:800 13.5px Nunito,sans-serif;padding:13px;border-radius:16px;box-shadow:0 6px 12px -8px #000">SHARE RESULT</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1p SETTINGS -->
+    <div id="1p" data-screen-label="settings" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Nunito,sans-serif;color:rgba(232,221,246,.55)"><a href="#1p" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#e8ddf6;border-radius:5px;text-decoration:none">1p</a>Settings — new screen (home gear + pause link here)</div>
+      <div style="width:402px;height:874px;border-radius:48px;overflow:hidden;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 1.5px rgba(255,255,255,.07)">
+        <div style="position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(130% 100% at 50% -15%,#4a2c63,#2d1a46 55%,#180e2b)">
+          <div style="position:absolute;left:0;right:0;top:62px;display:flex;align-items:center;padding:0 16px">
+            <div style="width:42px;height:42px;border-radius:50%;background:rgba(36,24,52,.7);border:1.5px solid #4d3c60;box-shadow:0 6px 12px -6px rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M10 2L2 10l8 8" stroke="#c9b8dc" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="flex:1;text-align:center;font:400 22px 'Lilita One',sans-serif;color:#f6f0fc;text-shadow:0 3px 0 #140c22">SETTINGS</div>
+            <div style="width:42px;height:42px"></div>
+          </div>
+          <div style="position:absolute;left:20px;right:20px;top:132px;display:flex;flex-direction:column;gap:22px">
+            <div>
+              <div style="font:900 11px Nunito,sans-serif;letter-spacing:.24em;color:#8b7c98;margin:0 4px 9px">GAME</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(30,19,46,.75);border:1.5px solid #3d2f52;border-radius:18px;padding:14px 16px">
+                  <span style="font:800 14px Nunito,sans-serif;color:#d9cbe8">Sound</span>
+                  <span style="position:relative;width:46px;height:28px;border-radius:999px;background:linear-gradient(180deg,#ffce6b,#ff9d3b);box-shadow:inset 0 1px 2px rgba(0,0,0,.25)"><span style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.35)"></span></span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(30,19,46,.75);border:1.5px solid #3d2f52;border-radius:18px;padding:14px 16px">
+                  <span style="font:800 14px Nunito,sans-serif;color:#d9cbe8">Haptics</span>
+                  <span style="position:relative;width:46px;height:28px;border-radius:999px;background:linear-gradient(180deg,#ffce6b,#ff9d3b);box-shadow:inset 0 1px 2px rgba(0,0,0,.25)"><span style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.35)"></span></span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(30,19,46,.75);border:1.5px solid #3d2f52;border-radius:18px;padding:14px 16px">
+                  <span style="font:800 14px Nunito,sans-serif;color:#d9cbe8">Screen shake</span>
+                  <span style="position:relative;width:46px;height:28px;border-radius:999px;background:#1b1228;border:1.5px solid #3d2f52;box-sizing:border-box"><span style="position:absolute;top:2px;left:3px;width:21px;height:21px;border-radius:50%;background:#8b7c98"></span></span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div style="font:900 11px Nunito,sans-serif;letter-spacing:.24em;color:#8b7c98;margin:0 4px 9px">LEARN</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(30,19,46,.75);border:1.5px solid #3d2f52;border-radius:18px;padding:14px 16px">
+                  <span><span style="display:block;font:800 14px Nunito,sans-serif;color:#d9cbe8">Replay element intros</span><span style="display:block;font:700 10.5px Nunito,sans-serif;color:#8b7c98;margin-top:2px">duck · stone · shell · balloon · bomb</span></span>
+                  <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke="#6b5d78" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(30,19,46,.75);border:1.5px solid #3d2f52;border-radius:18px;padding:14px 16px">
+                  <span style="font:800 14px Nunito,sans-serif;color:#d9cbe8">How to play</span>
+                  <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke="#6b5d78" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div style="font:900 11px Nunito,sans-serif;letter-spacing:.24em;color:#8b7c98;margin:0 4px 9px">ABOUT</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(30,19,46,.75);border:1.5px solid #3d2f52;border-radius:18px;padding:14px 16px">
+                  <span style="font:800 14px Nunito,sans-serif;color:#d9cbe8">Support</span>
+                  <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke="#6b5d78" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(30,19,46,.75);border:1.5px solid #3d2f52;border-radius:18px;padding:14px 16px">
+                  <span style="font:800 14px Nunito,sans-serif;color:#d9cbe8">Privacy</span>
+                  <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke="#6b5d78" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="position:absolute;left:0;right:0;bottom:34px;display:flex;flex-direction:column;align-items:center;gap:8px">
+            <canvas ref="{{ duckSet }}" style="width:34px;height:34px;opacity:.9"></canvas>
+            <span style="font:800 10px Nunito,sans-serif;letter-spacing:.22em;color:#6b5d78">RATTLE · V1.0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p style="margin:26px 0 0;font:700 12px/1.6 Nunito,sans-serif;color:rgba(232,221,246,.5)">Try next: "make the icon from <a href="#1b" style="color:#ffb648">1b</a> warmer" · "riff on the play HUD in <a href="#1h" style="color:#ffb648">1h</a>" · "vessel-grammar variant of the play field" · "animate the avalanche"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;hardTier&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;hard&quot;,&quot;super&quot;,&quot;extreme&quot;],&quot;default&quot;:&quot;hard&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Play screen (1h)&quot;},&quot;lowTaps&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Play screen (1h)&quot;}}">
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    this.state = { cbTop: 320, cbPtr: 140, cbLeft: 61 };
+    this.refFns = {}; this.cvs = {};
+    this.PAL = [
+      { b: "#ffce6b", d: "#8a5f16" }, { b: "#6ea8ff", d: "#1d4faf" }, { b: "#ff6b6b", d: "#a02733" },
+      { b: "#4bd48a", d: "#136e42" }, { b: "#9d7bff", d: "#5a35c2" },
+    ];
+  }
+  componentDidMount() { this.repaintAll(); }
+  componentDidUpdate() { this.repaintAll(); }
+  repaintAll() {
+    const V = 10;   // bump to force repaint after painter/generator edits
+    if (this._pv === V) return; this._pv = V;
+    for (const k in this.cvs) { try { this.paint(k, this.cvs[k]); } catch (e) { console.error("repaint:" + k, e); } }
+  }
+  rf(n) {
+    const self = this;
+    if (!this.refFns[n]) this.refFns[n] = function (el) {
+      if (el && self.cvs[n] !== el) { self.cvs[n] = el; try { self.paint(n, el); } catch (e) { console.error("paint:" + n, e); } }
+    };
+    return this.refFns[n];
+  }
+  rng(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // ---------- settled pile generator (seeded relaxation, no physics engine) ----------
+  makePile(o) {
+    const rnd = this.rng(o.seed), W = o.W, H = o.H, R = o.R;
+    const x0 = o.x0 != null ? o.x0 : 0, x1 = o.x1 != null ? o.x1 : W, floor = o.floor != null ? o.floor : H;
+    const width = x1 - x0;
+    const pileH = Math.min(floor * 0.8, o.n * Math.PI * R * R / (0.83 * width));
+    const balls = [];
+    for (let i = 0; i < o.n; i++) balls.push({ x: x0 + R + rnd() * (width - 2 * R), y: floor - R - rnd() * pileH * 1.5, c: (rnd() * o.colors) | 0, r: R, el: null });
+    if (o.stones) for (let k = 0; k < o.stones; k++) balls[(rnd() * o.n) | 0].el = "stone";
+    let dkb = null;
+    if (o.duck) { dkb = { x: o.duckCenter ? (x0 + x1) / 2 : x0 + width * (0.3 + rnd() * 0.4), y: o.duckCenter ? floor - pileH - R * 1.55 : floor - pileH * 0.5, c: 0, r: R * (o.duckCenter ? 1.55 : 1.5), duck: true }; balls.push(dkb); }
+    const relax = (iters, pin, g, k) => {
+      const kk = k || 0.6;
+      for (let it = 0; it < iters; it++) {
+        for (const b of balls) {
+          b.y += g != null ? g : R * 0.3;
+          if (b.x < x0 + b.r) b.x = x0 + b.r; if (b.x > x1 - b.r) b.x = x1 - b.r; if (b.y > floor - b.r) b.y = floor - b.r;
+        }
+        for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++) {
+          const a = balls[i], b = balls[j];
+          let dx = b.x - a.x, dy = b.y - a.y; const d = Math.hypot(dx, dy) || 0.001, min = a.r + b.r;
+          if (d < min) { const push = (min - d) * kk; dx /= d; dy /= d; a.x -= dx * push; a.y -= dy * push; b.x += dx * push; b.y += dy * push; }
+        }
+        if (pin) { pin.b.x = pin.x; pin.b.y = pin.y; }
+        if (dkb && o.duckCenter) dkb.x += ((x0 + x1) / 2 - dkb.x) * 0.2;
+        const cr = o.corner || 0, cy = floor - cr;
+        for (const b of balls) {
+          if (b.x < x0 + b.r) b.x = x0 + b.r; if (b.x > x1 - b.r) b.x = x1 - b.r; if (b.y > floor - b.r) b.y = floor - b.r;
+          if (cr && b.y > cy) {   // keep beads inside the screen's rounded bottom corners
+            for (const ccx of [x0 + cr, x1 - cr]) {
+              if ((ccx < W / 2 && b.x < ccx) || (ccx > W / 2 && b.x > ccx)) {
+                const dx = b.x - ccx, dy = b.y - cy, d = Math.hypot(dx, dy) || 0.001, max = cr - b.r;
+                if (d > max) { const f = max / d; b.x = ccx + dx * f; b.y = cy + dy * f; }
+              }
+            }
+          }
+        }
+      }
+    };
+    relax(220, null);
+    relax(200, null, R * 0.06, 0.5);   // gentle settle: close gaps without re-compressing
+    relax(60, null, 0, 0.5);           // exact separation: no residual interpenetration
+    let shellBead = null;
+    if (o.shellTop != null) {   // debut target: topmost settled bead near x=shellTop — IN the pile
+      let best = 1e9;
+      for (const b of balls) { if (b.duck || b.el) continue; if (Math.abs(b.x - o.shellTop) > 40) continue; if (b.y < best) { best = b.y; shellBead = b; } }
+      if (shellBead) shellBead.shelled = true;
+    }
+    // same-colour contact clusters (size >= 2) get the settle shimmer
+    for (let i = 0; i < balls.length; i++) {
+      const a = balls[i]; if (a.duck || a.el || a.shelled || a.popG) continue;
+      const q = [a], comp = [a]; a._v = true;
+      while (q.length) {
+        const u = q.pop();
+        for (const v of balls) { if (v._v || v.duck || v.el || v.shelled || v.c !== u.c) continue; if (Math.hypot(v.x - u.x, v.y - u.y) <= u.r + v.r + 2) { v._v = true; q.push(v); comp.push(v); } }
+      }
+      if (comp.length >= 2) for (const b of comp) b.popG = true;
+    }
+    return balls;
+  }
+
+  // ---------- painters (ported from apps/rattle/web/js/game.js) ----------
+  rrect(ctx, x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  drawGlyph(ctx, x, y, r, c) {
+    ctx.fillStyle = this.PAL[c].d; ctx.strokeStyle = this.PAL[c].d;
+    if (c === 0) { ctx.beginPath(); ctx.arc(x, y, r * 0.32, 0, 7); ctx.fill(); }
+    else if (c === 1) { ctx.beginPath(); ctx.moveTo(x, y - r * 0.42); ctx.lineTo(x + r * 0.38, y + r * 0.28); ctx.lineTo(x - r * 0.38, y + r * 0.28); ctx.closePath(); ctx.fill(); }
+    else if (c === 2) { ctx.fillRect(x - r * 0.30, y - r * 0.30, r * 0.60, r * 0.60); }
+    else if (c === 3) { ctx.beginPath(); ctx.moveTo(x, y - r * 0.42); ctx.lineTo(x + r * 0.38, y); ctx.lineTo(x, y + r * 0.42); ctx.lineTo(x - r * 0.38, y); ctx.closePath(); ctx.fill(); }
+    else { ctx.lineWidth = r * 0.18; ctx.beginPath(); ctx.arc(x, y, r * 0.30, 0, 7); ctx.stroke(); }
+  }
+  drawBall(ctx, x, y, r, c) {
+    const P = this.PAL[c];
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = P.b; ctx.fill();
+    ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(x, y, r * 0.90, 0, 7); ctx.lineWidth = r * 0.18; ctx.strokeStyle = P.d; ctx.stroke(); ctx.globalAlpha = 1;
+    this.drawGlyph(ctx, x, y, r, c);
+    ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.beginPath(); ctx.arc(x - r * 0.36, y - r * 0.40, r * 0.15, 0, 7); ctx.fill();
+  }
+  drawStone(ctx, x, y, r) {
+    const g = ctx.createRadialGradient(x - r * 0.32, y - r * 0.36, r * 0.2, x, y, r);
+    g.addColorStop(0, "#9b9488"); g.addColorStop(0.62, "#6d685c"); g.addColorStop(1, "#494538");
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = g; ctx.fill();
+    ctx.fillStyle = "rgba(38,34,26,0.5)";
+    for (const s of [[-.3, .12, .12], [.26, -.16, .09], [.06, .36, .1], [.36, .27, .07]]) { ctx.beginPath(); ctx.arc(x + s[0] * r, y + s[1] * r, s[2] * r, 0, 7); ctx.fill(); }
+    ctx.strokeStyle = "rgba(28,25,20,0.55)"; ctx.lineWidth = r * 0.07; ctx.beginPath(); ctx.moveTo(x - r * 0.5, y - r * 0.08); ctx.lineTo(x - r * 0.05, y + r * 0.06); ctx.lineTo(x + r * 0.22, y - r * 0.26); ctx.stroke();
+    ctx.strokeStyle = "rgba(18,16,12,0.4)"; ctx.lineWidth = r * 0.12; ctx.beginPath(); ctx.arc(x, y, r * 0.93, 0, 7); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.13)"; ctx.beginPath(); ctx.ellipse(x - r * 0.3, y - r * 0.38, r * 0.3, r * 0.17, -0.5, 0, 7); ctx.fill();
+  }
+  drawShell(ctx, x, y, r, c) {
+    this.drawBall(ctx, x, y, r, c);
+    ctx.save(); ctx.beginPath(); ctx.arc(x, y, r * 0.98, 0, 7); ctx.clip();
+    const plank = (a) => {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+      const g = ctx.createLinearGradient(0, -r * 0.16, 0, r * 0.16);
+      g.addColorStop(0, "#c58f42"); g.addColorStop(0.5, "#9e702f"); g.addColorStop(1, "#6f4e1f");
+      ctx.fillStyle = g; ctx.fillRect(-r * 1.25, -r * 0.16, r * 2.5, r * 0.32);
+      ctx.strokeStyle = "#4a3010"; ctx.lineWidth = r * 0.03; ctx.strokeRect(-r * 1.25, -r * 0.16, r * 2.5, r * 0.32);
+      ctx.restore();
+    };
+    plank(-0.7); plank(0.7); ctx.restore();
+    ctx.fillStyle = "#eccf92";
+    for (const s of [[-.5, -.5], [.5, -.5], [-.5, .5], [.5, .5]]) { ctx.beginPath(); ctx.arc(x + s[0] * r, y + s[1] * r, r * 0.07, 0, 7); ctx.fill(); }
+  }
+  drawDuck(ctx, x, y, r) {
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = "#ffd44d";
+    ctx.beginPath(); ctx.arc(0, r * 0.18, r * 0.72, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(-r * 0.22, -r * 0.42, r * 0.42, 0, 7); ctx.fill();
+    ctx.fillStyle = "#ff9d3b"; ctx.beginPath(); ctx.moveTo(-r * 0.58, -r * 0.52); ctx.lineTo(-r * 0.95, -r * 0.40); ctx.lineTo(-r * 0.56, -r * 0.28); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#20242e"; ctx.beginPath(); ctx.arc(-r * 0.30, -r * 0.50, r * 0.075, 0, 7); ctx.fill();
+    ctx.fillStyle = "rgba(200,150,30,0.55)"; ctx.beginPath(); ctx.ellipse(r * 0.16, r * 0.22, r * 0.32, r * 0.20, -0.4, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+  beachBall(ctx, x, y, r) {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = "#f6f0fc"; ctx.fill();
+    const cols = ["#ff6b6b", "#6ea8ff", "#ffce6b"];
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r, i * 2.09 - 1.2, i * 2.09 - 0.15); ctx.closePath(); ctx.fillStyle = cols[i]; ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(x, y, r * 0.22, 0, 7); ctx.fillStyle = "#f6f0fc"; ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.18)"; ctx.lineWidth = r * 0.1; ctx.beginPath(); ctx.arc(x, y, r * 0.94, 0, 7); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.8)"; ctx.beginPath(); ctx.arc(x - r * 0.36, y - r * 0.4, r * 0.14, 0, 7); ctx.fill();
+  }
+  sparkle(ctx, x, y, s, a) {
+    ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = "#fff"; ctx.translate(x, y); ctx.rotate(0.785);
+    ctx.fillRect(-s / 2, -s / 2, s, s); ctx.restore();
+  }
+  iconBg(ctx) {
+    const g = ctx.createRadialGradient(180, -60, 40, 180, 200, 420);
+    g.addColorStop(0, "#332040"); g.addColorStop(0.55, "#1c1126"); g.addColorStop(1, "#0d0913");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 360, 360);
+    const h = ctx.createRadialGradient(180, 400, 30, 180, 400, 260);
+    h.addColorStop(0, "rgba(255,182,72,0.18)"); h.addColorStop(1, "rgba(255,182,72,0)");
+    ctx.fillStyle = h; ctx.fillRect(0, 0, 360, 360);
+  }
+
+  // ---------- canvas scenes ----------
+  setup(cv, W, H) { cv.width = W * 2; cv.height = H * 2; const ctx = cv.getContext("2d"); ctx.scale(2, 2); return ctx; }
+  pileCanvas(cv, W, H, o) {
+    const ctx = this.setup(cv, W, H);
+    const balls = this.makePile(Object.assign({ W, H }, o));
+    if (o.zone) {
+      const zy = H - o.R * 4.6;
+      ctx.fillStyle = "rgba(255,182,72,0.06)"; ctx.fillRect(0, zy, W, H - zy);
+      ctx.save(); ctx.setLineDash([6, 7]); ctx.strokeStyle = "rgba(255,182,72,0.35)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(3, zy); ctx.lineTo(W - 3, zy); ctx.stroke(); ctx.restore();
+    }
+    let duck = null, shell = null;
+    for (const b of balls) {
+      if (b.duck) { duck = b; continue; }
+      if (b.el === "stone") this.drawStone(ctx, b.x, b.y, b.r);
+      else if (b.shelled) { this.drawShell(ctx, b.x, b.y, b.r, b.c); shell = b; }
+      else this.drawBall(ctx, b.x, b.y, b.r, b.c);
+      if (b.popG && !o.noShim) { ctx.globalAlpha = 0.26; ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.04, 0, 7); ctx.lineWidth = 1.5; ctx.strokeStyle = "#ffffff"; ctx.stroke(); ctx.globalAlpha = 1; }
+    }
+    if (duck) this.drawDuck(ctx, duck.x, duck.y, duck.r);
+    if (o.burst) {
+      const bx = o.burst[0], by = o.burst[1], P = this.PAL[o.burst[2]], rr = this.rng(99);
+      ctx.globalAlpha = 0.7; ctx.strokeStyle = P.b; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(bx, by, o.R * 1.7, 0, 7); ctx.stroke();
+      ctx.globalAlpha = 0.35; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(bx, by, o.R * 2.6, 0, 7); ctx.stroke();
+      ctx.globalAlpha = 1;
+      for (let i = 0; i < 14; i++) {
+        const a = rr() * 6.28, d = o.R * (1.2 + rr() * 2.4), s = 3 + rr() * 4;
+        ctx.save(); ctx.globalAlpha = 0.55 + rr() * 0.45; ctx.fillStyle = P.b; ctx.translate(bx + Math.cos(a) * d, by + Math.sin(a) * d); ctx.rotate(rr() * 6.28); ctx.fillRect(-s / 2, -s * 0.3, s, s * 0.6); ctx.restore();
+      }
+    }
+    if (o.veil && shell) {
+      const hole = shell.r * 3.4;
+      const g = ctx.createRadialGradient(shell.x, shell.y, shell.r * 0.9, shell.x, shell.y, hole);
+      g.addColorStop(0, "rgba(26,15,46,0)"); g.addColorStop(0.5, "rgba(26,15,46,0)"); g.addColorStop(1, "rgba(26,15,46,0.78)");
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = "rgba(255,206,107,0.9)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(shell.x, shell.y, shell.r * 1.35, 0, 7); ctx.stroke();
+      ctx.strokeStyle = "rgba(255,206,107,0.35)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(shell.x, shell.y, shell.r * 1.62, 0, 7); ctx.stroke();
+      const bt = Math.round(shell.y - shell.r * 1.8 - 170);   // pointer tip lands right on the spotlight ring
+      const bl = Math.max(14, Math.min(402 - 280 - 14, Math.round(shell.x - 140)));   // box follows the crate, clamped to margins
+      const px = Math.max(26, Math.min(254, Math.round(shell.x - bl)));               // arrow fine-tunes to the exact x
+      if (this.state.cbTop !== bt || this.state.cbPtr !== px || this.state.cbLeft !== bl) this.setState({ cbTop: bt, cbPtr: px, cbLeft: bl });
+    }
+  }
+  jarCanvas(cv) {
+    const ctx = this.setup(cv, 240, 280);
+    ctx.fillStyle = "rgba(150,120,200,0.07)"; this.rrect(ctx, 26, 48, 188, 210, 26); ctx.fill();
+    const balls = this.makePile({ seed: 20260719, n: 13, colors: 4, R: 21, W: 240, H: 280, x0: 34, x1: 206, floor: 250 });
+    for (const b of balls) this.drawBall(ctx, b.x, b.y, b.r, b.c);
+    ctx.strokeStyle = "rgba(190,170,235,0.35)"; ctx.lineWidth = 4; this.rrect(ctx, 26, 48, 188, 210, 26); ctx.stroke();
+    ctx.strokeStyle = "rgba(225,215,255,0.5)"; ctx.lineWidth = 1.2; this.rrect(ctx, 30, 52, 180, 202, 22); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.09)"; this.rrect(ctx, 40, 62, 26, 150, 13); ctx.fill();
+    const lid = ctx.createLinearGradient(0, 16, 0, 48); lid.addColorStop(0, "#ffdf8f"); lid.addColorStop(1, "#ff9d3b");
+    ctx.fillStyle = lid; this.rrect(ctx, 46, 16, 148, 34, 13); ctx.fill();
+    ctx.fillStyle = "#b46a10"; this.rrect(ctx, 46, 44, 148, 7, 3.5); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.5)"; this.rrect(ctx, 56, 21, 60, 7, 3.5); ctx.fill();
+  }
+  // app icons — 360-unit space
+  icPop(cv) {
+    const ctx = this.setup(cv, 180, 180); ctx.scale(0.5, 0.5); this.iconBg(ctx);
+    ctx.strokeStyle = "rgba(255,206,107,0.16)"; ctx.lineWidth = 7; ctx.lineCap = "round";
+    for (let i = 0; i < 9; i++) { const a = i / 9 * 6.28 + 0.3; ctx.beginPath(); ctx.moveTo(180 + Math.cos(a) * 108, 172 + Math.sin(a) * 108); ctx.lineTo(180 + Math.cos(a) * 150, 172 + Math.sin(a) * 150); ctx.stroke(); }
+    this.drawBall(ctx, 180, 122, 58, 0);
+    this.drawBall(ctx, 122, 218, 58, 1);
+    this.drawBall(ctx, 238, 218, 58, 2);
+    ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(180, 122, 64, -0.6, 1.2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(122, 218, 64, 1.8, 3.4); ctx.stroke();
+    ctx.beginPath(); ctx.arc(238, 218, 64, -1.2, 0.5); ctx.stroke();
+    this.sparkle(ctx, 82, 92, 13, 0.9); this.sparkle(ctx, 286, 76, 10, 0.7); this.sparkle(ctx, 306, 160, 8, 0.55);
+  }
+  icDuck(cv, disp) {
+    const ctx = this.setup(cv, disp, disp); ctx.scale(disp / 360, disp / 360); this.iconBg(ctx);
+    const balls = this.makePile({ seed: 21, n: 12, colors: 4, R: 40, W: 360, H: 360, floor: 368, duck: 1, duckCenter: 1 });
+    let dk = null;
+    for (const b of balls) { if (b.duck) { dk = b; continue; } this.drawBall(ctx, b.x, b.y, b.r, b.c); }
+    this.drawDuck(ctx, dk.x, dk.y + 4, 70);
+    this.drawBall(ctx, dk.x - 0.22 * 70 - 5, dk.y + 4 - 0.42 * 70 - 52, 24, 0);
+    this.sparkle(ctx, 292, 74, 12, 0.85); this.sparkle(ctx, 60, 110, 9, 0.6);
+  }
+  icJar(cv) {
+    const ctx = this.setup(cv, 180, 180); ctx.scale(0.5, 0.5); this.iconBg(ctx);
+    ctx.fillStyle = "rgba(150,120,200,0.09)"; this.rrect(ctx, 78, 104, 204, 226, 30); ctx.fill();
+    const balls = this.makePile({ seed: 4, n: 10, colors: 4, R: 34, W: 360, H: 360, x0: 88, x1: 272, floor: 320 });
+    for (const b of balls) this.drawBall(ctx, b.x, b.y, b.r, b.c);
+    ctx.strokeStyle = "rgba(190,170,235,0.4)"; ctx.lineWidth = 6; this.rrect(ctx, 78, 104, 204, 226, 30); ctx.stroke();
+    ctx.strokeStyle = "rgba(225,215,255,0.5)"; ctx.lineWidth = 2; this.rrect(ctx, 84, 110, 192, 214, 25); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.1)"; this.rrect(ctx, 94, 122, 30, 160, 15); ctx.fill();
+    const lid = ctx.createLinearGradient(0, 62, 0, 104); lid.addColorStop(0, "#ffdf8f"); lid.addColorStop(1, "#ff9d3b");
+    ctx.fillStyle = lid; this.rrect(ctx, 98, 62, 164, 44, 16); ctx.fill();
+    ctx.fillStyle = "#b46a10"; this.rrect(ctx, 98, 98, 164, 9, 4); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.5)"; this.rrect(ctx, 110, 69, 66, 9, 4); ctx.fill();
+    this.sparkle(ctx, 300, 84, 11, 0.8);
+  }
+  icBead(cv) {
+    const ctx = this.setup(cv, 180, 180); ctx.scale(0.5, 0.5); this.iconBg(ctx);
+    ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(180, 296, 96, 22, 0, 0, 7); ctx.fill();
+    this.drawBall(ctx, 180, 178, 104, 0);
+    this.sparkle(ctx, 84, 84, 14, 0.9); this.sparkle(ctx, 292, 262, 10, 0.65);
+  }
+  duckCanvas(cv, disp) { const ctx = this.setup(cv, disp, disp); this.drawDuck(ctx, disp / 2, disp / 2, disp * 0.42); }
+
+  paint(n, cv) {
+    switch (n) {
+      case "cur": this.pileCanvas(cv, 402, 874, { seed: 31, n: 44, colors: 3, R: 25, corner: 48 }); break;
+      case "play": this.pileCanvas(cv, 402, 874, { seed: 7, n: 56, colors: 4, R: 24, stones: 3, duck: 1, zone: 1, corner: 48 }); break;
+      case "bgPause": this.pileCanvas(cv, 402, 874, { seed: 7, n: 56, colors: 4, R: 24, stones: 3, duck: 1, noShim: 1, corner: 48 }); break;
+      case "coach": this.pileCanvas(cv, 402, 874, { seed: 11, n: 54, colors: 4, R: 24, shellTop: 201, veil: 1, noShim: 1, corner: 48 }); break;
+      case "home": this.pileCanvas(cv, 402, 290, { seed: 5, n: 26, colors: 4, R: 27, noShim: 1, corner: 48 }); break;
+      case "bgClear": this.pileCanvas(cv, 402, 874, { seed: 19, n: 50, colors: 4, R: 24, noShim: 1, corner: 48 }); break;
+      case "bgPairs": this.pileCanvas(cv, 402, 874, { seed: 23, n: 34, colors: 5, R: 24, noShim: 1, corner: 48 }); break;
+      case "bgLose": this.pileCanvas(cv, 402, 874, { seed: 41, n: 60, colors: 4, R: 24, noShim: 1, corner: 48 }); break;
+      case "jar": this.jarCanvas(cv); break;
+      case "stoneMini": { const ctx = this.setup(cv, 36, 36); this.drawStone(ctx, 18, 18, 15); break; }
+      case "duckHome": this.duckCanvas(cv, 100); break;
+      case "duckPath": this.duckCanvas(cv, 40); break;
+      case "duckSet": this.duckCanvas(cv, 34); break;
+      case "toyDuck": this.duckCanvas(cv, 60); break;
+      case "toyDuckCard": this.duckCanvas(cv, 46); break;
+      case "toyBall": { const ctx = this.setup(cv, 56, 56); this.beachBall(ctx, 28, 30, 22); break; }
+      case "toyMarble": { const ctx = this.setup(cv, 56, 56); this.drawBall(ctx, 28, 30, 22, 4); break; }
+      case "icPop": this.icPop(cv); break;
+      case "icDuck": this.icDuck(cv, 180); break;
+      case "icJar": this.icJar(cv); break;
+      case "icBead": this.icBead(cv); break;
+      case "icS1": this.icDuck(cv, 96); break;
+      case "icS2": this.icDuck(cv, 60); break;
+      case "icS3": this.icDuck(cv, 29); break;
+    }
+  }
+
+  renderVals() {
+    const TIERS = { none: null, hard: { label: "HARD", c: "#ffb648" }, super: { label: "SUPER HARD", c: "#ff5a3c" }, extreme: { label: "EXTREMELY HARD", c: "#c86bff" } };
+    const t = TIERS[this.props.hardTier ?? "hard"] || null;
+    const low = this.props.lowTaps ?? false;
+    return {
+      TRUE: true, W402: 402, H874: 874,
+      refCur: this.rf("cur"), refPlay: this.rf("play"), refCoach: this.rf("coach"), refHome: this.rf("home"),
+      duckHome: this.rf("duckHome"), duckPath: this.rf("duckPath"), duckSet: this.rf("duckSet"),
+      bgClear: this.rf("bgClear"), bgPairs: this.rf("bgPairs"), bgLose: this.rf("bgLose"), bgPause: this.rf("bgPause"),
+      refJar: this.rf("jar"), stoneMini: this.rf("stoneMini"),
+      toyDuck: this.rf("toyDuck"), toyDuckCard: this.rf("toyDuckCard"), toyBall: this.rf("toyBall"), toyMarble: this.rf("toyMarble"),
+      icPop: this.rf("icPop"), icDuck: this.rf("icDuck"), icJar: this.rf("icJar"), icBead: this.rf("icBead"),
+      icS1: this.rf("icS1"), icS2: this.rf("icS2"), icS3: this.rf("icS3"),
+      tierOn: !!t, tierLabel: t ? t.label : "", tierColor: t ? t.c : "#ffb648",
+      tapsColor: low ? "#ffb648" : "#f6f0fc", tapsNum: low ? "2" : "9",
+      cbTop: this.state.cbTop, cbPtr: this.state.cbPtr, cbLeft: this.state.cbLeft,
+    };
+  }
+}
+</script>
+</body>
+</html>
