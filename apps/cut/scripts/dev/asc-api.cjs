@@ -2,8 +2,9 @@
 // Direct App Store Connect API client for Cut (com.jfun.cut, ASC app 6790073592).
 // ZERO third-party deps — Node built-in `crypto` (ES256 JWT) + `https`.
 // Reads the ASC API key (.p8) BY PATH and never logs its contents.
-//   node asc-api.cjs orient        # read-only: print version/localization/appInfo IDs
-//   node asc-api.cjs metadata      # PATCH description/keywords/subtitle/URLs
+//   node asc-api.cjs orient        # read-only: print version/localization/appInfo IDs + URLs
+//   node asc-api.cjs metadata      # PATCH description/keywords/subtitle/URLs (needs an editable version)
+//   node asc-api.cjs urls          # PATCH ONLY support/marketing/privacy URLs (safe on a LIVE version)
 //   node asc-api.cjs screenshots   # upload the 15 PNGs (reserve→upload→commit)
 //   node asc-api.cjs categories    # primary/secondary category
 // The Key ID + Issuer ID are identifiers (not secret); only the .p8 is secret.
@@ -83,11 +84,11 @@ async function orient() {
   const ver = versions.find((v) => v.attributes.platform === 'IOS') || versions[0];
   console.log('VERSION:', ver.id, '| v' + ver.attributes.versionString, '|', ver.attributes.appVersionState || ver.attributes.appStoreState);
   const vlocs = await api('GET', `/v1/appStoreVersions/${ver.id}/appStoreVersionLocalizations?fields[appStoreVersionLocalizations]=locale,description,keywords,promotionalText,marketingUrl,supportUrl`);
-  vlocs.json.data.forEach((l) => console.log('  verLoc:', l.id, l.attributes.locale, '| desc?', !!l.attributes.description, '| kw?', !!l.attributes.keywords));
+  vlocs.json.data.forEach((l) => console.log('  verLoc:', l.id, l.attributes.locale, '| desc?', !!l.attributes.description, '| kw?', !!l.attributes.keywords, '| support', l.attributes.supportUrl, '| marketing', l.attributes.marketingUrl));
   const info = infos[0];
   console.log('APPINFO:', info.id);
-  const ilocs = await api('GET', `/v1/appInfos/${info.id}/appInfoLocalizations?fields[appInfoLocalizations]=locale,name,subtitle`);
-  ilocs.json.data.forEach((l) => console.log('  infoLoc:', l.id, l.attributes.locale, '| name', JSON.stringify(l.attributes.name), '| subtitle', JSON.stringify(l.attributes.subtitle)));
+  const ilocs = await api('GET', `/v1/appInfos/${info.id}/appInfoLocalizations?fields[appInfoLocalizations]=locale,name,subtitle,privacyPolicyUrl`);
+  ilocs.json.data.forEach((l) => console.log('  infoLoc:', l.id, l.attributes.locale, '| name', JSON.stringify(l.attributes.name), '| subtitle', JSON.stringify(l.attributes.subtitle), '| privacy', l.attributes.privacyPolicyUrl));
   // Existing screenshot sets (so re-runs don't duplicate)
   const enV = vlocs.json.data.find((l) => l.attributes.locale === 'en-US') || vlocs.json.data[0];
   if (enV) {
@@ -113,9 +114,11 @@ const META = {
   subtitle: 'Rope-cutting physics puzzles',
   promotionalText: '53 hand-tuned rope-cutting puzzles in a moonlit workshop. Cut the right rope, land the crate, bring them all home. No ads, no accounts, play offline.',
   keywords: 'rope,cut,physics,puzzle,crate,drop,slice,swing,pendulum,brain,casual,relax,logic,gravity',
-  supportUrl: 'https://jfun.github.io/jfun/cut/support.html',
-  marketingUrl: 'https://jfun.github.io/jfun/cut/support.html',
-  privacyPolicyUrl: 'https://jfun.github.io/jfun/cut/privacy.html',
+  // Host moved GitHub Pages → Firebase Hosting (site cut-jfun, cleanUrls). Pages
+  // stays up as a fallback/redirect. The .html paths still 301 to these.
+  supportUrl: 'https://cut-jfun.web.app/support',
+  marketingUrl: 'https://cut-jfun.web.app/support',
+  privacyPolicyUrl: 'https://cut-jfun.web.app/privacy',
   description: [
     'A moonlit workshop. Ropes hold a wooden crate above its basket. Swipe to sever a rope and let gravity, swing, and momentum carry the crate home.',
     '',
@@ -146,6 +149,34 @@ async function metadata() {
     } },
   });
   console.log('✓ app-info localization: subtitle, privacy policy URL');
+}
+
+// Repoint ONLY the three URL fields to META's current values — nothing else.
+// Support + Marketing URL (version localization) and Privacy Policy URL (app-info
+// localization) are the metadata Apple lets you edit on a LIVE / READY_FOR_DISTRIBUTION
+// version WITHOUT a new version; description/keywords are locked, so the full
+// `metadata` command would fail. Used to move the host (GitHub Pages → Firebase).
+// Each PATCH is independent: privacy (app-level) always applies; if the live
+// version won't take support/marketing inline, that's reported and rides the next version.
+async function urls() {
+  const { verLocId, infoLocId } = await discover();
+  try {
+    await api('PATCH', `/v1/appStoreVersionLocalizations/${verLocId}`, {
+      data: { type: 'appStoreVersionLocalizations', id: verLocId, attributes: {
+        supportUrl: META.supportUrl, marketingUrl: META.marketingUrl,
+      } },
+    });
+    console.log('✓ support + marketing URL →', META.supportUrl);
+  } catch (e) {
+    console.error('✗ support/marketing URL NOT updated (version locked live?):', e.message.split('\n')[0]);
+    console.error('  → these ride the next version; privacy URL (app-level) still updates below.');
+  }
+  await api('PATCH', `/v1/appInfoLocalizations/${infoLocId}`, {
+    data: { type: 'appInfoLocalizations', id: infoLocId, attributes: {
+      privacyPolicyUrl: META.privacyPolicyUrl,
+    } },
+  });
+  console.log('✓ privacy policy URL →', META.privacyPolicyUrl);
 }
 
 // Raw PUT of a byte slice to Apple's blob storage (the reserve step hands back
@@ -330,7 +361,7 @@ async function release() {
 }
 
 const cmd = process.argv[2] || 'orient';
-const fns = { orient, metadata, screenshots, categories, build, pricing, finalize, submit, release };
+const fns = { orient, metadata, urls, screenshots, categories, build, pricing, finalize, submit, release };
 (async () => {
   try {
     if (!fns[cmd]) { console.error('unknown command:', cmd, '\navailable:', Object.keys(fns).join(', ')); process.exit(1); }
