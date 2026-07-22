@@ -85,7 +85,7 @@ let level=0;
 // 20 levels, 0..19 — the design's 12 restructured per pacing research (each new
 // mechanic gets intro → develop → twist before the next; combos late; breathers
 // between peaks). Levels 9-12/13-15/16-18 are our balloon/trolley/pulse arcs.
-const LAST=63;
+const LAST=62;
 const cleared=new Array(LAST+1).fill(false);
 let balloons=[],trolleys=[],rotors=[],blades=[],winds=[],magnets=[],stars=[];
 let phase='play', phaseTimer=0, slowSteps=0, stepCount=0, creakCd=0;
@@ -1321,30 +1321,7 @@ function buildLevel(i){
       segs.push({x1:0.25*W,y1:0.60*H,x2:0.45*W,y2:0.60*H,kind:'spike'});
       setBasket(0.83*W,0.90*H);
     }break;
-    case 58:{ // BOOMERANG WALK — the walk bulges RIGHT then curls back LEFT to a
-              // basket on the left; the over-basket cut sends it right onto the spike.
-      beams.push({x:0.075*W,y:0.025*H,w:0.09*W,h:0.020*H});
-      beams.push({x:0.295*W,y:0.058*H,w:0.09*W,h:0.020*H});
-      beams.push({x:0.555*W,y:0.091*H,w:0.09*W,h:0.020*H});
-      beams.push({x:0.395*W,y:0.180*H,w:0.09*W,h:0.020*H});
-      beams.push({x:0.195*W,y:0.240*H,w:0.09*W,h:0.020*H});
-      const cx=0.35*W,cy=0.42*H;
-      const b=makeBox(cx,cy,s,0.25,'crate');
-      makeRope([[0.12*W,0.045*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0}); // A1
-      makeRope([[0.34*W,0.078*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3}); // A2
-      makeRope([[0.60*W,0.111*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1}); // A3 (right bulge)
-      // return-leg anchors hang LOWER (0.20/0.26H): each leftward re-hang drops
-      // decisively instead of skimming — the robustness fix the honest bot demanded
-      makeRope([[0.44*W,0.200*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0}); // A4 (curl back)
-      makeRope([[0.24*W,0.260*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3}); // A5 (over the left basket)
-      segs.push({x1:0.20*W,y1:0.58*H,x2:0.36*W,y2:0.58*H,kind:'spike'}); // start (kills cut-all)
-      // NOTE: the original right-valley spike (0.52-0.70W@0.62H) made the return
-      // leg a one-delay lottery — the tail-filtered honest bot exposed it (only 1
-      // clean win). Removed: wrong moves still fail via the start spike (lazy
-      // cut-all) and a left-miss floor thud; the walk itself is the puzzle.
-      setBasket(0.24*W,0.90*H);
-    }break;
-    case 59:{ // LOADING DOCK — walk the crate right and SET IT DOWN on a raised dock
+    case 58:{ // LOADING DOCK — walk the crate right and SET IT DOWN on a raised dock
               // (basket on a platform, not the floor); the obvious drop plunges past
               // the shelf into the pit.
       beams.push({x:0.12*W,y:0.045*H,w:0.09*W,h:0.020*H});
@@ -1362,7 +1339,7 @@ function buildLevel(i){
       segs.push({x1:0.50*W,y1:0.72*H,x2:0.60*W,y2:0.72*H,kind:'spike'}); // pre-ledge
       setBasket(0.73*W,0.66*H); // RAISED onto the dock
     }break;
-    case 60:{ // SPLIT CRADLE — the crate is slung level between a LEFT and RIGHT
+    case 59:{ // SPLIT CRADLE — the crate is slung level between a LEFT and RIGHT
               // column; alternating cuts lower it straight down between two flank spikes.
       beams.push({x:0.265*W,y:0.080*H,w:0.09*W,h:0.020*H});
       beams.push({x:0.645*W,y:0.140*H,w:0.09*W,h:0.020*H});
@@ -1382,7 +1359,7 @@ function buildLevel(i){
       segs.push({x1:0.68*W,y1:0.70*H,x2:0.82*W,y2:0.70*H,kind:'spike'});
       setBasket(0.50*W,0.88*H);
     }break;
-    case 61:{ // BEAT DROP — walk the crate right over a PULSING gate, then cut the
+    case 60:{ // BEAT DROP — walk the crate right over a PULSING gate, then cut the
               // last rope ON THE OPEN BEAT so it drops through; off-beat it's caught.
       beams.push({x:0.10*W,y:0.045*H,w:0.09*W,h:0.020*H});
       beams.push({x:0.32*W,y:0.090*H,w:0.09*W,h:0.020*H});
@@ -1396,7 +1373,7 @@ function buildLevel(i){
       segs.push({x1:0.39*W,y1:0.62*H,x2:0.65*W,y2:0.62*H,kind:'spike',pulse:true,period:1.0,duty:0.40,off:0}); // the gate over the basket
       setBasket(0.52*W,0.90*H);
     }break;
-    case 62:{ // COCKED RELEASE — the crate hangs cocked LEFT, tied off low. Cut the
+    case 61:{ // COCKED RELEASE — the crate hangs cocked LEFT, tied off low. Cut the
               // obvious main line → it swings onto the side spike. Cut the low TIE
               // first → it settles to plumb over the gate; then cut the line ON THE BEAT.
       beams.push({x:0.44*W,y:0.03*H,w:0.12*W,h:0.022*H});
@@ -1408,7 +1385,7 @@ function buildLevel(i){
       segs.push({x1:0.38*W,y1:0.60*H,x2:0.64*W,y2:0.60*H,kind:'spike',pulse:true,period:1.1,duty:0.40,off:0}); // gate
       setBasket(0.50*W,0.90*H);
     }break;
-    case 63:{ // SADDLE VALLEY — a short stair down-right into a low vertex basket; a
+    case 62:{ // SADDLE VALLEY — a short stair down-right into a low vertex basket; a
               // spiked ridge on the far right punishes overshoot.
       const cx=0.24*W,cy=0.24*H;
       const b=makeBox(cx,cy,s,0.25,'crate');
