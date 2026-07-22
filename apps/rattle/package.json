@@ -5,6 +5,8 @@
   "type": "commonjs",
   "description": "Rattle — Toon Blast with the grid ripped out: tap a same-colour cluster and the pile avalanches under real physics; rattle the jar to re-cluster. Physics-verified levels.",
   "dependencies": {
+    "@capacitor-firebase/analytics": "^8.3.0",
+    "@capacitor-firebase/app": "^8.3.0",
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
     "@capacitor/haptics": "^8.0.2",

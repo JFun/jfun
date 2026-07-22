@@ -7,6 +7,8 @@
   "use strict";
   const E = window.RattleEngine, LV = window.RattleLevels.LEVELS;
   const FDT = E.FDT, WREF = E.WREF, HREF = E.HREF;
+  const RATTLE_GA_ID = "";                          // empty → web inert; native routes to Firebase
+  let _startedLevel = 0, _rattleLogged = false;      // level_start de-dup + rattle_used once/level
   const $ = s => document.querySelector(s);
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
   const easeOutBack = p => { p = clamp(p, 0, 1); const c = 1.70158, x = p - 1; return 1 + (c + 1) * x * x * x + c * x * x; };
@@ -105,6 +107,10 @@
     level = clamp(n | 0, 1, LV.length);
     world = E.createWorld(LV[level - 1]);
     simT = 0; firstTap = false; cardUp = false; deadOffered = false; coach = null; ftue = null; rattledThisLevel = false;
+    if (level !== _startedLevel) {                    // level_start: genuine new-level entry only, not fail-retry/rebuild
+      _startedLevel = level; _rattleLogged = false;
+      try { if (window.Track) Track.ev('level_start', { level, hard: (world.spec.hard || "") }); } catch (_) {}
+    } else { _rattleLogged = false; }
     parts = []; rings = []; wob = {};
     banner = "LEVEL " + level; bannerT = 0;
     $("#hint").textContent = world.spec.hint; $("#hint").classList.remove("off");
@@ -121,7 +127,7 @@
     for (const e of world.events) {
       if (e.type === "clack") sClack(e.v);
       else if (e.type === "pop") { const P = PALETTE[e.color]; const combo = (simT - lastPopT < 1.5) ? comboN + 1 : 0; comboN = combo; lastPopT = simT; sPop(e.size, combo); vibe("LIGHT"); burst(e.x, e.y, P.b, 6 + e.size, HREF * 0.35); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * (2 + e.size * 0.5), P.b, 0.42); }
-      else if (e.type === "rattle") { sRattle(); vibe("HEAVY"); }
+      else if (e.type === "rattle") { if (!_rattleLogged && !ftue) { _rattleLogged = true; try { if (window.Track) Track.ev('rattle_used', { level }); } catch (_) {} } sRattle(); vibe("HEAVY"); }   // skip the tutorial-forced rattle
       else if (e.type === "wobble") { wob[e.i] = 1; sTap(); }
       else if (e.type === "crack") { sCrack(); vibe("LIGHT"); burst(e.x, e.y, "#a9762e", 10, HREF * 0.3); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 2, "#d3a35a", 0.4); }
       else if (e.type === "balloonpop") { sBalloonPop(); vibe("LIGHT"); burst(e.x, e.y, "#e95c84", 12, HREF * 0.4); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 2.4, "#ff9ab6", 0.4); }
@@ -201,10 +207,11 @@
     sv.perfect = sv.perfect || {}; if (perfect) sv.perfect[level] = 1;
     sv.best = sv.best || {}; sv.best[level] = Math.max(sv.best[level] || 0, spare);
     writeSave(sv);
+    try { if (window.Track) Track.ev('level_complete', { level, stars, used, par, perfect: perfect ? 1 : 0 }); } catch (_) {}
     // the stars ARE the grade — no par/used numbers on the card (reads like a debug
     // readout, and it's redundant with the stars). Just a warm line + a Perfect flourish.
     const last = level >= LV.length;
-    if (last) { const sv2 = loadSave(); sv2.completed = 1; writeSave(sv2); }   // campaign milestone
+    if (last) { const sv2 = loadSave(); if (!sv2.completed) { try { if (window.Track) Track.ev('campaign_complete', {}); } catch (_) {} } sv2.completed = 1; writeSave(sv2); }   // campaign milestone (event once)
     const sub = perfect
       ? '<span style="color:#ffce6b">★ PERFECT</span>'
       : (spare + (spare === 1 ? ' tap spare' : ' taps spare'));
@@ -534,6 +541,7 @@
   // out of taps with the level unfinished — a genuine loss (rattle can't help at 0 taps)
   function showLose() {
     cardUp = true;
+    try { if (window.Track) Track.ev('level_fail', { level }); } catch (_) {}
     // per-objective remaining — never sum different kinds into one "beads" count
     // (a two-objective shell/balloon level has crates AND beads left, different units).
     const parts = [];
@@ -579,6 +587,7 @@
     else { let top = 1e9; for (const b of world.balls) { if (!b.alive || isNaN(b.x) || isNaN(b.y)) continue; const isEl = el === "shell" ? b.shelled : b.el === el; if (!isEl) continue; if (b.y < top) { top = b.y; bead = b; } } }
     if (!bead) return;                                   // no visible instance — skip
     coach = { el, bead, t: 0 }; $("#hint").classList.add("off");
+    try { if (window.Track) Track.ev('element_intro', { element: el }); } catch (_) {}
   }
   function dismissCoach() {
     if (!coach) return;
@@ -666,7 +675,8 @@
     { title: "EVERY TAP COUNTS", sub: ["Pops and rattles both cost one —", "clear the jar before taps run out"], cta: "LET'S PLAY  ▸" },
   ];
   function startFtue() { ftue = { step: 0, ripT: 0 }; $("#hint").classList.add("off"); }
-  function endFtue() { ftue = null; const sv = loadSave(); sv.tutorialDone = 1; writeSave(sv); }
+  function endFtue(skipped) { ftue = null; const sv = loadSave(); sv.tutorialDone = 1; writeSave(sv);
+    try { if (window.Track) Track.ev('tutorial_complete', { skipped: skipped ? 1 : 0 }); } catch (_) {} }
   function advanceFtue() { if (!ftue) return; ftue.step++; ftue.ripT = 0; if (ftue.step > 2) endFtue(); }
   function ftueCard(step) {
     const w = Math.min(330, W - 40), x = (W - w) / 2, h = FTUE[step].cta ? 172 : 106;
@@ -1052,7 +1062,7 @@
     // dev builds: tapping the "LEVEL N" HUD label opens the jump prompt
     if (DEV_UNLOCK && e.clientY < INSET.top + 34 && e.clientX < 190) { devJump(); return; }
     if (ftue) {
-      if (ftue.step < 2 && inRect(e.clientX, e.clientY, ftueSkip())) { endFtue(); return; }   // SKIP TUTORIAL
+      if (ftue.step < 2 && inRect(e.clientX, e.clientY, ftueSkip())) { endFtue(true); return; }   // SKIP TUTORIAL
       if (ftue.step === 2) { if (inRect(e.clientX, e.clientY, ftuePlay())) endFtue(); return; }  // LET'S PLAY ends it; board taps blocked on the info step
       // steps 0/1: fall through so the real pop/rattle happens, then advance below
     }
@@ -1085,9 +1095,11 @@
     oy = (H - INSET.bottom) - HREF * s;          // world floor → just above the home indicator
   }
   window.addEventListener("resize", resize);
+  try { if (window.Track) Track.init({ gaId: RATTLE_GA_ID }); } catch (_) {}   // analytics: web inert, native → Firebase
   resize();
   wireChrome();
   showScreen("home");   // boot into the home screen (PLAY builds + enters play)
+  try { if (window.Track) Track.ev('app_open', { returning: loadSave().level > 1 ? 1 : 0 }); } catch (_) {}
 
   let last = 0, acc = 0;
   function frame(t) {
@@ -1113,6 +1125,13 @@
   }
   requestAnimationFrame(frame);
 
-  // automation hooks
-  window.__r = { state: () => E.state(world), tapWorld: (x, y) => { const r = E.tap(world, x, y); consume(); return r; }, rattle: () => E.doRattle(world), goto: build, world: () => world, clusters: () => E.poppableClusters(world).length };
+  // automation hooks (dev/verify + App Store shot harness — pose scenes headlessly)
+  window.__r = {
+    state: () => E.state(world), tapWorld: (x, y) => { const r = E.tap(world, x, y); consume(); return r; },
+    rattle: () => E.doRattle(world), goto: build, world: () => world, clusters: () => E.poppableClusters(world).length,
+    render: () => render(),                                                    // force a draw (headless has no rAF)
+    step: (n) => { for (let i = 0; i < (n || 60); i++) if (world && world.phase === "play") E.step(world); bannerT = 99; render(); },
+    screen: (name) => showScreen(name),                                        // jump to home/levelpath/settings
+    win: (spare) => { if (world) { world.phase = "win"; showCleared(spare == null ? Math.max(0, world.taps) : spare); } },   // pose the CLEARED card
+  };
 })();
