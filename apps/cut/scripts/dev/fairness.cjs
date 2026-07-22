@@ -132,9 +132,15 @@ const inPage = (loLevel, hiLevel, delayStep, maxDelay, minWins, gaps) => `(funct
       }
       if (wins>=${minWins}) break;
     }
-    // lazy probe — cut everything at t=0 (trivial-solve flag)
-    g.setLevel(idx); for(const r of g.ropes()) cutRope(r); for(const b of g.balloons()) popBalloon(b);
-    const lazyWin = runOut()==='win';
+    // lazy probe — cut everything, sampled at SEVERAL delays (t=0 alone was a
+    // blind spot: L60 Split Cradle failed cut-all at t=0 but won at every
+    // other delay — trivially brute-forceable yet unflagged)
+    let lazyWin = false;
+    for(const ld of [0,120,240]){
+      g.setLevel(idx); stepN(ld);
+      for(const r of g.ropes()) cutRope(r); for(const b of g.balloons()) popBalloon(b);
+      if(runOut()==='win'){ lazyWin=true; break; }
+    }
     g.setLevel(idx);
     const nRopes=g.ropes().length, nBalloons=g.balloons().length;
     const gm = g.geom ? g.geom() : null; // frame-fit + discoverability facts for @jfun/levelcheck
@@ -144,6 +150,66 @@ const inPage = (loLevel, hiLevel, delayStep, maxDelay, minWins, gaps) => `(funct
       geom: gm?{W:gm.W,H:gm.H,basket:gm.basket,nAnchors:gm.anchors.length,nPulleys:gm.mechanics.pulley}:null });
   }
   return { out, minWins:${minWins}, delays: delays.length };
+})()`;
+
+// Robustness probe (the human-possible gate, @jfun/levelcheck): a FULL
+// no-early-exit sweep along the player's timing knob. The certify sweep's
+// minWins early-exit can prove "a win exists" but can NEVER measure how
+// hittable it is — that's how L59 Boomerang (1/200 lottery) and the Gallows
+// counterweight (taught cut dead, unintended cut certified) shipped. Every
+// (delay, method) attempt becomes a {x, win, method} sample; Node judges with
+// methodWindows/winDensity: the intended method needs a wide CONTIGUOUS band.
+const robustProbe = (idx) => `(function(){
+  const g=window.__game;
+  function cutRope(r){ const dx=r.x2-r.x1,dy=r.y2-r.y1,L=Math.hypot(dx,dy)||1,e=Math.max(14,L); return g.cutAt(r.mx+dy/L*e,r.my-dx/L*e,r.mx-dy/L*e,r.my+dx/L*e); }
+  function topmost(){ const rs=g.ropes(); let best=null,by=1e9; for(const r of rs){ if(r.tail)continue; if(r.my<by){by=r.my;best=r;} } return best; }
+  function bottommost(){ const rs=g.ropes(); let best=null,by=-1e9; for(const r of rs){ if(r.tail)continue; if(r.my>by){by=r.my;best=r;} } return best; }
+  function runOut(){ for(let k=0;k<960;k+=8){ g.simN(8); const p=g.state().phase; if(p!=='play') return p; } return 'play'; }
+  const H=g.dims().H;
+  // PATIENT-PLAYER policy — the human proxy: cut a rope, WAIT until the crate
+  // stabilizes on its new pivot (speed settles or a patience cap), cut the
+  // next. Humans time cuts reactively off what they see; fixed-gap cascades
+  // under-model them (they made even the shipped, human-beaten walks look like
+  // delay lotteries). If the patient policy wins across a wide delay band, a
+  // human can find it; if only razor gaps win, it's an execution lottery.
+  function patient(pick){
+    let guard=0,r2;
+    while((r2=pick())&&guard++<12){
+      cutRope(r2);
+      g.simN(24); // reaction time (~0.2s) before watching for stability
+      // cut the next rope when the crate looks "mostly stopped" (~100px/s) —
+      // 0.30H exited after ~2 swings-worth of speed decay (too eager, landed
+      // the cadence at ~gap 50, outside L54's measured 140-190 win band)
+      for(let k=0;k<420;k+=12){ const c=g.state().crate; if(Math.hypot(c.vx,c.vy)<0.12*H) break; g.simN(12); if(g.state().phase!=='play') break; }
+      if(g.state().phase!=='play') break;
+    }
+    return runOut();
+  }
+  const gaps=[30,70,120,170];
+  const samples=[];
+  for(let d=0; d<=480; d+=20){
+    g.setLevel(${idx}); g.simN(d); let r=topmost();
+    if(r){ cutRope(r); samples.push({x:d,win:runOut()==='win',method:'top'}); }
+    g.setLevel(${idx}); g.simN(d); r=bottommost();
+    if(r){ cutRope(r); samples.push({x:d,win:runOut()==='win',method:'bottom'}); }
+    g.setLevel(${idx}); g.simN(d); samples.push({x:d,win:patient(topmost)==='win',method:'patient↓'});
+    g.setLevel(${idx}); g.simN(d); samples.push({x:d,win:patient(bottommost)==='win',method:'patient↑'});
+    for(const pick of [topmost,bottommost]){
+      let any=false;
+      for(const gap of gaps){
+        g.setLevel(${idx}); g.simN(d);
+        let guard=0,r2; while((r2=pick())&&guard++<12){ cutRope(r2); g.simN(gap); }
+        if(runOut()==='win'){ any=true; break; }
+      }
+      samples.push({x:d,win:any,method:pick===topmost?'casc↓':'casc↑'});
+    }
+    g.setLevel(${idx}); g.simN(d);
+    for(const rr of g.ropes()) cutRope(rr); for(const b of g.balloons()) g.cutAt(b.x-b.r-6,b.y,b.x+b.r+6,b.y);
+    samples.push({x:d,win:runOut()==='win',method:'all'});
+  }
+  g.setLevel(${idx});
+  const hasGate = g.geom ? g.geom().mechanics.gate>0 : false;
+  return { samples, hasGate };
 })()`;
 
 // Distinctness probe (advisory report): per level, the mechanics set + layout
@@ -229,6 +295,46 @@ const landProbe = (idx) => `(function(){
     return;
   }
 
+  // Robustness gate: `node fairness.cjs robust <level> [<hi>]` — the
+  // human-possible judgment. Full no-early-exit sweep → @jfun/levelcheck
+  // solveWindow/methodWindows. VERDICT: at least one method must hold a
+  // contiguous winning band ≥60 steps (0.5s of timing slack) — else the level
+  // is a lottery even though the certify sweep calls it winnable. Run this on
+  // every NEW level before shipping it.
+  if (mode === 'robust') {
+    const lo2 = (args[0] || 1) - 1, hi2 = (args[1] || args[0] || 1) - 1;
+    const MIN_WIDTH = 60, MIN_RUN = 2;
+    let anyFail = false;
+    for (let idx = lo2; idx <= hi2; idx++) {
+      const r = await Runtime.evaluate({ expression: robustProbe(idx), returnByValue: true, timeout: 280000 });
+      const res2 = r.result.value;
+      if (!res2 || !Array.isArray(res2.samples)) { console.error('ROBUST FATAL at L' + (idx + 1) + ':', res2); process.exit(1); }
+      const samples = res2.samples;
+      const mw = LC.methodWindows(samples, { minWidth: MIN_WIDTH, minRun: MIN_RUN });
+      const okMethods = Object.keys(mw).filter(m => mw[m].ok);
+      console.log(`  L${idx + 1} robustness (25-delay full sweep, band gate ≥${MIN_WIDTH} steps):`);
+      for (const m of Object.keys(mw)) {
+        const w = mw[m];
+        const band = w.widest ? `[${w.widest.lo}..${w.widest.hi}] width ${w.widest.width} (${w.widest.n} pts)` : '—';
+        console.log(`    ${m.padEnd(6)} density ${(w.winFraction * 100).toFixed(0).padStart(3)}%  widest ${band}  ${w.ok ? '✓ band' : '✗ no band'}`);
+      }
+      if (!Object.keys(mw).length) console.log('    (no method ever won)');
+      if (okMethods.length) console.log(`    VERDICT: HUMAN-SOLVABLE via ${okMethods.join(', ')}`);
+      else if (res2.hasGate && Object.keys(mw).length) {
+        // PULSE-GATE exemption: the blind bots can't watch the gate, but the
+        // player CAN — the gate is a visible clock, and its duty window
+        // (~0.4×period ≈ 0.4s) is the designed, discoverable timing. A win
+        // existing at all proves the pre-gate setup works; the "narrowness"
+        // is exactly the visible beat. Advisory, not a failure.
+        console.log('    VERDICT: ⚠ pulse-gate level — blind-bot windows are narrow BY DESIGN (the gate is a visible clock); wins exist, human-judge the beat feel');
+      }
+      else { console.log('    VERDICT: ✗ LOTTERY — winnable but no human-hittable window'); anyFail = true; }
+    }
+    await client.close(); chrome.kill(); server.close();
+    if (anyFail) { console.error('\nROBUSTNESS FAILED'); process.exit(1); }
+    return;
+  }
+
   // Distinctness report: `node fairness.cjs distinct` — @jfun/levelcheck ranks
   // the closest level pairs by mechanics+layout features and by an 8x8 canvas
   // hash. ADVISORY: it queues pairs for a human eyeball (the anti-clone gate),
@@ -308,6 +414,10 @@ const landProbe = (idx) => `(function(){
     console.log(`  L${String(L.level).padStart(2)} ${tag}  ${band(L.singleRate)}  wins≥${L.wins}  single ${L.single}/${L.singleTried}  firstWin@${L.firstWin==null?'—':L.firstWin}${L.winBy?' by '+L.winBy:''}${showPar?'  par '+L.winPar:''}${L.lazyWin?'  ⚠ lazy-cut wins':''}${undisc?'  ⚠⚠ UNDISCOVERABLE-SOLVE':''}${ordWarn?'  ⚠ order-gap':''}${geomBad.length?'  ✗ GEOMETRY':''}${exempt&&!ok?'  ('+exempt+')':''}`);
     if (!ok && !exempt) fails.push(`L${L.level}: certified UNSOLVABLE — only ${L.wins} win(s) found across the seeded cut sweep (single/all/cascade/pop)`);
     if (undisc) fails.push(`L${L.level}: UNDISCOVERABLE-SOLVE — single-rope level won only by '${L.winBy}' (cut height silently decides; retune the geometry so a plain cut wins)`);
+    // Deep-chapter contract (L54+): the whole point is that brute force LOSES.
+    // A lazy cut-all win there is a design defect, not a footnote — BLOCKING.
+    // (Base-campaign levels legitimately win by cut-all, so scope to 54+.)
+    if (L.lazyWin && L.level >= 54) fails.push(`L${L.level}: lazy cut-all WINS — violates the deep-chapter brute-force-must-fail contract (reshape hazards so the free drop dies)`);
     for (const gb of geomBad) fails.push(`L${L.level}: GEOMETRY — ${gb.name} ${gb.problems.join('; ')} (must sit fully inside the play field)`);
   }
   if (orderWarns.length) console.log('  advisory (order discoverability):\n  - ' + orderWarns.join('\n  - '));

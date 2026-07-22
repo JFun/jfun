@@ -85,7 +85,7 @@ let level=0;
 // 20 levels, 0..19 — the design's 12 restructured per pacing research (each new
 // mechanic gets intro → develop → twist before the next; combos late; breathers
 // between peaks). Levels 9-12/13-15/16-18 are our balloon/trolley/pulse arcs.
-const LAST=62;
+const LAST=60;
 const cleared=new Array(LAST+1).fill(false);
 let balloons=[],trolleys=[],rotors=[],blades=[],winds=[],magnets=[],stars=[];
 let phase='play', phaseTimer=0, slowSteps=0, stepCount=0, creakCd=0;
@@ -1339,27 +1339,7 @@ function buildLevel(i){
       segs.push({x1:0.50*W,y1:0.72*H,x2:0.60*W,y2:0.72*H,kind:'spike'}); // pre-ledge
       setBasket(0.73*W,0.66*H); // RAISED onto the dock
     }break;
-    case 59:{ // SPLIT CRADLE — the crate is slung level between a LEFT and RIGHT
-              // column; alternating cuts lower it straight down between two flank spikes.
-      beams.push({x:0.265*W,y:0.080*H,w:0.09*W,h:0.020*H});
-      beams.push({x:0.645*W,y:0.140*H,w:0.09*W,h:0.020*H});
-      beams.push({x:0.285*W,y:0.200*H,w:0.09*W,h:0.020*H});
-      beams.push({x:0.625*W,y:0.260*H,w:0.09*W,h:0.020*H});
-      beams.push({x:0.305*W,y:0.320*H,w:0.09*W,h:0.020*H});
-      beams.push({x:0.605*W,y:0.380*H,w:0.09*W,h:0.020*H});
-      const cx=0.46*W,cy=0.30*H;
-      const b=makeBox(cx,cy,s,0.25,'crate');
-      makeRope([[0.31*W,0.10*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0}); // L1
-      makeRope([[0.69*W,0.16*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1}); // R1
-      makeRope([[0.33*W,0.22*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3}); // L2
-      makeRope([[0.67*W,0.28*H],cornerPos(cx,cy,s,2)],{pin:true},{box:b,mode:'corner',ci:2}); // R2
-      makeRope([[0.35*W,0.34*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0}); // L3
-      makeRope([[0.65*W,0.40*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1}); // R3
-      segs.push({x1:0.18*W,y1:0.70*H,x2:0.32*W,y2:0.70*H,kind:'spike'});
-      segs.push({x1:0.68*W,y1:0.70*H,x2:0.82*W,y2:0.70*H,kind:'spike'});
-      setBasket(0.50*W,0.88*H);
-    }break;
-    case 60:{ // BEAT DROP — walk the crate right over a PULSING gate, then cut the
+    case 59:{ // BEAT DROP — walk the crate right over a PULSING gate, then cut the
               // last rope ON THE OPEN BEAT so it drops through; off-beat it's caught.
       beams.push({x:0.10*W,y:0.045*H,w:0.09*W,h:0.020*H});
       beams.push({x:0.32*W,y:0.090*H,w:0.09*W,h:0.020*H});
@@ -1373,7 +1353,7 @@ function buildLevel(i){
       segs.push({x1:0.39*W,y1:0.62*H,x2:0.65*W,y2:0.62*H,kind:'spike',pulse:true,period:1.0,duty:0.40,off:0}); // the gate over the basket
       setBasket(0.52*W,0.90*H);
     }break;
-    case 61:{ // COCKED RELEASE — the crate hangs cocked LEFT, tied off low. Cut the
+    case 60:{ // COCKED RELEASE — the crate hangs cocked LEFT, tied off low. Cut the
               // obvious main line → it swings onto the side spike. Cut the low TIE
               // first → it settles to plumb over the gate; then cut the line ON THE BEAT.
       beams.push({x:0.44*W,y:0.03*H,w:0.12*W,h:0.022*H});
@@ -1384,17 +1364,6 @@ function buildLevel(i){
       segs.push({x1:0.18*W,y1:0.60*H,x2:0.38*W,y2:0.60*H,kind:'spike'}); // side spike (cocked side)
       segs.push({x1:0.38*W,y1:0.60*H,x2:0.64*W,y2:0.60*H,kind:'spike',pulse:true,period:1.1,duty:0.40,off:0}); // gate
       setBasket(0.50*W,0.90*H);
-    }break;
-    case 62:{ // SADDLE VALLEY — a short stair down-right into a low vertex basket; a
-              // spiked ridge on the far right punishes overshoot.
-      const cx=0.24*W,cy=0.24*H;
-      const b=makeBox(cx,cy,s,0.25,'crate');
-      makeRope([[0.22*W,0.12*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0});
-      makeRope([[0.36*W,0.22*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3});
-      makeRope([[0.48*W,0.32*H],cornerPos(cx,cy,s,2)],{pin:true},{box:b,mode:'corner',ci:2});
-      segs.push({x1:0.58*W,y1:0.64*H,x2:0.74*W,y2:0.58*H,kind:'spike'}); // ridge
-      segs.push({x1:0.14*W,y1:0.56*H,x2:0.28*W,y2:0.56*H,kind:'spike'}); // start-left
-      setBasket(0.52*W,0.86*H);
     }break;
   }
   segs.push({x1:-0.5*W,y1:FLOORY,x2:1.5*W,y2:FLOORY,kind:'floor'});

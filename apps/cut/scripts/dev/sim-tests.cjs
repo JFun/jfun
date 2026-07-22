@@ -305,7 +305,7 @@ const IN_PAGE = `(function(){
   // the level can't be solved by cutting everything (the depth is in the ORDER; the
   // winning order's existence is proved by the general certifier).
   pins.deepWalk = {};
-  for (const idx of [53,54,55,56,57,58,59,60,61,62]) { g.setLevel(idx); cutAllRopes(); pins.deepWalk['L'+(idx+1)] = runOut(1800); }
+  for (const idx of [53,54,55,56,57,58,59,60]) { g.setLevel(idx); cutAllRopes(); pins.deepWalk['L'+(idx+1)] = runOut(1800); }
   // How-to-play smoke: every tutorial page must render without throwing, the
   // overlay chrome must sync (caption per page), and closing must unpause.
   pins.howto = { caps: [], closed: false, unpaused: false };
