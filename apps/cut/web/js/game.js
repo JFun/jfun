@@ -85,7 +85,7 @@ let level=0;
 // 20 levels, 0..19 — the design's 12 restructured per pacing research (each new
 // mechanic gets intro → develop → twist before the next; combos late; breathers
 // between peaks). Levels 9-12/13-15/16-18 are our balloon/trolley/pulse arcs.
-const LAST=52;
+const LAST=65;
 const cleared=new Array(LAST+1).fill(false);
 let balloons=[],trolleys=[],rotors=[],blades=[],winds=[],magnets=[],stars=[];
 let phase='play', phaseTimer=0, slowSteps=0, stepCount=0, creakCd=0;
@@ -1237,6 +1237,219 @@ function buildLevel(i){
       makeRotor(b,cx,cy,0.15*W,Math.PI/2,2.6);
       makeBlade(0.46*W,0.62*H,0.075*W,6);
       setBasket(0.82*W,0.90*H);
+    }break;
+    // ===== INVISIBLE-DEPTH chapter — glanceable boards (a crate over a basket,
+    // mind the spikes) whose SOLVE is a genuine multi-step order/timing puzzle; the
+    // OBVIOUS cut loses on a mid-flight spike, so brute-force can't win.
+    case 53:{ // UNZIP RIGHT — a cradle of four ropes stepping down to the right. The
+              // obvious cut (the rope over the basket) swings it the WRONG way onto
+              // the spike; cut top-down/left-to-right to WALK it across into the basket.
+      beams.push({x:0.10*W,y:0.040*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.30*W,y:0.078*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.50*W,y:0.116*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.70*W,y:0.154*H,w:0.09*W,h:0.020*H});
+      const cx=0.45*W,cy=0.40*H;
+      const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[0.145*W,0.055*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0}); // A1 → TL (highest)
+      makeRope([[0.345*W,0.093*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3}); // A2 → BL
+      makeRope([[0.545*W,0.131*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1}); // A3 → TR
+      makeRope([[0.745*W,0.169*H],cornerPos(cx,cy,s,2)],{pin:true},{box:b,mode:'corner',ci:2}); // A4 → BR (lowest)
+      segs.push({x1:0.34*W,y1:0.60*H,x2:0.56*W,y2:0.60*H,kind:'spike'}); // under the start column
+      setBasket(0.82*W,0.90*H);
+    }break;
+    case 54:{ // DROP SLOT — a second order-walk, but the finish is a narrow chute
+              // between two walls. Cut top-down to walk the crate right and thread it
+              // into the slot; the obvious over-basket cut drops it on the start spike.
+      beams.push({x:0.10*W,y:0.045*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.32*W,y:0.090*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.54*W,y:0.135*H,w:0.09*W,h:0.020*H});
+      const cx=0.22*W,cy=0.34*H;
+      const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[0.145*W,0.060*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0}); // A1 → TL (highest)
+      makeRope([[0.365*W,0.105*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1}); // A2 → TR
+      makeRope([[0.585*W,0.150*H],cornerPos(cx,cy,s,2)],{pin:true},{box:b,mode:'corner',ci:2}); // A3 → BR (over the slot)
+      segs.push({x1:0.10*W,y1:0.62*H,x2:0.30*W,y2:0.62*H,kind:'spike'}); // start spike (obvious cut drops here)
+      segs.push({x1:0.37*W,y1:0.56*H,x2:0.37*W,y2:0.86*H,kind:'solid'}); // slot wall L
+      segs.push({x1:0.63*W,y1:0.56*H,x2:0.63*W,y2:0.86*H,kind:'solid'}); // slot wall R
+      setBasket(0.50*W,0.90*H);
+    }break;
+    case 55:{ // UNZIP LEFT — the mirror walk: cut top-down to walk the crate LEFT
+              // into the basket; the obvious over-basket cut swings it onto the spike.
+      beams.push({x:0.81*W,y:0.040*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.61*W,y:0.078*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.41*W,y:0.116*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.21*W,y:0.154*H,w:0.09*W,h:0.020*H});
+      const cx=0.55*W,cy=0.40*H;
+      const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[0.855*W,0.055*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1}); // A1 → TR (highest)
+      makeRope([[0.655*W,0.093*H],cornerPos(cx,cy,s,2)],{pin:true},{box:b,mode:'corner',ci:2}); // A2 → BR
+      makeRope([[0.455*W,0.131*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0}); // A3 → TL
+      makeRope([[0.255*W,0.169*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3}); // A4 → BL (lowest)
+      segs.push({x1:0.44*W,y1:0.60*H,x2:0.66*W,y2:0.60*H,kind:'spike'});
+      setBasket(0.18*W,0.90*H);
+    }break;
+    case 56:{ // THE GAUNTLET — a longer walk past a SECOND raised spike mid-route;
+              // a wrong-order cut drops the crate onto one spike or the other.
+      beams.push({x:0.02*W,y:0.040*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.22*W,y:0.075*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.42*W,y:0.110*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.62*W,y:0.145*H,w:0.09*W,h:0.020*H});
+      const cx=0.36*W,cy=0.40*H;
+      const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[0.065*W,0.055*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0});
+      makeRope([[0.265*W,0.090*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3});
+      makeRope([[0.465*W,0.125*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1});
+      makeRope([[0.665*W,0.160*H],cornerPos(cx,cy,s,2)],{pin:true},{box:b,mode:'corner',ci:2});
+      segs.push({x1:0.24*W,y1:0.58*H,x2:0.40*W,y2:0.58*H,kind:'spike'}); // spike 1 (under start)
+      segs.push({x1:0.52*W,y1:0.70*H,x2:0.68*W,y2:0.70*H,kind:'spike'}); // spike 2 (mid-route)
+      setBasket(0.82*W,0.90*H);
+    }break;
+    case 57:{ // LONG UNZIP — five ropes across a wide field; the walk is a longer,
+              // less-obvious sequence to get the crate all the way right.
+      beams.push({x:0.01*W,y:0.036*H,w:0.08*W,h:0.020*H});
+      beams.push({x:0.17*W,y:0.066*H,w:0.08*W,h:0.020*H});
+      beams.push({x:0.35*W,y:0.096*H,w:0.08*W,h:0.020*H});
+      beams.push({x:0.53*W,y:0.126*H,w:0.08*W,h:0.020*H});
+      beams.push({x:0.71*W,y:0.156*H,w:0.08*W,h:0.020*H});
+      const cx=0.35*W,cy=0.40*H;
+      const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[0.05*W,0.051*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0}); // A1 → TL (highest)
+      makeRope([[0.21*W,0.081*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3}); // A2 → BL
+      makeRope([[0.39*W,0.111*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0}); // A3 → TL (second)
+      makeRope([[0.57*W,0.141*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1}); // A4 → TR
+      makeRope([[0.75*W,0.171*H],cornerPos(cx,cy,s,2)],{pin:true},{box:b,mode:'corner',ci:2}); // A5 → BR (lowest)
+      segs.push({x1:0.25*W,y1:0.60*H,x2:0.45*W,y2:0.60*H,kind:'spike'});
+      setBasket(0.83*W,0.90*H);
+    }break;
+    case 58:{ // BOOMERANG WALK — the walk bulges RIGHT then curls back LEFT to a
+              // basket on the left; the over-basket cut sends it right onto the spike.
+      beams.push({x:0.075*W,y:0.025*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.295*W,y:0.058*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.555*W,y:0.091*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.395*W,y:0.180*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.195*W,y:0.240*H,w:0.09*W,h:0.020*H});
+      const cx=0.35*W,cy=0.42*H;
+      const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[0.12*W,0.045*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0}); // A1
+      makeRope([[0.34*W,0.078*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3}); // A2
+      makeRope([[0.60*W,0.111*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1}); // A3 (right bulge)
+      // return-leg anchors hang LOWER (0.20/0.26H): each leftward re-hang drops
+      // decisively instead of skimming — the robustness fix the honest bot demanded
+      makeRope([[0.44*W,0.200*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0}); // A4 (curl back)
+      makeRope([[0.24*W,0.260*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3}); // A5 (over the left basket)
+      segs.push({x1:0.20*W,y1:0.58*H,x2:0.36*W,y2:0.58*H,kind:'spike'}); // start (kills cut-all)
+      // NOTE: the original right-valley spike (0.52-0.70W@0.62H) made the return
+      // leg a one-delay lottery — the tail-filtered honest bot exposed it (only 1
+      // clean win). Removed: wrong moves still fail via the start spike (lazy
+      // cut-all) and a left-miss floor thud; the walk itself is the puzzle.
+      setBasket(0.24*W,0.90*H);
+    }break;
+    case 59:{ // LOADING DOCK — walk the crate right and SET IT DOWN on a raised dock
+              // (basket on a platform, not the floor); the obvious drop plunges past
+              // the shelf into the pit.
+      beams.push({x:0.12*W,y:0.045*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.31*W,y:0.081*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.50*W,y:0.117*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.69*W,y:0.153*H,w:0.09*W,h:0.020*H});
+      const cx=0.44*W,cy=0.38*H;
+      const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[0.165*W,0.065*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0});
+      makeRope([[0.355*W,0.101*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3});
+      makeRope([[0.545*W,0.137*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1});
+      makeRope([[0.735*W,0.173*H],cornerPos(cx,cy,s,2)],{pin:true},{box:b,mode:'corner',ci:2});
+      segs.push({x1:0.55*W,y1:0.66*H,x2:0.92*W,y2:0.66*H,kind:'solid'}); // the dock platform
+      segs.push({x1:0.34*W,y1:0.60*H,x2:0.52*W,y2:0.60*H,kind:'spike'}); // pit
+      segs.push({x1:0.50*W,y1:0.72*H,x2:0.60*W,y2:0.72*H,kind:'spike'}); // pre-ledge
+      setBasket(0.73*W,0.66*H); // RAISED onto the dock
+    }break;
+    case 60:{ // SPLIT CRADLE — the crate is slung level between a LEFT and RIGHT
+              // column; alternating cuts lower it straight down between two flank spikes.
+      beams.push({x:0.265*W,y:0.080*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.645*W,y:0.140*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.285*W,y:0.200*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.625*W,y:0.260*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.305*W,y:0.320*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.605*W,y:0.380*H,w:0.09*W,h:0.020*H});
+      const cx=0.46*W,cy=0.30*H;
+      const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[0.31*W,0.10*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0}); // L1
+      makeRope([[0.69*W,0.16*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1}); // R1
+      makeRope([[0.33*W,0.22*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3}); // L2
+      makeRope([[0.67*W,0.28*H],cornerPos(cx,cy,s,2)],{pin:true},{box:b,mode:'corner',ci:2}); // R2
+      makeRope([[0.35*W,0.34*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0}); // L3
+      makeRope([[0.65*W,0.40*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1}); // R3
+      segs.push({x1:0.18*W,y1:0.70*H,x2:0.32*W,y2:0.70*H,kind:'spike'});
+      segs.push({x1:0.68*W,y1:0.70*H,x2:0.82*W,y2:0.70*H,kind:'spike'});
+      setBasket(0.50*W,0.88*H);
+    }break;
+    case 61:{ // DEADWEIGHT — the crate hangs low-RIGHT over a spike bed, on a line up
+              // over a pulley to a heavy weight held high-LEFT by a small tie. Cut the
+              // obvious taut LINE → it drops on the spikes. Cut the little TIE → the
+              // weight hauls it up-and-over into the basket. (A mirror of the L8 haul.)
+      beams.push({x:0.42*W,y:0.02*H,w:0.16*W,h:0.024*H});
+      beams.push({x:0.06*W,y:0.34*H,w:0.12*W,h:0.022*H});
+      const pr=0.035*W; pulleys.push({x:0.5*W,y:0.085*H,r:pr});
+      const b=makeBox(0.70*W,0.32*H,s,0.25,'crate');
+      const d=makeBox(0.15*W,0.46*H,s*0.95,0.0625,'decoy');
+      makeRope([harnessPt(b),[0.5*W,0.085*H-pr-4],harnessPt(d)],{box:b,mode:'harness'},{box:d,mode:'harness'});
+      makeRope([[0.12*W,0.35*H],cornerPos(0.15*W,0.46*H,s*0.95,0)],{pin:true},{box:d,mode:'corner',ci:0}); // restraint
+      for(const ii of b.idx) particles[ii].im=0; b.lockedIm=0.25;
+      for(const ii of d.idx) particles[ii].im=0; d.lockedIm=0.0625; d.haulDamp=0.95;
+      segs.push({x1:0.54*W,y1:0.56*H,x2:0.92*W,y2:0.56*H,kind:'spike'}); // spike bed under the crate's straight drop
+      setBasket(0.40*W,0.90*H);
+    }break;
+    case 62:{ // BEAT DROP — walk the crate right over a PULSING gate, then cut the
+              // last rope ON THE OPEN BEAT so it drops through; off-beat it's caught.
+      beams.push({x:0.10*W,y:0.045*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.32*W,y:0.090*H,w:0.09*W,h:0.020*H});
+      beams.push({x:0.54*W,y:0.135*H,w:0.09*W,h:0.020*H});
+      const cx=0.22*W,cy=0.34*H;
+      const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[0.145*W,0.060*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0});
+      makeRope([[0.365*W,0.105*H],cornerPos(cx,cy,s,1)],{pin:true},{box:b,mode:'corner',ci:1});
+      makeRope([[0.585*W,0.150*H],cornerPos(cx,cy,s,2)],{pin:true},{box:b,mode:'corner',ci:2});
+      segs.push({x1:0.10*W,y1:0.62*H,x2:0.30*W,y2:0.62*H,kind:'spike'}); // start
+      segs.push({x1:0.39*W,y1:0.62*H,x2:0.65*W,y2:0.62*H,kind:'spike',pulse:true,period:1.0,duty:0.40,off:0}); // the gate over the basket
+      setBasket(0.52*W,0.90*H);
+    }break;
+    case 63:{ // COCKED RELEASE — the crate hangs cocked LEFT, tied off low. Cut the
+              // obvious main line → it swings onto the side spike. Cut the low TIE
+              // first → it settles to plumb over the gate; then cut the line ON THE BEAT.
+      beams.push({x:0.44*W,y:0.03*H,w:0.12*W,h:0.022*H});
+      const cx=0.37*W,cy=0.34*H;
+      const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[0.50*W,0.055*H],harnessPt(b)],{pin:true},{box:b,mode:'harness'}); // PIVOT (topmost, cut last)
+      makeRope([[0.14*W,0.44*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3}); // HOLD-OFF (bottommost, cut first)
+      segs.push({x1:0.18*W,y1:0.60*H,x2:0.38*W,y2:0.60*H,kind:'spike'}); // side spike (cocked side)
+      segs.push({x1:0.38*W,y1:0.60*H,x2:0.64*W,y2:0.60*H,kind:'spike',pulse:true,period:1.1,duty:0.40,off:0}); // gate
+      setBasket(0.50*W,0.90*H);
+    }break;
+    case 64:{ // GALLOWS DROP — the crate sits DEEP in a spike pit; a line lifts over a
+              // pulley to a weight tied high-right. Two cuts: cut the TIE → the weight
+              // hauls the crate UP out of the pit to hang over the basket; THEN cut the
+              // line to lower it in. Cut the line first → straight back into the pit.
+      beams.push({x:0.34*W,y:0.03*H,w:0.16*W,h:0.024*H});
+      beams.push({x:0.74*W,y:0.36*H,w:0.12*W,h:0.022*H});
+      const pr=0.035*W; pulleys.push({x:0.42*W,y:0.10*H,r:pr});
+      const b=makeBox(0.24*W,0.54*H,s,0.25,'crate');
+      const d=makeBox(0.84*W,0.48*H,s*0.95,0.0625,'decoy');
+      makeRope([harnessPt(b),[0.42*W,0.10*H-pr-4],harnessPt(d)],{box:b,mode:'harness'},{box:d,mode:'harness'});
+      makeRope([[0.88*W,0.37*H],cornerPos(0.84*W,0.48*H,s*0.95,1)],{pin:true},{box:d,mode:'corner',ci:1}); // restraint
+      for(const ii of b.idx) particles[ii].im=0; b.lockedIm=0.25;
+      for(const ii of d.idx) particles[ii].im=0; d.lockedIm=0.0625; d.haulDamp=0.95;
+      segs.push({x1:0.08*W,y1:0.70*H,x2:0.38*W,y2:0.70*H,kind:'spike'}); // the pit
+      setBasket(0.42*W,0.90*H); // under the pulley
+    }break;
+    case 65:{ // SADDLE VALLEY — a short stair down-right into a low vertex basket; a
+              // spiked ridge on the far right punishes overshoot.
+      const cx=0.24*W,cy=0.24*H;
+      const b=makeBox(cx,cy,s,0.25,'crate');
+      makeRope([[0.22*W,0.12*H],cornerPos(cx,cy,s,0)],{pin:true},{box:b,mode:'corner',ci:0});
+      makeRope([[0.36*W,0.22*H],cornerPos(cx,cy,s,3)],{pin:true},{box:b,mode:'corner',ci:3});
+      makeRope([[0.48*W,0.32*H],cornerPos(cx,cy,s,2)],{pin:true},{box:b,mode:'corner',ci:2});
+      segs.push({x1:0.58*W,y1:0.64*H,x2:0.74*W,y2:0.58*H,kind:'spike'}); // ridge
+      segs.push({x1:0.14*W,y1:0.56*H,x2:0.28*W,y2:0.56*H,kind:'spike'}); // start-left
+      setBasket(0.52*W,0.86*H);
     }break;
   }
   segs.push({x1:-0.5*W,y1:FLOORY,x2:1.5*W,y2:FLOORY,kind:'floor'});
@@ -3728,11 +3941,31 @@ window.__game={
 
   cutAt:(x1,y1,x2,y2)=>cutSegment(x1,y1,x2,y2),
   // dev/test-only hooks (harmless in prod):
-  ropes:()=>cons.filter(c=>c.type==='rope'&&!c.cut).map(c=>{const a=particles[c.a],b=particles[c.b];return {x1:a.x,y1:a.y,x2:b.x,y2:b.y,mx:(a.x+b.x)/2,my:(a.y+b.y)/2};}),
+  ropes:()=>cons.filter(c=>c.type==='rope'&&!c.cut).map(c=>{const a=particles[c.a],b=particles[c.b];return {x1:a.x,y1:a.y,x2:b.x,y2:b.y,mx:(a.x+b.x)/2,my:(a.y+b.y)/2,tail:(a.freeTail||b.freeTail)?1:0};}),
   balloons:()=>balloons.filter(b=>!b.popped).map(b=>({x:particles[b.p].x,y:particles[b.p].y,r:b.r})),
   setLevel:(i)=>{ level=Math.max(0,Math.min(LAST,i|0)); buildLevel(level); },
   howto:(p)=>{ if(p<0) closeHowto(); else openHowto(p); },
-  dims:()=>({W,H,S,SP,FLOORY,LAST})
+  dims:()=>({W,H,S,SP,FLOORY,LAST}),
+  // Level-QA facts for @jfun/levelcheck (frame-fit lint, distinctness report):
+  // bounds of must-be-visible objects + a mechanics/landmark feature vector.
+  geom:()=>({W,H,
+    basket:basket?{l:basket.x-basket.iw/2,r:basket.x+basket.iw/2,t:basket.yb-basket.wh,b:basket.yb}:null,
+    anchors:anchorsPts.map(a=>({x:a.x,y:a.y})),
+    mechanics:{ropes:cons.filter(c=>c.type==='rope'&&!c.cut&&c.mat!=='elastic').length?1:0,
+      elastic:cons.some(c=>c.type==='rope'&&c.mat==='elastic')?1:0,
+      balloon:balloons.length,trolley:trolleys.length,rotor:rotors.length,blade:blades.length,
+      wind:winds.length,magnet:magnets.length,star:stars.length,pulley:pulleys.length,
+      pad:segs.filter(s=>s.kind==='pad').length,spike:segs.filter(s=>s.kind==='spike'&&!s.pulse).length,
+      gate:segs.filter(s=>s.kind==='spike'&&s.pulse).length,
+      solid:segs.filter(s=>s.kind==='solid').length,boxes:boxes.length},
+    hazards:segs.filter(s=>s.kind==='spike'||s.kind==='pad').map(s=>({x1:s.x1,y1:s.y1,x2:s.x2,y2:s.y2})),
+    stars:stars.map(st=>({x:st.x,y:st.y}))}),
+  // 8x8 average-hash luma of the live canvas (distinctness "looks the same" probe)
+  luma8:()=>{ const t=document.createElement('canvas'); t.width=8; t.height=8;
+    const tc=t.getContext('2d'); tc.drawImage(cv,0,0,8,8);
+    const d=tc.getImageData(0,0,8,8).data, out=[];
+    for(let i=0;i<64;i++) out.push(0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2]);
+    return out; }
 };
 loadProgress();
 level=frontierLevel();

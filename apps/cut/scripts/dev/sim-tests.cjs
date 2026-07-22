@@ -300,6 +300,12 @@ const IN_PAGE = `(function(){
     g.stepN(600);
     pins.ending = { finaleRun: 'win', phaseAfterWin: started?'end':g.state().phase, phaseLater: g.state().phase };
   }
+  // INVISIBLE-DEPTH order-walk guard (L54/L55 = idx 53/54): the brute-force "cut
+  // everything" must reach a TERMINAL state (no dead-end) — and it FAILS, confirming
+  // the level can't be solved by cutting everything (the depth is in the ORDER; the
+  // winning order's existence is proved by the general certifier).
+  pins.deepWalk = {};
+  for (const idx of [53,54,55,56,57,58,59,60,61,62,63,64,65]) { g.setLevel(idx); cutAllRopes(); pins.deepWalk['L'+(idx+1)] = runOut(1800); }
   // How-to-play smoke: every tutorial page must render without throwing, the
   // overlay chrome must sync (caption per page), and closing must unpause.
   pins.howto = { caps: [], closed: false, unpaused: false };
@@ -422,6 +428,11 @@ const IN_PAGE = `(function(){
       if (new Set(P.howto.caps).size !== 13) fail.push(`howto smoke: captions must be distinct per page, got [${P.howto.caps}]`);
       if (!P.howto.closed || !P.howto.unpaused) fail.push(`howto smoke: close must hide the overlay and unfreeze (closed=${P.howto.closed} unpaused=${P.howto.unpaused})`);
     }
+    if (P.deepWalk) {
+      for (const k of Object.keys(P.deepWalk)) {
+        if (P.deepWalk[k] === 'play') fail.push(`${k} order-walk: cut-all left the crate in 'play' (dead-end — the stall watchdog didn't fire)`);
+      }
+    }
   }
   for (const e of errors) fail.push(e);
 
@@ -438,6 +449,7 @@ const IN_PAGE = `(function(){
     if (P2.l10floatSafe !== undefined) console.log(`  l10 shelf: no-pop float→${P2.l10floatSafe}  early-pop→${P2.l10early.out}@${P2.l10early.y01}H`);
     if (P2.l8line !== undefined) console.log(`  l8: line-first→${P2.l8line.out}@${P2.l8line.y01}H  restraint-first→${P2.l8restraint}`);
     if (P2.l14early) console.log(`  trolley early-cut death: L14→${P2.l14early.out}@${P2.l14early.y01}H  L15→${P2.l15early.out}@${P2.l15early.y01}H`);
+    if (P2.deepWalk) console.log(`  order-walk cut-all: ${Object.entries(P2.deepWalk).map(([k, v]) => k + '→' + v).join('  ')} (must be terminal, and 'fail' = brute-force loses)`);
     if (P2.howto) console.log(`  howto: ${P2.howto.caps ? P2.howto.caps.length : 0} pages, closed=${P2.howto.closed}, unpaused=${P2.howto.unpaused}`);
   }
   if (fail.length) { console.error('SIM TESTS FAILED:\n  - ' + fail.join('\n  - ')); process.exit(1); }
