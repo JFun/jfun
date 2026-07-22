@@ -290,9 +290,9 @@ async function finalize() {
   const { verId } = await discover();
   // Copyright — version-level attribute.
   await api('PATCH', `/v1/appStoreVersions/${verId}`, {
-    data: { type: 'appStoreVersions', id: verId, attributes: { copyright: '2026 Cut' } },
+    data: { type: 'appStoreVersions', id: verId, attributes: { copyright: '2026 Rattle' } },
   });
-  console.log('✓ copyright: 2026 Cut');
+  console.log('✓ copyright: 2026 Rattle');
   // App Review contact + notes. PATCH email if a detail already exists (account
   // may have pre-filled name/phone); otherwise report what's still needed.
   const attrs = {
@@ -362,8 +362,31 @@ async function release() {
   console.log('✓ release type now:', v.json.data.attributes.releaseType, '| state:', v.json.data.attributes.appVersionState);
 }
 
+// The steps Apple exposes NO API for — must be clicked in the ASC web UI. Printed
+// here so the exact answers live in the tool, not tribal memory (Firebase-Analytics
+// only, no ads, no Crashlytics, no accounts profile — passed review on Cut/Tilt/Rattle).
+function checklist() {
+  console.log(`\nWEB-UI ONLY (no ASC API) — do these in App Store Connect, then Submit:\n
+1. App Privacy → Get Started → "Do you collect data?" YES, then check exactly TWO:
+     • Usage Data → Product Interaction
+     • Identifiers → Device ID        (Firebase collects IDFV + Installation ID; your
+                                       privacy page discloses it → declare it to match)
+   For BOTH: Used for tracking? NO · Linked to identity? NO · Purpose: Analytics
+   Leave everything else unchecked (no Advertising/Crash/Other Usage/User ID). → Publish
+   → NO ATT prompt, NO NSUserTrackingUsageDescription (first-party analytics ≠ tracking).
+
+2. Age Rating → Set Up → answer every question None / No → lands on 4+ → Save.
+
+3. Select build ${'1.0(N)'} on the version (asc-api.cjs build attaches the latest VALID).
+
+4. Submit for Review. (finalize already set the review contact + Sign-in NOT required.)
+
+First-submission: Apple often sends boilerplate "2.1 Information Needed" — reply that the
+app has no login/accounts/IAP and uses Firebase Analytics for anonymous events only.\n`);
+}
+
 const cmd = process.argv[2] || 'orient';
-const fns = { orient, metadata, urls, screenshots, categories, build, pricing, finalize, submit, release };
+const fns = { orient, metadata, urls, screenshots, categories, build, pricing, finalize, submit, release, checklist };
 (async () => {
   try {
     if (!fns[cmd]) { console.error('unknown command:', cmd, '\navailable:', Object.keys(fns).join(', ')); process.exit(1); }

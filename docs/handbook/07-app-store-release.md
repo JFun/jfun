@@ -31,12 +31,29 @@ pollute the web cohort.
    (`^8.3.0`). `cap sync` auto-wires `CapApp-SPM/Package.swift` + the ios `packageClassList`.
 2. `@capacitor-firebase/app`'s `FirebaseAppPlugin.swift` calls `FirebaseApp.configure()` on
    load — **no AppDelegate change**.
-3. Create the app's Firebase project (bundle `com.jfun.<app>`), download its
-   `GoogleService-Info.plist`, drop it at `ios/App/App/`. (Firebase iOS API keys are
-   public-by-design / bundle-restricted — safe to commit.)
-4. Auto-events (sessions, retention, first_open) flow for free; add custom funnel events
+3. Register the iOS app + fetch its config via the **Firebase CLI** (no console needed):
+   ```
+   firebase apps:create IOS "<App>" --bundle-id com.jfun.<app> --project <proj>
+   firebase apps:sdkconfig IOS <appId> --project <proj> --out ios/App/App/GoogleService-Info.plist
+   ```
+   (Firebase iOS API keys are public-by-design / bundle-restricted — safe to commit.
+   `IS_ANALYTICS_ENABLED=false` inside the plist is a **legacy** flag — leave it; it does
+   NOT control collection.)
+4. **⚠ Wire the plist into the Xcode target BY HAND — `cap sync` does NOT do this.** Add 4
+   fragments to `App.xcodeproj/project.pbxproj` (reuse the UUIDs `F1AE…0001/0002`): a
+   `PBXFileReference`, a `PBXBuildFile`, the file in the **App** `PBXGroup` children, and
+   the build file in the `PBXResourcesBuildPhase`. Without this the plist isn't bundled →
+   `FirebaseApp.configure()` finds nothing at runtime. Mirror a sibling app's pbxproj.
+5. **⚠ Enable Google Analytics on the project — console-only, no `firebase` command:**
+   `console.firebase.google.com/project/<proj>/analytics` → Enable / link a GA property.
+   Until this is done the SDK logs events into the void (no GA4 property to land in).
+6. Auto-events (sessions, retention, first_open) flow for free; add custom funnel events
    via `Track.ev`. dSYM "Upload Symbols Failed" warnings for Firebase/Google frameworks at
    upload are HARMLESS (precompiled, no dSYM).
+7. **Verify end-to-end on device** with `scripts/dev/firebase_debug.sh` (deploy first): it
+   relaunches with `-FIRDebugEnabled` so events stream to Firebase **DebugView** with their
+   params. ⚠ the `--` separator before the bundle id is REQUIRED or `devicectl` misparses
+   the flag (`Missing value for '-l'`).
 
 ## 3. Support + Privacy pages — hosted IN-MONOREPO
 
@@ -100,6 +117,28 @@ Never rely on a manual flag. Gate dev affordances on a native `#if DEBUG` signal
 
 Prereqs already handled by the template/Info.plist: `ITSAppUsesNonExemptEncryption=false`
 (skips the encryption prompt), `UIRequiresFullScreen`.
+
+**⚠ Firebase + signing — archive with AUTOMATIC signing (never force a manual profile).**
+Firebase pulls in SPM package targets (Firebase / Promises / GoogleUtilities). If you pass
+manual-signing overrides GLOBALLY on the `xcodebuild archive` line
+(`CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER=…`), the profile leaks onto those
+SPM targets → **`ARCHIVE FAILED`: "<target> does not support provisioning profiles"**.
+Automatic signing assigns the profile to the App target only and leaves the SPM targets
+alone. So archive with `-allowProvisioningUpdates` and NO signing overrides (only
+`DEVELOPMENT_TEAM`), exactly like Cut/Tilt. This bit Rattle 1.0(2) — the Firebase-less
+1.0(1) had no SPM targets so a manual archive worked; adding Firebase broke it.
+
+**Account-independent path (no Xcode-signed-in Apple ID).** `destination=upload` via the
+Xcode account fails `Failed to Use Accounts` on an expired session. To ship without an
+Xcode login, authenticate with the ASC API key on BOTH steps:
+`xcodebuild archive … -allowProvisioningUpdates -authenticationKeyPath <p8>
+-authenticationKeyID <id> -authenticationKeyIssuerID <issuer> DEVELOPMENT_TEAM=…`, then
+export with a **manual**-signing `ExportOptions.plist` (`signingStyle=manual`,
+`signingCertificate "Apple Distribution"`, the App Store profile) + the same
+`-authenticationKey*` flags. Needs a local Apple Distribution cert + App Store profile
+installed (mint both via the API once — see `rattle`'s memory). `apps/rattle/scripts/dev/
+release_ios.sh` is the canonical one-command version (self-test → bump → cap sync → archive
+→ export+upload); `asc-api.cjs checklist` prints the web-UI-only steps that remain.
 
 ## 8. App Store Connect submission — do in this order
 

@@ -57,16 +57,22 @@ STAMP="$(date +%s)"
 sed -i '' -E 's#(src="js/[a-z/-]+\.js)"#\1?v='"$STAMP"'"#g; s#(href="style\.css)"#\1?v='"$STAMP"'"#g' ios/App/App/public/index.html
 echo "— cache-bust ?v=$STAMP —"
 
-# ─── 4. archive (Release, MANUAL Apple Distribution signing — no Xcode account needed) ──
+# ─── 4. archive (Release, AUTOMATIC signing) ──
+# Manual signing must NOT be forced here: global CODE_SIGN overrides leak the
+# provisioning profile onto Firebase's SPM package targets (Firebase/Promises/
+# GoogleUtilities), which "do not support provisioning profiles" → ARCHIVE FAILED.
+# Automatic signing assigns the profile to the App target only and leaves the SPM
+# targets profile-free (same as Cut/Tilt). -allowProvisioningUpdates + the API key
+# keep it account-independent (uses the local Apple Distribution cert + profile).
 echo "— archive —"
 rm -rf "$ARCHIVE"
 xcodebuild archive \
   -project "$PROJ" -scheme "$SCHEME" -configuration Release \
   -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" \
-  CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$TEAM_ID" \
-  CODE_SIGN_IDENTITY="Apple Distribution" \
-  PROVISIONING_PROFILE_SPECIFIER="$PROFILE" \
-  2>&1 | grep -E "ARCHIVE (SUCCEEDED|FAILED)|error:" | tail -5
+  -allowProvisioningUpdates \
+  -authenticationKeyPath "$P8" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID" \
+  DEVELOPMENT_TEAM="$TEAM_ID" \
+  2>&1 | grep -E "ARCHIVE (SUCCEEDED|FAILED)|error:|does not support" | tail -8
 [ -d "$ARCHIVE" ] || { echo "✗ archive failed (see full log above)"; exit 1; }
 
 # ─── 5. ExportOptions: manual signing + upload-via-API-key ──
