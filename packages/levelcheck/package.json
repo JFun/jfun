@@ -1,0 +1,16 @@
+{
+  "name": "@jfun/levelcheck",
+  "version": "0.1.0",
+  "description": "Level QA gates, packaged: frame-fit geometry lint, winning-order discoverability (visible-monotonicity) check, and layout/mechanic distinctness scoring (the anti-clone gate). Engine-agnostic: each game's certifier extracts the facts (bounds, cut order, feature vectors) and these pure functions judge them. Winnability certification stays per-game — engines differ.",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "main": "./index.js",
+  "exports": {
+    ".": { "require": "./index.js", "default": "./index.js" },
+    "./geometry": "./src/geometry.js",
+    "./order": "./src/order.js",
+    "./distinct": "./src/distinct.js"
+  },
+  "files": ["src", "index.js", "README.md"],
+  "scripts": { "test": "node test.cjs" }
+}

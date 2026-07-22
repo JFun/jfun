@@ -24,6 +24,10 @@ const { spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+// Shared level-QA gates (frame-fit, order discoverability, distinctness) —
+// workspace-linked; path fallback keeps worktrees without node_modules working.
+let LC; try { LC = require('@jfun/levelcheck'); }
+catch (_) { LC = require(path.resolve(__dirname, '../../../../packages/levelcheck')); }
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const CDP_PORT = 9461;
@@ -62,43 +66,68 @@ const inPage = (loLevel, hiLevel, delayStep, maxDelay, minWins, gaps) => `(funct
   function runOut(){ for (let k=0;k<RUN;k+=8){ g.simN(8); const p=g.state().phase; if (p!=='play') return p; } return 'play'; }
   function stepN(n){ g.simN(n); }
   function cutRope(r){ const dx=r.x2-r.x1, dy=r.y2-r.y1, L=Math.hypot(dx,dy)||1, e=Math.max(14,L);
-    g.cutAt(r.mx + dy/L*e, r.my - dx/L*e, r.mx - dy/L*e, r.my + dx/L*e); }
+    return g.cutAt(r.mx + dy/L*e, r.my - dx/L*e, r.mx - dy/L*e, r.my + dx/L*e); } // returns links severed (0 = swipe missed)
   function popBalloon(b){ g.cutAt(b.x-b.r-6, b.y, b.x+b.r+6, b.y); }
   // the single-cut target = the TOP-most rope segment: cutting nearest the anchor
   // reliably severs the load path and releases the crate (grabbing the "longest"
   // segment can pick a harness branch that leaves the crate still hanging).
-  function topmost(){ const rs=g.ropes(); let best=null,by=1e9; for(const r of rs){ if(r.my<by){by=r.my;best=r;} } return best; }
-  function bottommost(){ const rs=g.ropes(); let best=null,by=-1e9; for(const r of rs){ if(r.my>by){by=r.my;best=r;} } return best; }
+  // Skip severed free TAILS (dangling chain remnants): they are not load paths,
+  // so cutting them wastes bot swipes, inflates par, and pollutes the recorded
+  // winning order with junk entries. ropes() flags them via particle.freeTail.
+  function topmost(){ const rs=g.ropes(); let best=null,by=1e9; for(const r of rs){ if(r.tail) continue; if(r.my<by){by=r.my;best=r;} } return best; }
+  function bottommost(){ const rs=g.ropes(); let best=null,by=-1e9; for(const r of rs){ if(r.tail) continue; if(r.my>by){by=r.my;best=r;} } return best; }
   function longest(){ return topmost(); } // single-cut target
   const delays = []; for (let d=0; d<=${maxDelay}; d+=${delayStep}) delays.push(d);
   const gaps = ${JSON.stringify(gaps)};
+  const H = g.dims().H, Wd = g.dims().W;
   const out = [];
   for (let idx=${loLevel}; idx<=${hiLevel}; idx++){
     let wins=0, single=0, singleTried=0, firstWin=null, winBy=null, done=false;
-    const win = (d,how)=>{ wins++; if(firstWin===null){ firstWin=d; winBy=how; } };
+    // level-QA facts captured at the FIRST win: par (cuts used) + the winning
+    // cascade's cut order as anchor-height fractions (discoverability lint)
+    let winPar=null, winOrd=null;
+    const win = (d,how,cuts,ordYs)=>{ wins++; if(firstWin===null){ firstWin=d; winBy=how; winPar=(cuts==null?null:cuts); winOrd=ordYs||null; } };
     // pass 1 — single cut + balloon pops across the delay grid (the dominant
     // timing solve; the TOP-most cut also serves as the difficulty proxy)
     for (const d of delays){
       // top-most single-cut (main suspending line) — the band probe
-      g.setLevel(idx); stepN(d); let r=topmost(); if(r){ cutRope(r); singleTried++; if (runOut()==='win'){ single++; win(d,'top'); } }
+      g.setLevel(idx); stepN(d); let r=topmost(); if(r){ cutRope(r); singleTried++; if (runOut()==='win'){ single++; win(d,'top',1); } }
       // bottom-most single-cut — the "cut the tie-down, leave the cord" solve
       // (elastic slingshot / counterweight restraint), which topmost never finds
-      g.setLevel(idx); stepN(d); r=bottommost(); if(r){ cutRope(r); if (runOut()==='win') win(d,'bottom'); }
-      for (let bi=0; bi<8; bi++){ g.setLevel(idx); stepN(d); const b=g.balloons()[bi]; if(!b) break; popBalloon(b); if(runOut()==='win') win(d,'pop'); }
+      g.setLevel(idx); stepN(d); r=bottommost(); if(r){ cutRope(r); if (runOut()==='win') win(d,'bottom',1); }
+      for (let bi=0; bi<8; bi++){ g.setLevel(idx); stepN(d); const b=g.balloons()[bi]; if(!b) break; popBalloon(b); if(runOut()==='win') win(d,'pop',1); }
       if (wins>=${minWins}) { done=true; break; }
     }
     // pass 2 — escalate: cut-all, then a CASCADE (release every rope top-down
     // with a gap between cuts) which covers N-rope release-order levels.
     if (!done) for (const d of delays){
-      g.setLevel(idx); stepN(d); for(const r of g.ropes()) cutRope(r); for(const b of g.balloons()) popBalloon(b);
-      if (runOut()==='win') win(d,'all');
+      g.setLevel(idx); stepN(d);
+      const nAll = g.ropes().length + g.balloons().length;
+      for(const r of g.ropes()) cutRope(r); for(const b of g.balloons()) popBalloon(b);
+      if (runOut()==='win') win(d,'all',nAll);
       for (const gap of gaps){
         for (const pick of [topmost, bottommost]){ // release order: top-down AND bottom-up
           g.setLevel(idx); stepN(d);
-          let guard=0;
-          while(g.ropes().length && guard++<12){ const r=pick(); if(!r) break; cutRope(r); stepN(gap); }
+          let guard=0; const seq=[]; let r2; let lastLive=Infinity;
+          while((r2=pick()) && guard++<12){
+            // fail→auto-retry rebuilds every rope: live count JUMPS back up —
+            // restart the recorded order (par/order describe ONE clean attempt)
+            const liveN=g.ropes().filter(rr=>!rr.tail).length;
+            if (liveN>lastLive) seq.length=0;
+            // ANCHOR IDENTITY = (x,y) of the segment's top endpoint. Collapse by
+            // 2D proximity, not height alone: same-anchor link re-cuts sit at
+            // ~the same point, while two DIFFERENT anchors at near-equal heights
+            // keep separate entries (height-only collapse aliased them away AND
+            // made the order lint's sub-gap check structurally unreachable).
+            const topFirst=r2.y1<=r2.y2;
+            const e={x:+((topFirst?r2.x1:r2.x2)/Wd).toFixed(3), y:+(Math.min(r2.y1,r2.y2)/H).toFixed(3)};
+            const prev=seq[seq.length-1];
+            if (cutRope(r2)>0 && (!prev || Math.hypot(prev.x-e.x,prev.y-e.y)>=0.02)) seq.push(e);
+            lastLive=g.ropes().filter(rr=>!rr.tail).length;
+            stepN(gap); }
+          const nPop=g.balloons().length;
           for(const b of g.balloons()) popBalloon(b);
-          if (runOut()==='win') win(d,pick===topmost?'casc↓':'casc↑');
+          if (runOut()==='win') win(d,pick===topmost?'casc↓':'casc↑',seq.length+nPop,seq.map(ee=>ee.y));
         }
       }
       if (wins>=${minWins}) break;
@@ -106,11 +135,38 @@ const inPage = (loLevel, hiLevel, delayStep, maxDelay, minWins, gaps) => `(funct
     // lazy probe — cut everything at t=0 (trivial-solve flag)
     g.setLevel(idx); for(const r of g.ropes()) cutRope(r); for(const b of g.balloons()) popBalloon(b);
     const lazyWin = runOut()==='win';
+    g.setLevel(idx);
+    const nRopes=g.ropes().length, nBalloons=g.balloons().length;
+    const gm = g.geom ? g.geom() : null; // frame-fit + discoverability facts for @jfun/levelcheck
     out.push({ idx, level: idx+1, wins, single, singleTried,
-      singleRate: singleTried? +(single/singleTried).toFixed(2):0, firstWin, winBy, lazyWin,
-      nRopes: (g.setLevel(idx), g.ropes().length), nBalloons: g.balloons().length });
+      singleRate: singleTried? +(single/singleTried).toFixed(2):0, firstWin, winBy, winPar, winOrd, lazyWin,
+      nRopes, nBalloons,
+      geom: gm?{W:gm.W,H:gm.H,basket:gm.basket,nAnchors:gm.anchors.length,nPulleys:gm.mechanics.pulley}:null });
   }
   return { out, minWins:${minWins}, delays: delays.length };
+})()`;
+
+// Distinctness probe (advisory report): per level, the mechanics set + layout
+// landmarks (normalized anchors/hazards/basket) + an 8x8 canvas luma —
+// @jfun/levelcheck ranks the closest pairs Node-side (the anti-clone gate).
+const distinctProbe = (lo, hi) => `(function(){
+  const g=window.__game;
+  if (!g || !g.geom || !g.luma8) return { fatal: '__game.geom/luma8 hooks missing' };
+  const out=[];
+  for (let idx=${lo}; idx<=${hi}; idx++){
+    g.setLevel(idx); g.stepN(2); // draw so the canvas shows this level
+    const gm=g.geom();
+    const mech=Object.keys(gm.mechanics).filter(k=>gm.mechanics[k]>0&&k!=='boxes'&&k!=='solid');
+    mech.push('r'+Math.min(gm.anchors.length,6)); // LOGICAL rope bucket via pinned anchors (ropes() counts LINKS — every level would read 'r6')
+    const pts=[];
+    for(const a of gm.anchors) pts.push([+(a.x/gm.W).toFixed(3),+(a.y/gm.H).toFixed(3)]);
+    for(const h of gm.hazards){ pts.push([+(h.x1/gm.W).toFixed(3),+(h.y1/gm.H).toFixed(3)]);
+      pts.push([+(h.x2/gm.W).toFixed(3),+(h.y2/gm.H).toFixed(3)]); }
+    if(gm.basket) pts.push([+(((gm.basket.l+gm.basket.r)/2)/gm.W).toFixed(3),+(gm.basket.b/gm.H).toFixed(3)]);
+    for(const st of (gm.stars||[])) pts.push([+(st.x/gm.W).toFixed(3),+(st.y/gm.H).toFixed(3)]);
+    out.push({ idx, mechanics:mech, points:pts, luma:g.luma8() });
+  }
+  return out;
 })()`;
 
 // Landing probe (authoring aid): for one level, cut the top of the cord/rope at
@@ -173,6 +229,28 @@ const landProbe = (idx) => `(function(){
     return;
   }
 
+  // Distinctness report: `node fairness.cjs distinct` — @jfun/levelcheck ranks
+  // the closest level pairs by mechanics+layout features and by an 8x8 canvas
+  // hash. ADVISORY: it queues pairs for a human eyeball (the anti-clone gate),
+  // it does not fail the run.
+  if (mode === 'distinct') {
+    const rl = await Runtime.evaluate({ expression: 'window.__game.dims().LAST', returnByValue: true });
+    const last = rl.result.value | 0;
+    const r = await Runtime.evaluate({ expression: distinctProbe(0, last), returnByValue: true, timeout: 280000 });
+    await client.close(); chrome.kill(); server.close();
+    const rows = r.result.value;
+    if (!rows || rows.fatal) { console.error('DISTINCT FATAL:', rows && rows.fatal); process.exit(1); }
+    const hashes = new Map(rows.map(x => [x.idx, LC.hashFromLuma(x.luma)]));
+    const pairs = LC.nearDuplicates(rows.map(x => ({ id: x.idx, mechanics: x.mechanics, points: x.points })));
+    console.log(`  distinctness report — ${rows.length} levels, closest pairs first (feature dist <0.18 or hash <12/64 = ⚠ eyeball it):`);
+    for (const p of pairs.slice(0, 15)) {
+      const hd = LC.hamming(hashes.get(p.a), hashes.get(p.b));
+      const flag = (p.flagged || hd < 12) ? '  ⚠ near-clone?' : '';
+      console.log(`  L${String(p.a + 1).padStart(2)} ↔ L${String(p.b + 1).padStart(2)}  feat ${p.dist.toFixed(3)}  hash ${String(hd).padStart(2)}/64${flag}`);
+    }
+    return;
+  }
+
   if (hi === null) { const r = await Runtime.evaluate({ expression: 'window.__game.dims().LAST', returnByValue: true }); hi = (r.result.value|0) || 19; }
   const res = await Runtime.evaluate({ expression: inPage(lo, hi, delayStep, maxDelay, minWins, gaps), returnByValue: true, timeout: 280000, awaitPromise: true });
   await client.close(); chrome.kill(); server.close();
@@ -190,20 +268,49 @@ const landProbe = (idx) => `(function(){
   const EXEMPT = { 8: 'restraint-first; sim-tests l8line/l8restraint' };
   const band = r => r >= 0.5 ? 'easy  ' : r >= 0.25 ? 'med   ' : r >= 0.1 ? 'hard  ' : r > 0 ? 'v.hard' : 'seq/pop';
   const fails = [];
+  const orderWarns = [];
   console.log(`  fairness certify (${data.delays}-delay grid, minWins=${data.minWins})`);
   for (const L of data.out) {
     const ok = L.wins >= data.minWins;
     const exempt = EXEMPT[L.level];
     const tag = ok ? '✓' : (exempt ? '⊘ exempt' : '✗ UNSOLVABLE');
-    // UNDISCOVERABLE-SOLVE flag: a SINGLE-rope, no-balloon level whose only win
+    // UNDISCOVERABLE-SOLVE flag: a SINGLE-cord, no-balloon level whose only win
     // came from a bottom-cut or cascade is unfair in practice — the player sees
     // one rope and one verb; cut HEIGHT silently changing the outcome (severed-
     // tail mass altering a magnet/wind curve) is not discoverable. Surface it.
-    const undisc = ok && L.nRopes<=1 && !L.nBalloons && L.winBy && L.winBy!=='top' && L.winBy!=='pop' && L.single===0;
-    console.log(`  L${String(L.level).padStart(2)} ${tag}  ${band(L.singleRate)}  wins≥${L.wins}  single ${L.single}/${L.singleTried}  firstWin@${L.firstWin==null?'—':L.firstWin}${L.winBy?' by '+L.winBy:''}${L.lazyWin?'  ⚠ lazy-cut wins':''}${undisc?'  ⚠⚠ UNDISCOVERABLE-SOLVE':''}${exempt&&!ok?'  ('+exempt+')':''}`);
+    // "Single cord" = ONE pinned anchor and NO pulley (a pulley implies a second
+    // visible line, and counterweight restraint-solves are designed bottom cuts).
+    // The old `nRopes<=1` compared LINK counts (~20 per cord) — dead code the
+    // adversarial review caught; geom.nAnchors resurrects the gate honestly.
+    const oneCord = L.geom ? (L.geom.nAnchors<=1 && !L.geom.nPulleys) : (L.nRopes<=1);
+    const undisc = ok && !exempt && oneCord && !L.nBalloons && L.winBy && L.winBy!=='top' && L.winBy!=='pop' && L.single===0;
+    // GEOMETRY gate (@jfun/levelcheck, BLOCKING): every must-be-visible object
+    // fully inside the play field — the machine version of the device-caught
+    // "bucket is not fully displayed" bug.
+    let geomBad = [];
+    if (L.geom && L.geom.basket)
+      geomBad = LC.frameFit([Object.assign({ name: 'basket' }, L.geom.basket)], { w: L.geom.W, h: L.geom.H }, { margin: 2 });
+    // ORDER-DISCOVERABILITY (@jfun/levelcheck, ADVISORY): a multi-cut win found
+    // by the TOP-DOWN cascade should be readable off anchor HEIGHT — monotone
+    // with a visible gap (>=2% of screen height per step). Only casc↓ is
+    // instrumented (its cut segments sit AT the anchors, so segment-y ≈ the
+    // visible anchor height; casc↑ cuts at the crate end, where segment-y says
+    // nothing about which anchor). Some families read via a different cue
+    // (2-rope tips read by basket side), so this warns, not fails.
+    const ordCheck = (ok && L.winBy === 'casc↓' && Array.isArray(L.winOrd) && L.winOrd.length >= 3)
+      ? LC.monotoneOrder(L.winOrd, { minGap: 0.02 }) : null;
+    const ordWarn = ordCheck && !ordCheck.ok;
+    if (ordWarn) orderWarns.push(`L${L.level}: winning ${L.winBy} order [${L.winOrd.join(', ')}] is not height-readable (needs monotone steps ≥0.02H) — verify the player has another cue`);
+    // par (cuts in the first win) is meaningful for singles (1) and the clean
+    // anchor-end casc↓; suppressed for 'all' (cut-everything) and casc↑ (its
+    // bottom-end cuts can leave pin-anchored dangles it re-cuts — inflated).
+    const showPar = L.winPar != null && (L.winBy === 'top' || L.winBy === 'bottom' || L.winBy === 'pop' || L.winBy === 'casc↓');
+    console.log(`  L${String(L.level).padStart(2)} ${tag}  ${band(L.singleRate)}  wins≥${L.wins}  single ${L.single}/${L.singleTried}  firstWin@${L.firstWin==null?'—':L.firstWin}${L.winBy?' by '+L.winBy:''}${showPar?'  par '+L.winPar:''}${L.lazyWin?'  ⚠ lazy-cut wins':''}${undisc?'  ⚠⚠ UNDISCOVERABLE-SOLVE':''}${ordWarn?'  ⚠ order-gap':''}${geomBad.length?'  ✗ GEOMETRY':''}${exempt&&!ok?'  ('+exempt+')':''}`);
     if (!ok && !exempt) fails.push(`L${L.level}: certified UNSOLVABLE — only ${L.wins} win(s) found across the seeded cut sweep (single/all/cascade/pop)`);
     if (undisc) fails.push(`L${L.level}: UNDISCOVERABLE-SOLVE — single-rope level won only by '${L.winBy}' (cut height silently decides; retune the geometry so a plain cut wins)`);
+    for (const gb of geomBad) fails.push(`L${L.level}: GEOMETRY — ${gb.name} ${gb.problems.join('; ')} (must sit fully inside the play field)`);
   }
+  if (orderWarns.length) console.log('  advisory (order discoverability):\n  - ' + orderWarns.join('\n  - '));
   if (fails.length) { console.error('\nFAIRNESS FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
   console.log('  ALL CERTIFIED — every level winnable within the seeded cut sweep');
 })().catch(e => { console.error(e); process.exit(1); });
