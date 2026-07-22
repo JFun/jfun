@@ -61,6 +61,70 @@ ok(LC.scalarsDistance({}, {}) === 0, "empty scalars = 0");
   ok(LC.hashFromLuma(flat).length === 16, "hash is 16 hex chars");
 }
 
+// --- robustness (human-possible, not just winnable) ---
+ok(LC.winDensity([true, false, true, false]) === 0.5, "winDensity counts booleans");
+ok(LC.winDensity([{ win: true }, { win: false }]) === 0.5, "winDensity counts objects");
+ok(LC.winDensity([]) === 0, "empty attempts = 0 density");
+{
+  // healthy level: a wide contiguous timing band wins (like the shipped walks @0)
+  const good = [];
+  for (let d = 0; d <= 480; d += 20) good.push({ x: d, win: d <= 200 });
+  const w = LC.solveWindow(good, { minWidth: 60 });
+  ok(w.ok && w.widest.lo === 0 && w.widest.hi === 200, "wide contiguous band passes");
+}
+{
+  // THE L59 BOOMERANG PATTERN: one isolated winning sample in a big sweep —
+  // raw "winnable" but a lottery. minRun=2 default kills the lone point.
+  const lottery = [];
+  for (let d = 0; d <= 480; d += 20) lottery.push({ x: d, win: d === 460 });
+  const w = LC.solveWindow(lottery, { minWidth: 60 });
+  ok(!w.ok && LC.winDensity(lottery) < 0.05, "isolated lottery win FAILS the window gate");
+  ok(w.widest && w.widest.n === 1 && w.widest.width === 0, "lone win = zero-width band");
+}
+{
+  // scattered wins (win, lose, win, lose): never contiguous → no real band
+  const scatter = [{ x: 0, win: true }, { x: 20, win: false }, { x: 40, win: true }, { x: 60, win: false }];
+  ok(!LC.solveWindow(scatter, { minWidth: 10 }).ok, "scattered wins are not a tolerance band");
+}
+{
+  // THE GALLOWS DROP PATTERN: the TAUGHT method has zero window; only an
+  // unintended method wins. methodWindows exposes it.
+  const s = [];
+  for (let d = 0; d <= 200; d += 20) s.push({ x: d, win: true, method: "unintended-line-cut" });
+  // taught tie-cut never wins → absent from methods entirely
+  const mw = LC.methodWindows(s, { minWidth: 40 });
+  ok(mw["unintended-line-cut"] && mw["unintended-line-cut"].ok, "unintended method shows its window");
+  ok(!("tie-cut" in mw), "taught method with no wins is ABSENT — the tell the game asserts on");
+}
+{
+  // mixed methods on one axis: each method's band breaks at the other's wins
+  const s = [];
+  for (let d = 0; d <= 100; d += 20) s.push({ x: d, win: true, method: d < 60 ? "A" : "B" });
+  const mw = LC.methodWindows(s, { minWidth: 30 });
+  ok(mw.A.ok && mw.A.widest.hi === 40 && mw.B.ok && mw.B.widest.lo === 60, "per-method bands split correctly");
+}
+{
+  // THE SAME-X MULTI-METHOD BUG (caught live on Cut L54): certifiers emit one
+  // attempt PER METHOD at each knob value. Sibling attempts at the same x must
+  // NOT read as losses on each other's axes — that shredded every band to
+  // width 0 and made a human-beaten level report as a lottery.
+  const s = [];
+  for (let d = 0; d <= 200; d += 20) {
+    s.push({ x: d, win: false, method: "top" });     // single cut never wins
+    s.push({ x: d, win: true, method: "casc↓" });    // cascade wins broadly
+  }
+  const mw = LC.methodWindows(s, { minWidth: 60 });
+  ok(mw["casc↓"].ok && mw["casc↓"].widest.width === 200, "same-x sibling attempts don't shred the winner's band");
+  ok(!("top" in mw), "never-winning method absent");
+}
+{
+  // untagged losses DO break every method's band
+  const s = [{ x: 0, win: true, method: "A" }, { x: 20, win: false }, { x: 40, win: true, method: "A" }];
+  ok(!LC.methodWindows(s, { minWidth: 10 }).A.ok, "untagged loss breaks the band");
+}
+ok(LC.solveWindow([], {}).winFraction === 0 && !LC.solveWindow([], {}).ok, "empty samples: no window");
+ok(!LC.solveWindow([{ x: NaN, win: true }], {}).ok, "NaN knob values dropped");
+
 // --- adversarial-review hardening ---
 function throws(fn, msg) { let t = false; try { fn(); } catch (_) { t = true; } ok(t, msg); }
 throws(() => LC.frameFit([{ name: "b", l: 0, r: 1e9, t: 0, b: 1 }], { w: NaN, h: NaN }), "NaN frame throws (blocking gate fails loud)");
