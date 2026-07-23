@@ -112,7 +112,13 @@ async function discover() {
   // 409 against the locked live listing.
   const editable = iosVers.find((v) => !LIVE_STATES.has(v.attributes.appVersionState || v.attributes.appStoreState));
   const ver = editable || iosVers[0];
-  const info = inc.filter((x) => x.type === 'appInfos')[0];
+  // appInfos: a new-version prep creates a SEPARATE editable appInfo; the live
+  // one's app-level fields (subtitle, privacyPolicyUrl, categories) are locked.
+  // The bare app include lacks state, so fetch appInfos with state and prefer
+  // the editable one — else app-level PATCHes 409 against the locked live copy.
+  const appInfos = await api('GET', `/v1/apps/${APP_ID}/appInfos?fields[appInfos]=state,appStoreState`);
+  const infoEditable = appInfos.json.data.find((a) => !LIVE_STATES.has(a.attributes.state || a.attributes.appStoreState));
+  const info = infoEditable || appInfos.json.data[0];
   const vlocs = await api('GET', `/v1/appStoreVersions/${ver.id}/appStoreVersionLocalizations`);
   const verLoc = vlocs.json.data.find((l) => l.attributes.locale === 'en-US') || vlocs.json.data[0];
   const ilocs = await api('GET', `/v1/appInfos/${info.id}/appInfoLocalizations`);
@@ -124,9 +130,11 @@ const META = {
   subtitle: 'Rope-cutting physics puzzles',
   promotionalText: '61 hand-tuned rope-cutting puzzles in a moonlit workshop. Cut the right rope, land the crate, bring them all home. No ads, no accounts, play offline.',
   keywords: 'rope,cut,physics,puzzle,crate,drop,slice,swing,pendulum,brain,casual,relax,logic,gravity',
-  supportUrl: 'https://jfun.github.io/jfun/cut/support.html',
-  marketingUrl: 'https://jfun.github.io/jfun/cut/support.html',
-  privacyPolicyUrl: 'https://jfun.github.io/jfun/cut/privacy.html',
+  // Hosting: Firebase (docs/cut → cut-jfun.web.app, cleanUrls). Replaced the
+  // github.io/jfun Pages URLs for v1.1 (Pages stays live as a same-source mirror).
+  supportUrl: 'https://cut-jfun.web.app/support',
+  marketingUrl: 'https://cut-jfun.web.app/support',
+  privacyPolicyUrl: 'https://cut-jfun.web.app/privacy',
   // v1.1 "What's New" (release notes). Plain ASCII — ASC rejects box-drawing /
   // may reject em-dashes. Describes the deep-backbone chapter in player terms.
   whatsNew: [
