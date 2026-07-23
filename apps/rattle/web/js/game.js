@@ -7,6 +7,8 @@
   "use strict";
   const E = window.RattleEngine, LV = window.RattleLevels.LEVELS;
   const FDT = E.FDT, WREF = E.WREF, HREF = E.HREF;
+  const RATTLE_GA_ID = "";                          // empty → web inert; native routes to Firebase
+  let _startedLevel = 0, _rattleLogged = false;      // level_start de-dup + rattle_used once/level
   const $ = s => document.querySelector(s);
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
   const easeOutBack = p => { p = clamp(p, 0, 1); const c = 1.70158, x = p - 1; return 1 + (c + 1) * x * x * x + c * x * x; };
@@ -28,14 +30,15 @@
   function vibe(style) { if (!hapticsOn || !HAP) return; try { HAP.impact({ style: style }); } catch (e) {} }
 
   let W = 390, H = 844, DPR = 1, s = 1, ox = 0, oy = 0;   // screen; s/ox/oy = world→screen
-  let world = null, level = 1, simT = 0, firstTap = false, cardUp = false, deadOffered = false, coach = null, rattledThisLevel = false, menuUp = false, dailyMode = false;
+  let world = null, level = 1, simT = 0, firstTap = false, cardUp = false, deadOffered = false, coach = null, rattledThisLevel = false, menuUp = false, ftue = null;
   // real device safe-area insets (notch / home indicator) — read from a CSS probe
   const INSET = { top: 0, bottom: 0 };
   const insetProbe = document.createElement("div");
   insetProbe.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)";
   document.body.appendChild(insetProbe);
   function readInsets() { const c = getComputedStyle(insetProbe); INSET.top = parseFloat(c.paddingTop) || 0; INSET.bottom = parseFloat(c.paddingBottom) || 0; }
-  let parts = [], rings = [], shakeA = 0, banner = "", bannerT = 99, wob = {};
+  let parts = [], rings = [], banner = "", bannerT = 99, wob = {};
+  let comboN = 0, lastPopT = -9;   // chained pops within ~1.5s escalate a rising "combo" ting
 
   /* ---------------- audio (ported, honey-neutral) ----------------
      iOS WKWebView hardening — docs/handbook/08-ios-webaudio.md. After background /
@@ -66,18 +69,29 @@
   // foreground paths only resume (the native session reactivates on didBecomeActive);
   // a poisoned context is healed by the next gesture's initAudio().
   function wakeAudio() { if (AC && AC.state !== "running") AC.resume().catch(() => {}); }
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") wakeAudio(); });
-  window.addEventListener("pageshow", wakeAudio);
+  // iOS purges the WKWebView canvas backing on background → the pile renders blurry
+  // on resume unless the canvas is re-asserted. resize() re-allocates it at full DPR.
+  function onResume() { wakeAudio(); if (typeof resize === "function") resize(); }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") onResume(); });
+  window.addEventListener("pageshow", onResume);
   function tone(type, f0, f1, dur, vol, when) {
     if (!AC || !sfxOn) return;
     try { const t0 = AC.currentTime + (when || 0); const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.setValueAtTime(Math.max(1, f0), t0); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t0 + dur); g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + 0.03); } catch (e) {}
   }
   function sClack(v) { if (!AC) return; if (simT - clackT > 0.07) { clackT = simT; clackN = 0; } if (clackN >= 5) return; clackN++; const f = 480 + Math.random() * 320; tone("triangle", f, f * 0.6, 0.045, Math.min(0.28, v * 0.5)); }
-  function sPop(size) { const q = Math.min(size, 14); tone("square", 110 + q * 7, 55, 0.16, 0.34); tone("triangle", 560 + q * 45, 900 + q * 60, 0.12, 0.20, 0.02); if (q >= 6) tone("sine", 70, 40, 0.22, 0.26, 0.01); }
+  // a merge/pop: bigger clusters ring higher + brighter; combo adds a rising ting on chained pops
+  function sPop(size, combo) {
+    const q = Math.min(size, 16);
+    tone("square", 118 + q * 8, 60, 0.15, 0.30);                       // body
+    tone("triangle", 520 + q * 42, 1000 + q * 70, 0.13, 0.20, 0.015);  // bright rise (bigger merge = higher)
+    tone("sine", 300 + q * 22, 640 + q * 34, 0.10, 0.13, 0.03);        // sparkle tail
+    if (q >= 5) tone("sine", 74, 40, 0.24, 0.26, 0.01);               // bass thump for big merges
+    if (combo > 0) { const f = 660 * Math.pow(1.08, Math.min(combo, 10)); tone("triangle", f, f, 0.14, 0.16, 0.02); }   // combo ting climbs a step per chained pop
+  }
   function sRattle() { for (let i = 0; i < 5; i++) tone("triangle", 300 + Math.random() * 500, 200, 0.05, 0.12, i * 0.02); }
-  function sThud() { tone("sine", 150, 88, 0.12, 0.22); }
-  function sQuack() { tone("sawtooth", 310, 170, 0.13, 0.16); }
-  function sChime() { tone("triangle", 784, 784, 0.18, 0.26); tone("triangle", 1175, 1175, 0.24, 0.22, 0.09); }
+  function sTap() { tone("triangle", 340, 250, 0.04, 0.12); tone("sine", 900, 700, 0.03, 0.05); }   // soft tick for a no-op tap (was a dull thud)
+  function sQuack() { tone("triangle", 720, 1080, 0.06, 0.17); tone("triangle", 1080, 640, 0.10, 0.15, 0.055); tone("sine", 360, 300, 0.09, 0.07, 0.01); }   // cute rubber-duck squeak (up→down), not a buzz
+  function sChime() { [784, 988, 1319].forEach((f, i) => tone("triangle", f, f, 0.16, 0.22, i * 0.065)); tone("sine", 392, 392, 0.28, 0.12, 0.02); }   // uplifting rising arpeggio (G–B–E) + soft root
   function sWin() { [523, 659, 784, 1046].forEach((f, i) => tone("triangle", f, f, 0.2, 0.28, i * 0.09)); }
   function sCrack() { tone("square", 230, 90, 0.09, 0.26); tone("triangle", 150, 80, 0.13, 0.2, 0.02); }
   function sBalloonPop() { tone("square", 880, 120, 0.06, 0.3); tone("sine", 300, 90, 0.1, 0.16, 0.01); }
@@ -89,31 +103,35 @@
   function confetti() { for (let i = 0; i < 44; i++) { const c = PALETTE[(Math.random() * world.spec.colors) | 0].b; const L = world.L; const x = L.vx0 + Math.random() * (L.vx1 - L.vx0), y = L.vTop + Math.random() * (L.vFloor - L.vTop) * 0.4; if (parts.length > 240) parts.shift(); const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.8, sp = HREF * (0.3 + Math.random() * 0.5); parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0, life: 0.7 + Math.random() * 0.6, color: c, r: L.ballR * (0.14 + Math.random() * 0.16), rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 14 }); } }
 
   /* ---------------- level flow ---------------- */
-  function build(n, daily) {
-    dailyMode = !!daily;
+  function build(n) {
     level = clamp(n | 0, 1, LV.length);
     world = E.createWorld(LV[level - 1]);
-    simT = 0; firstTap = false; cardUp = false; deadOffered = false; coach = null; rattledThisLevel = false;
-    parts = []; rings = []; shakeA = 0; wob = {};
-    banner = dailyMode ? "DAILY JAR" : "LEVEL " + level; bannerT = 0;
+    simT = 0; firstTap = false; cardUp = false; deadOffered = false; coach = null; ftue = null; rattledThisLevel = false;
+    if (level !== _startedLevel) {                    // level_start: genuine new-level entry only, not fail-retry/rebuild
+      _startedLevel = level; _rattleLogged = false;
+      try { if (window.Track) Track.ev('level_start', { level, hard: (world.spec.hard || "") }); } catch (_) {}
+    } else { _rattleLogged = false; }
+    parts = []; rings = []; wob = {};
+    banner = "LEVEL " + level; bannerT = 0;
     $("#hint").textContent = world.spec.hint; $("#hint").classList.remove("off");
     $("#ov").classList.remove("show");
     const sv = loadSave();
-    if (!dailyMode) { sv.level = level; writeSave(sv); }   // the daily never advances campaign progress
+    sv.level = level; writeSave(sv);
     // element debut: on-board coach-mark the first time this element appears
     const intro = world.spec.intro;
-    if (!dailyMode && intro && !(sv.seen && sv.seen[intro])) startCoach(intro);
+    if (intro && !(sv.seen && sv.seen[intro])) startCoach(intro);
+    if (level === 1 && !sv.tutorialDone && !coach) startFtue();   // first-run tutorial (design 2a–2c)
   }
-  const rebuild = () => build(level, dailyMode);   // retry/restart, preserving daily mode
+  const rebuild = () => build(level);   // retry/restart
   function consume() {
     for (const e of world.events) {
       if (e.type === "clack") sClack(e.v);
-      else if (e.type === "pop") { const P = PALETTE[e.color]; sPop(e.size); vibe("LIGHT"); for (let k = 0; k < e.size; k++) {} burst(e.x, e.y, P.b, 6 + e.size, HREF * 0.35); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * (2 + e.size * 0.5), P.b, 0.42); if (e.size >= 6) shakeA = Math.min(6, 2 + e.size * 0.4); }
-      else if (e.type === "rattle") { sRattle(); vibe("HEAVY"); shakeA = Math.max(shakeA, 6); }   // bigger jar-shake now re-tumbles the pile — sell it
-      else if (e.type === "wobble") { wob[e.i] = 1; sThud(); }
-      else if (e.type === "crack") { sCrack(); vibe("LIGHT"); burst(e.x, e.y, "#a9762e", 10, HREF * 0.3); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 2, "#d3a35a", 0.4); shakeA = Math.max(shakeA, 2); }
+      else if (e.type === "pop") { const P = PALETTE[e.color]; const combo = (simT - lastPopT < 1.5) ? comboN + 1 : 0; comboN = combo; lastPopT = simT; sPop(e.size, combo); vibe("LIGHT"); burst(e.x, e.y, P.b, 6 + e.size, HREF * 0.35); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * (2 + e.size * 0.5), P.b, 0.42); }
+      else if (e.type === "rattle") { if (!_rattleLogged && !ftue) { _rattleLogged = true; try { if (window.Track) Track.ev('rattle_used', { level }); } catch (_) {} } sRattle(); vibe("HEAVY"); }   // skip the tutorial-forced rattle
+      else if (e.type === "wobble") { wob[e.i] = 1; sTap(); }
+      else if (e.type === "crack") { sCrack(); vibe("LIGHT"); burst(e.x, e.y, "#a9762e", 10, HREF * 0.3); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 2, "#d3a35a", 0.4); }
       else if (e.type === "balloonpop") { sBalloonPop(); vibe("LIGHT"); burst(e.x, e.y, "#e95c84", 12, HREF * 0.4); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 2.4, "#ff9ab6", 0.4); }
-      else if (e.type === "bomb") { sBoom(); vibe("HEAVY"); burst(e.x, e.y, "#ff8a3c", 22, HREF * 0.55); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 5, "#ff5a2a", 0.5); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 3.5, "#ffd24d", 0.4); shakeA = Math.min(8, shakeA + 5); }
+      else if (e.type === "bomb") { sBoom(); vibe("HEAVY"); burst(e.x, e.y, "#ff8a3c", 22, HREF * 0.55); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 5, "#ff5a2a", 0.5); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 3.5, "#ffd24d", 0.4); }
       else if (e.type === "quack") sQuack();
       else if (e.type === "duck") { sChime(); vibe("MEDIUM"); ringFx(e.x, e.y, world.L.ballR, world.L.ballR * 2.6, "#ffd44d", 0.6); burst(e.x, e.y, "#ffd44d", 14, HREF * 0.4); }
       else if (e.type === "win") { sWin(); vibe("HEAVY"); confetti(); setTimeout(() => showCleared(e.spare), 620); }
@@ -184,16 +202,16 @@
     // always ≥ par+1, so a full-budget clear can never fake a PERFECT. 3★ = within a tap of par.
     const perfect = used === par && !rattledThisLevel;
     const stars = used <= par + 1 ? 3 : used <= par + 3 ? 2 : 1;
-    if (dailyMode) { recordDaily(spare); showDailyClear(spare, stars); return; }   // daily never touches campaign save
     const sv = loadSave();
     sv.stars = sv.stars || {}; const prevStars = sv.stars[level] || 0; const bestStars = Math.max(prevStars, stars); sv.stars[level] = bestStars;
     sv.perfect = sv.perfect || {}; if (perfect) sv.perfect[level] = 1;
     sv.best = sv.best || {}; sv.best[level] = Math.max(sv.best[level] || 0, spare);
     writeSave(sv);
+    try { if (window.Track) Track.ev('level_complete', { level, stars, used, par, perfect: perfect ? 1 : 0 }); } catch (_) {}
     // the stars ARE the grade — no par/used numbers on the card (reads like a debug
     // readout, and it's redundant with the stars). Just a warm line + a Perfect flourish.
     const last = level >= LV.length;
-    if (last) { const sv2 = loadSave(); sv2.completed = 1; writeSave(sv2); }   // campaign milestone
+    if (last) { const sv2 = loadSave(); if (!sv2.completed) { try { if (window.Track) Track.ev('campaign_complete', {}); } catch (_) {} } sv2.completed = 1; writeSave(sv2); }   // campaign milestone (event once)
     const sub = perfect
       ? '<span style="color:#ffce6b">★ PERFECT</span>'
       : (spare + (spare === 1 ? ' tap spare' : ' taps spare'));
@@ -223,11 +241,15 @@
       '<div class="sub">' + sub + '</div>' +
       '<div class="btns">' +
         '<button class="primary" id="nextB">NEXT ▸</button>' +
-        '<button class="ghost" id="replayB" style="flex:none;width:100%"><span>' + refreshIcon + 'Replay</span></button>' +
+        '<div class="row">' +
+          '<button class="ghost" id="replayB"><span>' + refreshIcon + 'Replay</span></button>' +
+          '<button class="ghost" id="mapB">Level map</button>' +
+        '</div>' +
       '</div>';
     $("#ov").classList.add("show");
     $("#nextB").onclick = () => build(level + 1);
     $("#replayB").onclick = () => build(level);
+    $("#mapB").onclick = () => { cardUp = false; $("#ov").classList.remove("show"); showScreen("levelpath"); };
   }
 
   /* -------- settings / pause overlay (the gear) --------
@@ -235,7 +257,6 @@
      silence the game (native session forces .playback). All prefs persist in the save. */
   /* ── SCREEN ROUTER (design v2): home / play / settings; pause is a card ── */
   let screen = "home", prevScreen = "home", homePile = null;
-  let shakeOn = loadSave().shake !== false;
   const CHAPTER = n => Math.ceil(n / 10);
   const gearIcon = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none"><g fill="currentColor"><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(45 12 12)"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(90 12 12)"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(135 12 12)"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(180 12 12)"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(225 12 12)"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(270 12 12)"/><rect x="10.6" y="1.6" width="2.8" height="4.6" rx="1.4" transform="rotate(315 12 12)"/></g><circle cx="12" cy="12" r="6" stroke="currentColor" stroke-width="2.6"/></svg>';
   const homeIcon = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7"/><path d="M6 9.5V20h12V9.5"/></svg>';
@@ -245,22 +266,15 @@
     $("#home").classList.toggle("show", name === "home");
     $("#settings").classList.toggle("show", name === "settings");
     $("#levelpath").classList.toggle("show", name === "levelpath");
-    $("#toychest").classList.toggle("show", name === "toychest");
-    $("#dailyjar").classList.toggle("show", name === "dailyjar");
     $("#gear").classList.toggle("hide", name !== "play");
     if (name !== "play") $("#hint").classList.add("off");
     if (name === "home") { if (!homePile) buildHome(); updateHomeChrome(); }
     if (name === "settings") renderSettingsScreen();
     if (name === "levelpath") renderLevelPath();
-    if (name === "toychest") renderToyChest();
-    if (name === "dailyjar") renderDailyScreen();
   }
   function updateHomeChrome() {
-    const sv = loadSave(), lv = sv.level || 1, st = sv.stars || {};
+    const sv = loadSave(), lv = sv.level || 1;
     $("#homeSub").textContent = "LEVEL " + lv + " · CHAPTER " + CHAPTER(lv);
-    let toys = 0; for (let i = 1; i <= LV.length; i++) if (st[i] && i % 2 === 1) toys++;
-    $("#chestSub").textContent = Math.min(50, toys) + " of 50";
-    const dy = sv.daily; $("#dailySub").textContent = (dy && dy.streak) ? "day " + dy.streak + " streak" : "new today";
   }
   // a SHORT decorative pile of DESIGN-SIZED beads. The engine sizes beads by area over
   // a fixed half-screen region (ballR ∝ 1/√count), so it can't make a short small-bead
@@ -287,36 +301,49 @@
     g.fillStyle = "#20242e"; g.beginPath(); g.arc(-r * 0.30, -r * 0.50, r * 0.075, 0, 7); g.fill(); g.restore();
   }
   // pause card (play gear → here; design 1m). menuUp pauses the sim.
+  // The in-game gear opens ONE combined card (design 1m): SETTINGS + quick toggles
+  // inline, then RESUME / Restart / Level map / Home. No nested "Settings" button —
+  // the card IS the settings, so gear → settings reads straight (Qi: "settings inside settings").
+  function pauseTog(id, label, on) {
+    const knob = on
+      ? '<span style="position:relative;width:46px;height:28px;border-radius:999px;background:linear-gradient(180deg,#ffce6b,#ff9d3b);box-shadow:inset 0 1px 2px rgba(0,0,0,.25)"><span style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.35)"></span></span>'
+      : '<span style="position:relative;width:46px;height:28px;border-radius:999px;background:#1b1228;border:1.5px solid #3d2f52;box-sizing:border-box"><span style="position:absolute;top:2px;left:3px;width:21px;height:21px;border-radius:50%;background:#8b7c98"></span></span>';
+    return '<button id="' + id + '" style="display:flex;align-items:center;justify-content:space-between;background:#140c22;border:1px solid #3a2e4c;border-radius:16px;padding:12px 14px;width:100%;box-sizing:border-box;cursor:pointer">' +
+      '<span style="font:800 13.5px Nunito,sans-serif;color:#d9cbe8">' + label + '</span>' + knob + '</button>';
+  }
   function openPause() {
     if (cardUp || menuUp || coach || screen !== "play") return;
     menuUp = true;
-    $("#card").innerHTML =
-      '<h2 style="font-size:28px">PAUSED</h2>' +
-      '<div style="font:800 10.5px Nunito;letter-spacing:.2em;color:#8b7c98;margin:5px 0 18px">LEVEL ' + level + ' · CHAPTER ' + CHAPTER(level) + '</div>' +
-      '<div class="btns">' +
-        '<button class="primary" id="resumeB">RESUME&nbsp;&nbsp;▸</button>' +
-        '<div class="row">' +
-          '<button class="ghost" id="restartB"><span>' + refreshIcon + 'Restart</span></button>' +
-          '<button class="ghost" id="mapB">Level map</button>' +
+    const render = () => {
+      $("#card").innerHTML =
+        '<h2 style="font-size:28px">SETTINGS</h2>' +
+        '<div style="font:800 10.5px Nunito;letter-spacing:.2em;color:#8b7c98;margin:5px 0 14px">GAME PAUSED · LEVEL ' + level + '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">' +
+          pauseTog("pSound", "Sound", sfxOn) + pauseTog("pHaptics", "Haptics", hapticsOn) +
         '</div>' +
-        '<div class="row">' +
+        '<div class="btns">' +
+          '<button class="primary" id="resumeB">RESUME&nbsp;&nbsp;▸</button>' +
+          '<div class="row">' +
+            '<button class="ghost" id="restartB"><span>' + refreshIcon + 'Restart</span></button>' +
+            '<button class="ghost" id="mapB">Level map</button>' +
+          '</div>' +
           '<button class="ghost" id="homeB"><span>' + homeIcon + 'Home</span></button>' +
-          '<button class="ghost" id="setB"><span>' + gearIcon + 'Settings</span></button>' +
-        '</div>' +
-      '</div>';
+        '</div>';
+      $("#resumeB").onclick = closePause;
+      $("#restartB").onclick = () => { closePause(); rebuild(); };
+      $("#mapB").onclick = () => { closePause(); showScreen("levelpath"); };
+      $("#homeB").onclick = () => { closePause(); showScreen("home"); };
+      $("#pSound").onclick = () => { sfxOn = !sfxOn; persist("sfx", sfxOn); if (sfxOn) { initAudio(); sChime(); } render(); };
+      $("#pHaptics").onclick = () => { hapticsOn = !hapticsOn; persist("haptics", hapticsOn); if (hapticsOn) vibe("MEDIUM"); render(); };
+    };
+    render();
     $("#ov").classList.add("show");
-    $("#resumeB").onclick = closePause;
-    $("#restartB").onclick = () => { closePause(); rebuild(); };
-    $("#mapB").onclick = () => { closePause(); showScreen("levelpath"); };
-    $("#homeB").onclick = () => { closePause(); dailyMode = false; showScreen("home"); };
-    $("#setB").onclick = () => { closePause(); showScreen("settings"); };
   }
   function closePause() { menuUp = false; $("#ov").classList.remove("show"); }
   // full settings screen (design 1p)
   function renderSettingsScreen() {
     $("#setSound").classList.toggle("on", sfxOn);
     $("#setHaptics").classList.toggle("on", hapticsOn);
-    $("#setShake").classList.toggle("on", shakeOn);
     const dc = $("#setDuck"); if (dc) { const g = dc.getContext("2d"); g.clearRect(0, 0, dc.width, dc.height); duckOnCtx(g, dc.width / 2, dc.height / 2 + 4, 22); }
   }
   const persist = (k, v) => { const sv = loadSave(); sv[k] = v; writeSave(sv); };
@@ -441,15 +468,8 @@
     $("#homeSub").onclick = () => showScreen("levelpath");   // tap "LEVEL N · CHAPTER M" → the map
     $("#homeSub").style.cursor = "pointer";
     $("#lpBack").onclick = () => showScreen("home");
-    $("#dailyChip").onclick = () => playDaily();   // one tap → today's jar (design update)
-    $("#chestChip").onclick = () => showScreen("toychest");
-    $("#tcBack").onclick = () => showScreen("home");
-    $("#djBack").onclick = () => showScreen("home");
-    $("#djPlay").onclick = playDaily;
-    $("#djShare").onclick = shareDaily;
     $("#setSound").onclick = () => { sfxOn = !sfxOn; persist("sfx", sfxOn); if (sfxOn) { initAudio(); sChime(); } renderSettingsScreen(); };
     $("#setHaptics").onclick = () => { hapticsOn = !hapticsOn; persist("haptics", hapticsOn); if (hapticsOn) vibe("MEDIUM"); renderSettingsScreen(); };
-    $("#setShake").onclick = () => { shakeOn = !shakeOn; persist("shake", shakeOn); renderSettingsScreen(); };
     $("#setReplay").onclick = () => { const sv = loadSave(); sv.seen = {}; writeSave(sv); elementGallery(); };   // show the visual gallery + re-arm in-game coaches
     $("#setHowto").onclick = openHowto;
     $("#setSupport").onclick = () => openURL("https://rattle-jfun.web.app/support");
@@ -503,127 +523,6 @@
     const sc = $("#lpScroll"); sc.scrollTop = Math.max(0, H0 - padBot - (frontier - 1) * SP - sc.clientHeight * 0.5);
   }
 
-  /* ── TOY CHEST (collection): a toy unlocks per odd-level cleared, grouped in themed
-     sets of 6. 8 reusable painters cycle across ~50 toys. ── */
-  const TP = {
-    duck: (g, x, y, r) => duckOnCtx(g, x, y + r * 0.05, r * 0.92),
-    ball: (g, x, y, r) => { const cs = ["#ff6b6b", "#6ea8ff", "#ffce6b", "#4bd48a"]; for (let k = 0; k < 6; k++) { g.beginPath(); g.moveTo(x, y); g.arc(x, y, r, k * 1.047, (k + 1) * 1.047); g.closePath(); g.fillStyle = cs[k % 4]; g.fill(); } g.fillStyle = "rgba(255,255,255,.6)"; g.beginPath(); g.arc(x - r * 0.32, y - r * 0.34, r * 0.16, 0, 7); g.fill(); },
-    marble: (g, x, y, r) => { const gr = g.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r); gr.addColorStop(0, "#cfe8ff"); gr.addColorStop(.5, "#6ea8ff"); gr.addColorStop(1, "#2a5bbf"); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.strokeStyle = "rgba(255,255,255,.5)"; g.lineWidth = r * 0.14; g.beginPath(); g.arc(x, y, r * 0.55, -0.4, 2.2); g.stroke(); g.fillStyle = "rgba(255,255,255,.8)"; g.beginPath(); g.arc(x - r * 0.32, y - r * 0.34, r * 0.16, 0, 7); g.fill(); },
-    star: (g, x, y, r) => { g.fillStyle = "#ffce6b"; g.strokeStyle = "#c8891f"; g.lineWidth = r * 0.1; g.beginPath(); for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * 0.44 : r; g[k ? "lineTo" : "moveTo"](x + Math.cos(a) * rr, y + Math.sin(a) * rr); } g.closePath(); g.fill(); g.stroke(); },
-    boat: (g, x, y, r) => { g.fillStyle = "#ff6b6b"; g.beginPath(); g.moveTo(x - r, y + r * 0.2); g.lineTo(x + r, y + r * 0.2); g.lineTo(x + r * 0.6, y + r * 0.72); g.lineTo(x - r * 0.6, y + r * 0.72); g.closePath(); g.fill(); g.strokeStyle = "#c9b8dc"; g.lineWidth = r * 0.09; g.beginPath(); g.moveTo(x, y + r * 0.2); g.lineTo(x, y - r * 0.9); g.stroke(); g.fillStyle = "#ffce6b"; g.beginPath(); g.moveTo(x + r * 0.08, y - r * 0.85); g.lineTo(x + r * 0.75, y - r * 0.2); g.lineTo(x + r * 0.08, y - r * 0.1); g.closePath(); g.fill(); },
-    top: (g, x, y, r) => { g.fillStyle = "#9d7bff"; g.beginPath(); g.moveTo(x - r * 0.8, y - r * 0.35); g.lineTo(x + r * 0.8, y - r * 0.35); g.lineTo(x, y + r * 0.9); g.closePath(); g.fill(); g.fillStyle = "#ffce6b"; g.fillRect(x - r * 0.8, y - r * 0.55, r * 1.6, r * 0.24); g.strokeStyle = "#c8a15a"; g.lineWidth = r * 0.12; g.beginPath(); g.moveTo(x, y - r * 0.55); g.lineTo(x, y - r * 0.95); g.stroke(); },
-    ring: (g, x, y, r) => { g.strokeStyle = "#ff9ab6"; g.lineWidth = r * 0.5; g.beginPath(); g.arc(x, y, r * 0.7, 0, 7); g.stroke(); g.strokeStyle = "rgba(255,255,255,.5)"; g.lineWidth = r * 0.12; g.beginPath(); g.arc(x, y, r * 0.7, -0.5, 1.4); g.stroke(); },
-    block: (g, x, y, r) => { g.fillStyle = "#4bd48a"; rrectOn(g, x - r * 0.8, y - r * 0.8, r * 1.6, r * 1.6, r * 0.28); g.fill(); g.fillStyle = "#136e42"; g.font = "700 " + (r * 1.1).toFixed(0) + "px 'Lilita One', " + F; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("A", x, y + r * 0.06); g.textBaseline = "alphabetic"; g.textAlign = "left"; },
-  };
-  function rrectOn(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
-  const TOY_SETS = [
-    ["BATH-TIME", [["Rubber Duck", "duck"], ["Beach Ball", "ball"], ["Marble", "marble"], ["Soap Boat", "boat"], ["Bubble Wand", "ring"], ["Foam Block", "block"]]],
-    ["PICNIC", [["Kite Star", "star"], ["Frisbee", "ring"], ["Spin Top", "top"], ["Glass Marble", "marble"], ["Bouncy Ball", "ball"], ["Toy Boat", "boat"]]],
-    ["GARDEN", [["Daisy Top", "top"], ["Ladybug Ball", "ball"], ["Pond Duck", "duck"], ["Petal Ring", "ring"], ["Seed Block", "block"], ["Sun Star", "star"]]],
-    ["OCEAN", [["Sail Boat", "boat"], ["Pearl", "marble"], ["Sea Star", "star"], ["Buoy Ring", "ring"], ["Wave Ball", "ball"], ["Deck Duck", "duck"]]],
-    ["SPACE", [["Comet Star", "star"], ["Planet Ball", "ball"], ["Orbit Ring", "ring"], ["Rover Block", "block"], ["Meteor Marble", "marble"], ["Rocket Top", "top"]]],
-    ["CIRCUS", [["Big Top", "top"], ["Juggle Ball", "ball"], ["Ring Toss", "ring"], ["Star Wand", "star"], ["Clown Duck", "duck"], ["Cart Boat", "boat"]]],
-    ["WINTER", [["Snow Marble", "marble"], ["Sled Boat", "boat"], ["Ice Star", "star"], ["Frost Ring", "ring"], ["Gift Block", "block"], ["Cocoa Top", "top"]]],
-    ["SWEETS", [["Gumball", "ball"], ["Candy Star", "star"], ["Lolly Top", "top"], ["Donut Ring", "ring"], ["Jelly Duck", "duck"], ["Fudge Block", "block"]]],
-    ["GRAND", [["Golden Duck", "duck"], ["Crown Star", "star"]]],
-  ];
-  const TOYS_TOTAL = TOY_SETS.reduce((a, s) => a + s[1].length, 0);   // 50
-  const toysOwned = () => { const st = loadSave().stars || {}; let n = 0; for (let i = 1; i <= LV.length; i++) if (st[i] > 0 && i % 2 === 1) n++; return Math.min(TOYS_TOTAL, n); };
-  const setUnlockLevel = k => k === 0 ? 1 : 12 * k + 1;
-  function renderToyChest() {
-    const owned = toysOwned(), sv = loadSave(), lv = sv.level || 1;
-    $("#tcOwned").textContent = owned;
-    const newlyAt = (sv.chestSeen || 0) < owned ? owned : 0;   // the just-unlocked toy gets a NEW ring
-    let html = "", gi = 0;
-    for (let k = 0; k < TOY_SETS.length; k++) {
-      const [name, toys] = TOY_SETS[k], unlock = setUnlockLevel(k), setLocked = lv < unlock;
-      const setOwned = toys.reduce((a, _, t) => a + ((gi + t) < owned ? 1 : 0), 0);
-      html += '<div class="tc-set">' +
-        '<div class="tc-head"><span class="' + (setLocked ? "off" : "on") + '">' + name + ' SET</span><span class="tc-n">' + setOwned + ' of ' + toys.length + '</span></div>' +
-        '<div class="tc-gridwrap">' +
-        '<div class="tc-grid' + (setLocked ? " locked" : "") + '">';
-      for (let t = 0; t < toys.length; t++) {
-        const idx = gi + t, got = idx < owned, isNew = got && idx === newlyAt - 1;
-        if (got) html += '<div class="tc-well' + (isNew ? " new" : "") + '">' + (isNew ? '<div class="tc-newbadge">NEW</div>' : '') + '<canvas class="tc-toy" width="120" height="120" data-p="' + toys[t][1] + '"></canvas><span>' + toys[t][0] + '</span></div>';
-        else html += '<div class="tc-well q">?</div>';
-      }
-      html += '</div>';
-      if (setLocked) html += '<div class="tc-lockpill">unlocks at level ' + unlock + '</div>';
-      html += '</div><div class="tc-shelf"></div></div>';
-      gi += toys.length;
-    }
-    const inner = $("#tcInner"); inner.innerHTML = html;
-    inner.querySelectorAll(".tc-toy").forEach(cv => { const g = cv.getContext("2d"); (TP[cv.dataset.p] || TP.ball)(g, 60, 60, 40); });
-    if (owned > (sv.chestSeen || 0)) { sv.chestSeen = owned; writeSave(sv); }
-  }
-
-  /* ── DAILY JAR: one date-seeded level a day + a streak; never touches campaign save ── */
-  const DAY = 86400000;
-  function dateKey(d) { d = d || new Date(); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
-  function hashStr(s) { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
-  const dailyIdx = () => hashStr(dateKey()) % LV.length;   // same jar for everyone that day
-  function dailyState() { return loadSave().daily || { streak: 0, last: "", best: {}, played: [] }; }
-  function recordDaily(spare) {
-    const sv = loadSave(), d = sv.daily || { streak: 0, last: "", best: {}, played: [] }, today = dateKey();
-    if (d.last !== today) {
-      const yk = dateKey(new Date(Date.now() - DAY));
-      d.streak = (d.last === yk) ? (d.streak || 0) + 1 : 1;
-      d.last = today; d.played = d.played || []; if (!d.played.includes(today)) d.played.push(today);
-    }
-    d.best = d.best || {}; d.best[today] = Math.max(d.best[today] || 0, spare);
-    sv.daily = d; writeSave(sv);
-  }
-  function playDaily() { initAudio(); build(dailyIdx() + 1, true); showScreen("play"); }
-  function showDailyClear(spare, stars) {
-    cardUp = true;
-    $("#card").innerHTML =
-      '<div class="glow"></div><div class="eyebrow" style="color:#ffce6b">DAILY JAR</div>' + starsArc(stars) +
-      '<h2>NICE SHAKE!</h2>' +
-      '<div class="sub">' + spare + (spare === 1 ? ' tap spare' : ' taps spare') + ' · day ' + dailyState().streak + ' streak</div>' +
-      '<div class="btns"><button class="primary" id="djDoneB">◂ BACK TO JAR</button>' +
-      '<button class="ghost" id="djHomeB" style="flex:none;width:100%">Home</button></div>';
-    $("#ov").classList.add("show");
-    $("#djDoneB").onclick = () => { cardUp = false; dailyMode = false; $("#ov").classList.remove("show"); showScreen("dailyjar"); };
-    $("#djHomeB").onclick = () => { cardUp = false; dailyMode = false; $("#ov").classList.remove("show"); showScreen("home"); };
-  }
-  function drawDailyJar() {
-    const cv = $("#djJar"); if (!cv) return; const g = cv.getContext("2d"); g.clearRect(0, 0, cv.width, cv.height);
-    const W2 = cv.width, H2 = cv.height, jx = W2 * 0.13, jw = W2 * 0.74, jy = H2 * 0.16, jh = H2 * 0.76, rr = W2 * 0.11;
-    const old = ctx; ctx = g;
-    try {
-      rrect(jx, jy, jw, jh, rr); g.fillStyle = "rgba(255,255,255,0.05)"; g.fill();
-      g.save(); rrect(jx + 4, jy + 4, jw - 8, jh - 8, rr); g.clip();
-      const R = W2 * 0.105; let hs = hashStr(dateKey()); const rng = () => { hs = (hs * 1664525 + 1013904223) >>> 0; return hs / 4294967296; };
-      const floorY = jy + jh - R - 6;
-      for (let row = 0; row < 4; row++) { const y = floorY - row * R * 1.7, stag = (row % 2) ? R : 0; for (let x = jx + R + stag; x < jx + jw - R; x += R * 2) { if (row === 3 && rng() < 0.4) continue; drawBallScreen(x + (rng() - 0.5) * R * 0.2, y, R, (rng() * 5) | 0); } }
-      g.restore();
-      g.strokeStyle = "rgba(255,206,107,0.6)"; g.lineWidth = W2 * 0.012; rrect(jx, jy, jw, jh, rr); g.stroke();
-      g.strokeStyle = "rgba(255,255,255,0.18)"; g.lineWidth = W2 * 0.02; g.beginPath(); g.moveTo(jx + rr * 0.8, jy + 4); g.lineTo(jx + jw - rr * 0.8, jy + 4); g.stroke();
-      const lx = jx - W2 * 0.035, lw = jw + W2 * 0.07, ly = jy - H2 * 0.055, lh = H2 * 0.075;
-      const lg = g.createLinearGradient(0, ly, 0, ly + lh); lg.addColorStop(0, "#ffdf8f"); lg.addColorStop(1, "#c98f3d");
-      rrect(lx, ly, lw, lh, lh * 0.4); g.fillStyle = lg; g.fill();
-      g.fillStyle = "rgba(255,255,255,0.3)"; rrect(lx + 6, ly + 3, lw - 12, lh * 0.3, lh * 0.15); g.fill();
-    } finally { ctx = old; }
-  }
-  const DOW = ["S", "M", "T", "W", "T", "F", "S"];
-  function renderDailyScreen() {
-    const d = dailyState(), today = dateKey(), now = new Date();
-    $("#djStreak").textContent = "DAY " + (d.streak || 0);
-    $("#djDate").textContent = now.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }).toUpperCase();
-    drawDailyJar();
-    let pips = "";
-    for (let i = 6; i >= 0; i--) { const dd = new Date(Date.now() - i * DAY), k = dateKey(dd); pips += '<div class="dj-pip' + ((d.played || []).includes(k) ? " on" : "") + (k === today ? " today" : "") + '">' + DOW[dd.getDay()] + '</div>'; }
-    $("#djPips").innerHTML = pips;
-    const best = (d.best || {})[today], bp = $("#djBest");
-    if (best != null) { bp.style.display = ""; bp.querySelector("span").textContent = "YOUR BEST · " + best + " TAPS SPARE"; } else bp.style.display = "none";
-    $("#djShare").style.opacity = best != null ? 1 : 0.5;
-  }
-  function shareDaily() {
-    const d = dailyState(), best = (d.best || {})[dateKey()];
-    const txt = "Rattle Daily Jar — " + (best != null ? "cleared with " + best + " taps to spare!" : "give today's jar a shake!") + " day " + (d.streak || 0) + " streak.";
-    try { if (navigator.share) { navigator.share({ text: txt }); return; } } catch (e) {}
-    try { navigator.clipboard.writeText(txt); const el = $("#djShare"), o = el.textContent; el.textContent = "COPIED!"; setTimeout(() => { el.textContent = o; }, 1400); } catch (e) {}
-  }
   function showNoPairs() {
     cardUp = true;
     $("#card").innerHTML =
@@ -642,6 +541,7 @@
   // out of taps with the level unfinished — a genuine loss (rattle can't help at 0 taps)
   function showLose() {
     cardUp = true;
+    try { if (window.Track) Track.ev('level_fail', { level }); } catch (_) {}
     // per-objective remaining — never sum different kinds into one "beads" count
     // (a two-objective shell/balloon level has crates AND beads left, different units).
     const parts = [];
@@ -687,6 +587,7 @@
     else { let top = 1e9; for (const b of world.balls) { if (!b.alive || isNaN(b.x) || isNaN(b.y)) continue; const isEl = el === "shell" ? b.shelled : b.el === el; if (!isEl) continue; if (b.y < top) { top = b.y; bead = b; } } }
     if (!bead) return;                                   // no visible instance — skip
     coach = { el, bead, t: 0 }; $("#hint").classList.add("off");
+    try { if (window.Track) Track.ev('element_intro', { element: el }); } catch (_) {}
   }
   function dismissCoach() {
     if (!coach) return;
@@ -761,6 +662,94 @@
     ctx.fillText(info.rule, bx + bw / 2, by + 88);
     ctx.fillStyle = "#8b7c98"; ctx.font = "800 12px " + F;
     ctx.fillText("TAP TO CONTINUE ▸", bx + bw / 2, by + bh - 16);
+    ctx.restore();
+  }
+
+  /* ── FIRST-RUN TUTORIAL (FTUE, design 2a–2c): 3 steps on the real L1 board,
+     each advanced by DOING the action (pop → rattle → LET'S PLAY). Canvas-drawn
+     so the board stays LIVE + tappable underneath; SKIP / LET'S PLAY are
+     hit-tested in pointerdown. Shows once (sv.tutorialDone). ── */
+  const FTUE = [
+    { title: "TAP TO POP!", sub: ["Beads of the same colour that touch", "pop together — try this group"] },
+    { title: "STUCK? RATTLE!", sub: ["Tap empty space to shake the jar —", "the pile tumbles into new matches"] },
+    { title: "EVERY TAP COUNTS", sub: ["Pops and rattles both cost one —", "clear the jar before taps run out"], cta: "LET'S PLAY  ▸" },
+  ];
+  function startFtue() { ftue = { step: 0, ripT: 0 }; $("#hint").classList.add("off"); }
+  function endFtue(skipped) { ftue = null; const sv = loadSave(); sv.tutorialDone = 1; writeSave(sv);
+    try { if (window.Track) Track.ev('tutorial_complete', { skipped: skipped ? 1 : 0 }); } catch (_) {} }
+  function advanceFtue() { if (!ftue) return; ftue.step++; ftue.ripT = 0; if (ftue.step > 2) endFtue(); }
+  function ftueCard(step) {
+    const w = Math.min(330, W - 40), x = (W - w) / 2, h = FTUE[step].cta ? 172 : 106;
+    const y = step === 0 ? INSET.top + 92 : step === 1 ? Math.round(H * 0.54) : INSET.top + 118;
+    return { x, y, w, h };
+  }
+  function ftueSkip() { const w = 200, h = 62; return { x: (W - w) / 2, y: H - INSET.bottom - 30 - h, w, h }; }
+  function ftuePlay() { const c = ftueCard(2), bw = 190, bh = 46; return { x: c.x + (c.w - bw) / 2, y: c.y + c.h - bh - 15, w: bw, h: bh }; }
+  function inRect(x, y, r) { return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; }
+  function ftueRipple(cx, cy) {
+    const t = (ftue.ripT % 1.1) / 1.1;
+    ctx.save();
+    for (const ph of [0, 0.5]) { const p = (t + ph) % 1; ctx.globalAlpha = (1 - p) * 0.8; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, 6 + p * 22, 0, 7); ctx.stroke(); }
+    ctx.globalAlpha = 1; ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+  function ftueArrows(cx, cy, R) {
+    ctx.save(); ctx.strokeStyle = "#ffce6b"; ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    for (const dir of [-1, 1]) {
+      const ex = cx + dir * R * 0.42, ey = cy - R * 0.5;               // inner tip near the top of the ring
+      ctx.beginPath(); ctx.arc(cx, cy, R * 0.64, dir < 0 ? Math.PI * 1.18 : Math.PI * 1.82, dir < 0 ? Math.PI * 1.5 : Math.PI * 1.5, dir > 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ex - dir * 9, ey - 3); ctx.lineTo(ex, ey + 6); ctx.lineTo(ex + dir * 5, ey - 8); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function ftueDots(step, cx, cy) {
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(cx + (i - 1) * 16, cy, 4.5, 0, 7); ctx.fillStyle = i === step ? "#ffce6b" : "rgba(150,130,175,0.35)"; ctx.fill(); }
+  }
+  function drawFtue() {
+    ctx.save();
+    ctx.fillStyle = "rgba(9,5,16,0.72)"; ctx.fillRect(0, 0, W, H);                 // dim the whole board
+    const step = ftue.step;
+    if (step === 0) {                                                              // spotlight the biggest real cluster
+      let best = null; for (const c of E.allClusters(world)) if (c.length >= 2 && (!best || c.length > best.length)) best = c;
+      if (best) {
+        ctx.save(); ctx.translate(ox, oy); ctx.scale(s, s);
+        for (const b of best) if (b.alive) drawBead(b.x, b.y, b.r, b, world.balls.indexOf(b));   // re-draw bright over the dim
+        ctx.restore();
+        let cx = 0, cy = 0;
+        for (const b of best) { const bx = ox + b.x * s, by = oy + b.y * s; ctx.strokeStyle = "rgba(255,206,107,0.95)"; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(bx, by, b.r * s * 1.05, 0, 7); ctx.stroke(); cx += bx; cy += by; }
+        ftueRipple(cx / best.length, cy / best.length);
+      }
+    } else if (step === 1) {                                                       // spotlight empty space + shake arrows
+      const cx = W / 2, cy = Math.round(H * 0.30), R = Math.min(W, H) * 0.15;
+      const gg = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.2); gg.addColorStop(0, "rgba(255,206,107,0.12)"); gg.addColorStop(1, "rgba(255,206,107,0)");
+      ctx.fillStyle = gg; ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = "rgba(255,206,107,0.7)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.stroke();
+      ftueArrows(cx, cy, R); ftueRipple(cx, cy);
+    } else {                                                                       // highlight the HUD taps card
+      const top = INSET.top + 14, tcW = 66, tcH = 74, tcX = 12;
+      ctx.save(); ctx.shadowColor = "rgba(255,206,107,0.55)"; ctx.shadowBlur = 22; rrect(tcX, top, tcW, tcH, 22); ctx.fillStyle = "rgba(26,16,42,0.98)"; ctx.fill(); ctx.restore();
+      ctx.lineWidth = 2.5; ctx.strokeStyle = "#ffce6b"; rrect(tcX, top, tcW, tcH, 22); ctx.stroke();
+      ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+      ctx.font = "36px 'Lilita One', " + F; ctx.fillStyle = "#f6f0fc"; ctx.fillText(String(world.taps), tcX + tcW / 2, top + 45);
+      ctx.font = "800 9.5px " + F; LS(2); ctx.fillStyle = "#8b7c98"; ctx.fillText("TAPS", tcX + tcW / 2 + 1, top + 61); LS(0);
+    }
+    // instructional card
+    const info = FTUE[step], c = ftueCard(step);
+    if (step === 2) { ctx.fillStyle = "#2e2340"; const px = c.x + 42; ctx.beginPath(); ctx.moveTo(px - 12, c.y); ctx.lineTo(px + 12, c.y); ctx.lineTo(px, c.y - 13); ctx.closePath(); ctx.fill(); }
+    const grd = ctx.createLinearGradient(0, c.y, 0, c.y + c.h); grd.addColorStop(0, "#2e2340"); grd.addColorStop(1, "#1b1228");
+    rrect(c.x, c.y, c.w, c.h, 24); ctx.fillStyle = grd; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = "#4d3c60"; rrect(c.x, c.y, c.w, c.h, 24); ctx.stroke();
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    ctx.save(); ctx.shadowColor = "#140c22"; ctx.shadowOffsetY = 3; ctx.fillStyle = "#fff"; ctx.font = "28px 'Lilita One', " + F; ctx.fillText(info.title, c.x + c.w / 2, c.y + 44); ctx.restore();
+    ctx.fillStyle = "#ffb648"; ctx.font = "800 14px " + F;
+    ctx.fillText(info.sub[0], c.x + c.w / 2, c.y + 70); ctx.fillText(info.sub[1], c.x + c.w / 2, c.y + 90);
+    if (info.cta) { const b = ftuePlay(); const bg = ctx.createLinearGradient(0, b.y, 0, b.y + b.h); bg.addColorStop(0, "#ffdf8f"); bg.addColorStop(0.45, "#ffb648"); bg.addColorStop(1, "#ff9d3b"); rrect(b.x, b.y, b.w, b.h, 16); ctx.fillStyle = bg; ctx.fill(); ctx.fillStyle = "#3a1e05"; ctx.font = "900 14px " + F; ctx.fillText(info.cta, b.x + b.w / 2, b.y + b.h / 2 + 5); }
+    // footer: SKIP capsule + dots (steps 0/1) or dots only (step 2)
+    if (step < 2) {
+      const r = ftueSkip(); rrect(r.x, r.y, r.w, r.h, 20); ctx.fillStyle = "rgba(26,15,46,0.9)"; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = "#3d2f52"; rrect(r.x, r.y, r.w, r.h, 20); ctx.stroke();
+      ftueDots(step, r.x + r.w / 2, r.y + 22);
+      ctx.textAlign = "center"; ctx.fillStyle = "#b3a3c4"; ctx.font = "800 11px " + F; LS(2); ctx.fillText("SKIP TUTORIAL", r.x + r.w / 2, r.y + 46); LS(0);
+    } else { ftueDots(step, W / 2, H - INSET.bottom - 40); }
     ctx.restore();
   }
 
@@ -1043,15 +1032,15 @@
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, H);
     ctx.save();
-    if (shakeOn && shakeA > 0.05) ctx.translate((Math.random() - 0.5) * shakeA, (Math.random() - 0.5) * shakeA);
     ctx.translate(ox, oy); ctx.scale(s, s);   // world → screen
     drawWorld();
     ctx.restore();
     drawHUD();
     drawBanner();
     if (coach) drawCoach();
-    // the gear hides whenever an overlay/coach owns the screen (its own overlay covers it)
-    $("#gear").classList.toggle("hide", cardUp || menuUp || !!coach || world.phase !== "play");
+    if (ftue) drawFtue();
+    // the gear hides whenever an overlay/coach/tutorial owns the screen
+    $("#gear").classList.toggle("hide", cardUp || menuUp || !!coach || !!ftue || world.phase !== "play");
   }
 
   /* ---------------- input ---------------- */
@@ -1072,6 +1061,11 @@
     e.preventDefault(); initAudio();
     // dev builds: tapping the "LEVEL N" HUD label opens the jump prompt
     if (DEV_UNLOCK && e.clientY < INSET.top + 34 && e.clientX < 190) { devJump(); return; }
+    if (ftue) {
+      if (ftue.step < 2 && inRect(e.clientX, e.clientY, ftueSkip())) { endFtue(true); return; }   // SKIP TUTORIAL
+      if (ftue.step === 2) { if (inRect(e.clientX, e.clientY, ftuePlay())) endFtue(); return; }  // LET'S PLAY ends it; board taps blocked on the info step
+      // steps 0/1: fall through so the real pop/rattle happens, then advance below
+    }
     if (coach) { dismissCoach(); return; }               // tap to dismiss the on-board intro
     if (cardUp || menuUp || world.phase !== "play") return;
     if (!firstTap) { firstTap = true; $("#hint").classList.add("off"); }
@@ -1079,6 +1073,7 @@
     const r = E.tap(world, wx, wy);
     if (r.kind === "rattle") rattledThisLevel = true;    // disqualifies the Perfect medal
     if (r.kind === "pop" || r.kind === "rattle" || r.kind === "singleton" || r.kind === "duck") consume();
+    if (ftue) { if (ftue.step === 0 && r.kind === "pop") advanceFtue(); else if (ftue.step === 1 && r.kind === "rattle") advanceFtue(); }
   });
   canvas.addEventListener("contextmenu", e => e.preventDefault());
   $("#gear").addEventListener("click", () => { initAudio(); openPause(); });
@@ -1087,7 +1082,7 @@
   /* ---------------- resize + loop ---------------- */
   function resize() {
     W = Math.max(200, window.innerWidth || 390); H = Math.max(320, window.innerHeight || 844);
-    DPR = clamp(window.devicePixelRatio || 1, 1, 2.5);
+    DPR = clamp(window.devicePixelRatio || 1, 1, 3);   // was 2.5 — capped BELOW iPhone's native 3× so the canvas rendered at 2.5× and the screen upscaled it → soft/blurry beads+HUD (Qi). 3 = crisp on every iPhone, no-op below.
     canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
     canvas.style.width = W + "px"; canvas.style.height = H + "px";
     relayout();
@@ -1100,9 +1095,11 @@
     oy = (H - INSET.bottom) - HREF * s;          // world floor → just above the home indicator
   }
   window.addEventListener("resize", resize);
+  try { if (window.Track) Track.init({ gaId: RATTLE_GA_ID }); } catch (_) {}   // analytics: web inert, native → Firebase
   resize();
   wireChrome();
   showScreen("home");   // boot into the home screen (PLAY builds + enters play)
+  try { if (window.Track) Track.ev('app_open', { returning: loadSave().level > 1 ? 1 : 0 }); } catch (_) {}
 
   let last = 0, acc = 0;
   function frame(t) {
@@ -1112,8 +1109,9 @@
     while (acc >= FDT) {
       simT += FDT;
       if (screen === "play") {
-        bannerT += FDT; shakeA = Math.max(0, shakeA - FDT * 14);
+        bannerT += FDT;
         if (coach) coach.t += FDT;
+        if (ftue) ftue.ripT += FDT;
         for (const k in wob) if (wob[k] > 0) wob[k] = Math.max(0, wob[k] - FDT * 3);
         for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.t += FDT; if (p.t >= p.life) { parts.splice(i, 1); continue; } p.vy += world.L.G * 0.6 * FDT; p.x += p.vx * FDT; p.y += p.vy * FDT; p.rot += p.vr * FDT; }
         for (let i = rings.length - 1; i >= 0; i--) { rings[i].t += FDT; if (rings[i].t >= rings[i].life) rings.splice(i, 1); }
@@ -1127,6 +1125,13 @@
   }
   requestAnimationFrame(frame);
 
-  // automation hooks
-  window.__r = { state: () => E.state(world), tapWorld: (x, y) => { const r = E.tap(world, x, y); consume(); return r; }, rattle: () => E.doRattle(world), goto: build, world: () => world, clusters: () => E.poppableClusters(world).length };
+  // automation hooks (dev/verify + App Store shot harness — pose scenes headlessly)
+  window.__r = {
+    state: () => E.state(world), tapWorld: (x, y) => { const r = E.tap(world, x, y); consume(); return r; },
+    rattle: () => E.doRattle(world), goto: build, world: () => world, clusters: () => E.poppableClusters(world).length,
+    render: () => render(),                                                    // force a draw (headless has no rAF)
+    step: (n) => { for (let i = 0; i < (n || 60); i++) if (world && world.phase === "play") E.step(world); bannerT = 99; render(); },
+    screen: (name) => showScreen(name),                                        // jump to home/levelpath/settings
+    win: (spare) => { if (world) { world.phase = "win"; showCleared(spare == null ? Math.max(0, world.taps) : spare); } },   // pose the CLEARED card
+  };
 })();

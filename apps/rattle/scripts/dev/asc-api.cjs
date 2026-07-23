@@ -1,12 +1,10 @@
 #!/usr/bin/env node
-// Direct App Store Connect API client for Cut (com.jfun.cut, ASC app 6790073592).
+// Direct App Store Connect API client for Rattle (com.jfun.rattle, ASC app 6793338957).
 // ZERO third-party deps — Node built-in `crypto` (ES256 JWT) + `https`.
 // Reads the ASC API key (.p8) BY PATH and never logs its contents.
 //   node asc-api.cjs orient        # read-only: print version/localization/appInfo IDs + URLs
-//   node asc-api.cjs newversion    # create the next App Store version (e.g. 1.1)
-//   node asc-api.cjs whatsnew      # set the "What's New" release notes
-//   node asc-api.cjs metadata      # PATCH description/keywords/subtitle/URLs (editable version)
-//   node asc-api.cjs urls          # PATCH ONLY support/marketing/privacy URLs
+//   node asc-api.cjs metadata      # PATCH description/keywords/subtitle/URLs (needs an editable version)
+//   node asc-api.cjs urls          # PATCH ONLY support/marketing/privacy URLs (safe on a LIVE version)
 //   node asc-api.cjs screenshots   # upload the 15 PNGs (reserve→upload→commit)
 //   node asc-api.cjs categories    # primary/secondary category
 // The Key ID + Issuer ID are identifiers (not secret); only the .p8 is secret.
@@ -78,7 +76,7 @@ function api(method, p, body) {
 }
 
 async function orient() {
-  const app = await api('GET', `/v1/apps/${APP_ID}?include=appStoreVersions,appInfos&fields[appStoreVersions]=versionString,appStoreState,platform,appVersionState&fields[appInfos]=state,appStoreState`);
+  const app = await api('GET', `/v1/apps/${APP_ID}?include=appStoreVersions,appInfos&fields[appStoreVersions]=versionString,appStoreState,platform,appVersionState&fields[appInfos]=appStoreState`);
   console.log('APP:', app.json.data.attributes.name, '| bundle', app.json.data.attributes.bundleId, '| sku', app.json.data.attributes.sku);
   const inc = app.json.included || [];
   const versions = inc.filter((x) => x.type === 'appStoreVersions');
@@ -87,11 +85,7 @@ async function orient() {
   console.log('VERSION:', ver.id, '| v' + ver.attributes.versionString, '|', ver.attributes.appVersionState || ver.attributes.appStoreState);
   const vlocs = await api('GET', `/v1/appStoreVersions/${ver.id}/appStoreVersionLocalizations?fields[appStoreVersionLocalizations]=locale,description,keywords,promotionalText,marketingUrl,supportUrl`);
   vlocs.json.data.forEach((l) => console.log('  verLoc:', l.id, l.attributes.locale, '| desc?', !!l.attributes.description, '| kw?', !!l.attributes.keywords, '| support', l.attributes.supportUrl, '| marketing', l.attributes.marketingUrl));
-  // Prefer the EDITABLE appInfo (a new-version prep spins up a separate one) so
-  // the printed subtitle/privacy reflect what ships next, not the locked live copy.
-  // Filter on `state` (READY_FOR_DISTRIBUTION) — appStoreState is READY_FOR_SALE,
-  // which LIVE_STATES doesn't list; match discover()'s logic.
-  const info = infos.find((i) => !LIVE_STATES.has(i.attributes.state || i.attributes.appStoreState)) || infos[0];
+  const info = infos[0];
   console.log('APPINFO:', info.id);
   const ilocs = await api('GET', `/v1/appInfos/${info.id}/appInfoLocalizations?fields[appInfoLocalizations]=locale,name,subtitle,privacyPolicyUrl`);
   ilocs.json.data.forEach((l) => console.log('  infoLoc:', l.id, l.attributes.locale, '| name', JSON.stringify(l.attributes.name), '| subtitle', JSON.stringify(l.attributes.subtitle), '| privacy', l.attributes.privacyPolicyUrl));
@@ -104,28 +98,11 @@ async function orient() {
 }
 
 // --- shared discovery: the version/localization/appInfo IDs every writer needs ---
-// States where a version is LIVE/terminal (not editable). Anything else — a
-// new version being prepared (v1.1) — is the one metadata/build commands target.
-const LIVE_STATES = new Set([
-  'READY_FOR_DISTRIBUTION', 'REPLACED_WITH_NEW_VERSION',
-  'REMOVED_FROM_SALE', 'DEVELOPER_REMOVED_FROM_SALE',
-]);
-
 async function discover() {
-  const app = await api('GET', `/v1/apps/${APP_ID}?include=appStoreVersions,appInfos&fields[appStoreVersions]=versionString,platform,appVersionState,appStoreState`);
+  const app = await api('GET', `/v1/apps/${APP_ID}?include=appStoreVersions,appInfos`);
   const inc = app.json.included || [];
-  const iosVers = inc.filter((x) => x.type === 'appStoreVersions' && x.attributes.platform === 'IOS');
-  // Prefer the EDITABLE version (v1.1 in prep) over a live v1.0 — else PATCHes
-  // 409 against the locked live listing.
-  const editable = iosVers.find((v) => !LIVE_STATES.has(v.attributes.appVersionState || v.attributes.appStoreState));
-  const ver = editable || iosVers[0];
-  // appInfos: a new-version prep creates a SEPARATE editable appInfo; the live
-  // one's app-level fields (subtitle, privacyPolicyUrl, categories) are locked.
-  // The bare app include lacks state, so fetch appInfos with state and prefer
-  // the editable one — else app-level PATCHes 409 against the locked live copy.
-  const appInfos = await api('GET', `/v1/apps/${APP_ID}/appInfos?fields[appInfos]=state,appStoreState`);
-  const infoEditable = appInfos.json.data.find((a) => !LIVE_STATES.has(a.attributes.state || a.attributes.appStoreState));
-  const info = infoEditable || appInfos.json.data[0];
+  const ver = inc.filter((x) => x.type === 'appStoreVersions').find((v) => v.attributes.platform === 'IOS');
+  const info = inc.filter((x) => x.type === 'appInfos')[0];
   const vlocs = await api('GET', `/v1/appStoreVersions/${ver.id}/appStoreVersionLocalizations`);
   const verLoc = vlocs.json.data.find((l) => l.attributes.locale === 'en-US') || vlocs.json.data[0];
   const ilocs = await api('GET', `/v1/appInfos/${info.id}/appInfoLocalizations`);
@@ -134,72 +111,30 @@ async function discover() {
 }
 
 const META = {
-  subtitle: 'Rope-cutting physics puzzles',
-  promotionalText: '61 hand-tuned rope-cutting puzzles in a moonlit workshop. Cut the right rope, land the crate, bring them all home. No ads, no accounts, play offline.',
-  keywords: 'rope,cut,physics,puzzle,crate,drop,slice,swing,pendulum,brain,casual,relax,logic,gravity',
-  // Hosting: Firebase (docs/cut → cut-jfun.web.app, cleanUrls). Replaced the
-  // github.io/jfun Pages URLs for v1.1 (Pages stays live as a same-source mirror).
-  supportUrl: 'https://cut-jfun.web.app/support',
-  // marketingUrl intentionally CLEARED — it's an optional promo-site field and
-  // Cut has no marketing page (the only public pages are support + privacy; the
-  // site root just redirects to support). null clears it on the listing.
-  marketingUrl: null,
-  privacyPolicyUrl: 'https://cut-jfun.web.app/privacy',
-  // v1.1 "What's New" (release notes). Plain ASCII — ASC rejects box-drawing /
-  // may reject em-dashes. Describes the deep-backbone chapter in player terms.
-  whatsNew: [
-    '8 new levels extend the campaign.',
-    '',
-    'Cut the ropes in sequence to WALK the crate across the rig, then time your final drop through a pulsing gate to land it home.',
-    '',
-    'Thanks for playing Cut.',
-  ].join('\n'),
+  // ASO: name + subtitle + keywords are ONE deduped index — no word repeated across them.
+  name: 'Rattle: Bead Pop Blast',            // indexes rattle,bead,pop,blast
+  subtitle: 'Color match & tumble puzzle',   // adds color,match,tumble,puzzle  (28/30)
+  keywords: 'tap,ball,bubble,drop,physics,brain,relax,casual,zen,satisfying,cozy,marble,sort,offline,combo',  // 93/100
+  promotionalText: 'A pile of colorful beads and real physics. Tap a group to pop, watch the pile tumble, then clear the level. Stuck? Rattle to reshuffle. No ads, no accounts.',
+  supportUrl: 'https://rattle-jfun.web.app/support',
+  marketingUrl: 'https://rattle-jfun.web.app',
+  privacyPolicyUrl: 'https://rattle-jfun.web.app/privacy',
   description: [
-    'A moonlit workshop. Ropes hold a wooden crate above its basket. Swipe to sever a rope and let gravity, swing, and momentum carry the crate home.',
+    'A pile of colorful beads, tumbling under real gravity. Tap any group of two or more touching beads of the same color to pop them — then watch the whole pile avalanche and re-settle into fresh clusters. Clear each level’s goal before your taps run out.',
     '',
-    '61 hand-tuned levels introduce one idea at a time: pendulums, bounce pads, pulleys, elastic cords, spinning sawblades, wind, magnets, and stars to collect on the way down. Every level is verified solvable. One thumb, no timers.',
+    'No timers. No lives. No pressure. Just the satisfying rhythm of pop, tumble, clear.',
     '',
-    '- 61 physics puzzles with a gentle difficulty rhythm',
-    '- A dozen mechanics, each taught wordlessly the first time you meet it',
-    '- Night Rig art: moonlit rig, drifting fireflies, a soft kalimba score',
+    '- 106 hand-tuned levels across playful chapters, every one verified solvable',
+    '- Real physics: every pop makes the pile cascade and re-cluster',
+    '- Stuck? Tap empty space to rattle the pile and shake up new matches',
+    '- Special beads teach themselves: ducks, stones, crates, balloons, bombs',
+    '- Earn stars for tidy solves — chase a Perfect on every level',
     '- Universal: iPhone and iPad',
     '- Play offline. No ads. No in-app purchases. No account.',
     '',
-    'Cut the right rope. Land the crate. Bring every crate home.',
+    'Pop the beads. Rattle to reshuffle. Clear them all.',
   ].join('\n'),
 };
-
-// Create a new App Store version (e.g. 1.1) if one isn't already in prep. Apple
-// carries description/keywords/screenshots/URLs forward from the prior version;
-// we then override What's New + any changed copy. Idempotent: no-op if an
-// editable version already exists.
-async function newversion() {
-  const verString = process.argv[3] || '1.1';
-  const app = await api('GET', `/v1/apps/${APP_ID}?include=appStoreVersions&fields[appStoreVersions]=versionString,platform,appVersionState,appStoreState`);
-  const iosVers = (app.json.included || []).filter((x) => x.type === 'appStoreVersions' && x.attributes.platform === 'IOS');
-  const editable = iosVers.find((v) => !LIVE_STATES.has(v.attributes.appVersionState || v.attributes.appStoreState));
-  if (editable) {
-    console.log('editable version already exists: v' + editable.attributes.versionString, '(' + (editable.attributes.appVersionState || editable.attributes.appStoreState) + ') — nothing to create');
-    return;
-  }
-  const res = await api('POST', '/v1/appStoreVersions', {
-    data: {
-      type: 'appStoreVersions',
-      attributes: { platform: 'IOS', versionString: verString },
-      relationships: { app: { data: { type: 'apps', id: APP_ID } } },
-    },
-  });
-  console.log('✓ created App Store version v' + verString, '→', res.json.data.id);
-}
-
-// Set the "What's New" release notes on the (editable) version's en-US loc.
-async function whatsnew() {
-  const { verLocId } = await discover();
-  await api('PATCH', `/v1/appStoreVersionLocalizations/${verLocId}`, {
-    data: { type: 'appStoreVersionLocalizations', id: verLocId, attributes: { whatsNew: META.whatsNew } },
-  });
-  console.log('✓ What\'s New set:\n' + META.whatsNew.split('\n').map((l) => '    ' + l).join('\n'));
-}
 
 async function metadata() {
   const { verLocId, infoLocId } = await discover();
@@ -210,30 +145,21 @@ async function metadata() {
     } },
   });
   console.log('✓ version localization: description, keywords, promo, support+marketing URLs');
-  // App-INFO fields (subtitle, privacyPolicyUrl) are APP-level, not version-level:
-  // they lock (409 INVALID_STATE) whenever a version is live. On an update where
-  // these are unchanged from the live listing, that 409 is expected and benign —
-  // tolerate it. (To actually CHANGE them you must do it while no version is live,
-  // or they ride the currently-live values.)
-  try {
-    await api('PATCH', `/v1/appInfoLocalizations/${infoLocId}`, {
-      data: { type: 'appInfoLocalizations', id: infoLocId, attributes: {
-        subtitle: META.subtitle, privacyPolicyUrl: META.privacyPolicyUrl,
-      } },
-    });
-    console.log('✓ app-info localization: subtitle, privacy policy URL');
-  } catch (e) {
-    if (/409|INVALID_STATE/.test(e.message)) console.log('• app-info (subtitle, privacy URL) locked by the live version — unchanged, skipped (expected)');
-    else throw e;
-  }
+  await api('PATCH', `/v1/appInfoLocalizations/${infoLocId}`, {
+    data: { type: 'appInfoLocalizations', id: infoLocId, attributes: {
+      name: META.name, subtitle: META.subtitle, privacyPolicyUrl: META.privacyPolicyUrl,
+    } },
+  });
+  console.log('✓ app-info localization: name, subtitle, privacy policy URL');
 }
 
 // Repoint ONLY the three URL fields to META's current values — nothing else.
-// Narrower than `metadata`: use it to move hosts (Pages → Firebase) without
-// touching description/keywords. discover() targets the editable version +
-// editable appInfo, so support/marketing (version-level) AND privacy (app-level)
-// all apply during a version prep; if only a live version exists, support/
-// marketing may lock inline (reported) and ride the next version.
+// Support + Marketing URL (version localization) and Privacy Policy URL (app-info
+// localization) are the metadata Apple lets you edit on a LIVE / READY_FOR_DISTRIBUTION
+// version WITHOUT a new version; description/keywords are locked, so the full
+// `metadata` command would fail. Used to move the host (GitHub Pages → Firebase).
+// Each PATCH is independent: privacy (app-level) always applies; if the live
+// version won't take support/marketing inline, that's reported and rides the next version.
 async function urls() {
   const { verLocId, infoLocId } = await discover();
   try {
@@ -242,7 +168,7 @@ async function urls() {
         supportUrl: META.supportUrl, marketingUrl: META.marketingUrl,
       } },
     });
-    console.log('✓ support URL →', META.supportUrl, '| marketing →', META.marketingUrl);
+    console.log('✓ support + marketing URL →', META.supportUrl);
   } catch (e) {
     console.error('✗ support/marketing URL NOT updated (version locked live?):', e.message.split('\n')[0]);
     console.error('  → these ride the next version; privacy URL (app-level) still updates below.');
@@ -362,11 +288,18 @@ async function pricing() {
 
 async function finalize() {
   const { verId } = await discover();
+  // Content Rights — APP-level attribute (unlike App Privacy/Age Rating, this IS in the
+  // API). An original game (own engine/art/procedural audio, open-licensed fonts) uses no
+  // third-party content. Enum: DOES_NOT_USE_THIRD_PARTY_CONTENT | USES_THIRD_PARTY_CONTENT.
+  await api('PATCH', `/v1/apps/${APP_ID}`, {
+    data: { type: 'apps', id: APP_ID, attributes: { contentRightsDeclaration: 'DOES_NOT_USE_THIRD_PARTY_CONTENT' } },
+  });
+  console.log('✓ content rights: DOES_NOT_USE_THIRD_PARTY_CONTENT');
   // Copyright — version-level attribute.
   await api('PATCH', `/v1/appStoreVersions/${verId}`, {
-    data: { type: 'appStoreVersions', id: verId, attributes: { copyright: '2026 Cut' } },
+    data: { type: 'appStoreVersions', id: verId, attributes: { copyright: '2026 Rattle' } },
   });
-  console.log('✓ copyright: 2026 Cut');
+  console.log('✓ copyright: 2026 Rattle');
   // App Review contact + notes. PATCH email if a detail already exists (account
   // may have pre-filled name/phone); otherwise report what's still needed.
   const attrs = {
@@ -436,8 +369,31 @@ async function release() {
   console.log('✓ release type now:', v.json.data.attributes.releaseType, '| state:', v.json.data.attributes.appVersionState);
 }
 
+// The steps Apple exposes NO API for — must be clicked in the ASC web UI. Printed
+// here so the exact answers live in the tool, not tribal memory (Firebase-Analytics
+// only, no ads, no Crashlytics, no accounts profile — passed review on Cut/Tilt/Rattle).
+function checklist() {
+  console.log(`\nWEB-UI ONLY (no ASC API) — do these in App Store Connect, then Submit:\n
+1. App Privacy → Get Started → "Do you collect data?" YES, then check exactly TWO:
+     • Usage Data → Product Interaction
+     • Identifiers → Device ID        (Firebase collects IDFV + Installation ID; your
+                                       privacy page discloses it → declare it to match)
+   For BOTH: Used for tracking? NO · Linked to identity? NO · Purpose: Analytics
+   Leave everything else unchecked (no Advertising/Crash/Other Usage/User ID). → Publish
+   → NO ATT prompt, NO NSUserTrackingUsageDescription (first-party analytics ≠ tracking).
+
+2. Age Rating → Set Up → answer every question None / No → lands on 4+ → Save.
+
+3. Select build ${'1.0(N)'} on the version (asc-api.cjs build attaches the latest VALID).
+
+4. Submit for Review. (finalize already set the review contact + Sign-in NOT required.)
+
+First-submission: Apple often sends boilerplate "2.1 Information Needed" — reply that the
+app has no login/accounts/IAP and uses Firebase Analytics for anonymous events only.\n`);
+}
+
 const cmd = process.argv[2] || 'orient';
-const fns = { orient, newversion, whatsnew, metadata, urls, screenshots, categories, build, pricing, finalize, submit, release };
+const fns = { orient, metadata, urls, screenshots, categories, build, pricing, finalize, submit, release, checklist };
 (async () => {
   try {
     if (!fns[cmd]) { console.error('unknown command:', cmd, '\navailable:', Object.keys(fns).join(', ')); process.exit(1); }

@@ -412,9 +412,17 @@ modules (unlike Tilt). Keep it one file.
 - ✅ **Universal iPad** — aspect-capped seamless framing (see the UNIVERSAL iPad
   block above). `TARGETED_DEVICE_FAMILY="1,2"` + `UIRequiresFullScreen` already set.
 - ✅ **Support + privacy pages** — `docs/cut/{index,support,privacy}.html` (Night
-  Rig palette, same analytics disclosure as Tilt). Serve at
-  `https://jfun.github.io/jfun/cut/support.html` + `/privacy.html` once merged →
-  the ASC Support URL + Privacy Policy URL.
+  Rig palette, same analytics disclosure as Tilt). **HOSTED ON FIREBASE** (site
+  `cut-jfun`, root `firebase.json`; one-shot `scripts/dev/deploy_pages.sh`): live
+  at `https://cut-jfun.web.app/support` + `/privacy` (cleanUrls; `.html` 301s).
+  GitHub Pages (`jfun.github.io/jfun/cut/…`) stays up as a fallback — **do NOT
+  retire it until v1.1 with the Firebase URLs is live**, or the live 1.0 listing's
+  Support/Privacy links 404. **ASC URL repoint is STAGED** in `asc-api.cjs` META
+  (+ a surgical `urls` command): the live 1.0 version is READY_FOR_DISTRIBUTION, so
+  ALL three URL fields are LOCKED (every PATCH → `409 INVALID_STATE`, incl. the
+  app-level `privacyPolicyUrl`). The Firebase URLs therefore auto-apply at the next
+  version (v1.1) via `node asc-api.cjs urls` (or the regular `metadata` push) — you
+  cannot repoint a live listing without a new version.
 - ✅ **Screenshots** — `scripts/dev/shots.cjs` (self-contained CDP harness; poses
   scenes via `?level=N&freeze=1` / `?panel=howto` + `__game`) →
   `screenshots/appstore/{iphone-6.9,iphone-6.7,ipad-13}/*.png` at exact Apple
