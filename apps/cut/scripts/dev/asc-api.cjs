@@ -97,10 +97,21 @@ async function orient() {
 }
 
 // --- shared discovery: the version/localization/appInfo IDs every writer needs ---
+// States where a version is LIVE/terminal (not editable). Anything else — a
+// new version being prepared (v1.1) — is the one metadata/build commands target.
+const LIVE_STATES = new Set([
+  'READY_FOR_DISTRIBUTION', 'REPLACED_WITH_NEW_VERSION',
+  'REMOVED_FROM_SALE', 'DEVELOPER_REMOVED_FROM_SALE',
+]);
+
 async function discover() {
-  const app = await api('GET', `/v1/apps/${APP_ID}?include=appStoreVersions,appInfos`);
+  const app = await api('GET', `/v1/apps/${APP_ID}?include=appStoreVersions,appInfos&fields[appStoreVersions]=versionString,platform,appVersionState,appStoreState`);
   const inc = app.json.included || [];
-  const ver = inc.filter((x) => x.type === 'appStoreVersions').find((v) => v.attributes.platform === 'IOS');
+  const iosVers = inc.filter((x) => x.type === 'appStoreVersions' && x.attributes.platform === 'IOS');
+  // Prefer the EDITABLE version (v1.1 in prep) over a live v1.0 — else PATCHes
+  // 409 against the locked live listing.
+  const editable = iosVers.find((v) => !LIVE_STATES.has(v.attributes.appVersionState || v.attributes.appStoreState));
+  const ver = editable || iosVers[0];
   const info = inc.filter((x) => x.type === 'appInfos')[0];
   const vlocs = await api('GET', `/v1/appStoreVersions/${ver.id}/appStoreVersionLocalizations`);
   const verLoc = vlocs.json.data.find((l) => l.attributes.locale === 'en-US') || vlocs.json.data[0];
@@ -111,17 +122,26 @@ async function discover() {
 
 const META = {
   subtitle: 'Rope-cutting physics puzzles',
-  promotionalText: '53 hand-tuned rope-cutting puzzles in a moonlit workshop. Cut the right rope, land the crate, bring them all home. No ads, no accounts, play offline.',
+  promotionalText: '61 hand-tuned rope-cutting puzzles in a moonlit workshop. Cut the right rope, land the crate, bring them all home. No ads, no accounts, play offline.',
   keywords: 'rope,cut,physics,puzzle,crate,drop,slice,swing,pendulum,brain,casual,relax,logic,gravity',
   supportUrl: 'https://jfun.github.io/jfun/cut/support.html',
   marketingUrl: 'https://jfun.github.io/jfun/cut/support.html',
   privacyPolicyUrl: 'https://jfun.github.io/jfun/cut/privacy.html',
+  // v1.1 "What's New" (release notes). Plain ASCII — ASC rejects box-drawing /
+  // may reject em-dashes. Describes the deep-backbone chapter in player terms.
+  whatsNew: [
+    '8 new levels extend the campaign.',
+    '',
+    'Cut the ropes in sequence to WALK the crate across the rig, then time your final drop through a pulsing gate to land it home.',
+    '',
+    'Thanks for playing Cut.',
+  ].join('\n'),
   description: [
     'A moonlit workshop. Ropes hold a wooden crate above its basket. Swipe to sever a rope and let gravity, swing, and momentum carry the crate home.',
     '',
-    '53 hand-tuned levels introduce one idea at a time: pendulums, bounce pads, pulleys, elastic cords, spinning sawblades, wind, magnets, and stars to collect on the way down. Every level is verified solvable. One thumb, no timers.',
+    '61 hand-tuned levels introduce one idea at a time: pendulums, bounce pads, pulleys, elastic cords, spinning sawblades, wind, magnets, and stars to collect on the way down. Every level is verified solvable. One thumb, no timers.',
     '',
-    '- 53 physics puzzles with a gentle difficulty rhythm',
+    '- 61 physics puzzles with a gentle difficulty rhythm',
     '- A dozen mechanics, each taught wordlessly the first time you meet it',
     '- Night Rig art: moonlit rig, drifting fireflies, a soft kalimba score',
     '- Universal: iPhone and iPad',
@@ -130,6 +150,38 @@ const META = {
     'Cut the right rope. Land the crate. Bring every crate home.',
   ].join('\n'),
 };
+
+// Create a new App Store version (e.g. 1.1) if one isn't already in prep. Apple
+// carries description/keywords/screenshots/URLs forward from the prior version;
+// we then override What's New + any changed copy. Idempotent: no-op if an
+// editable version already exists.
+async function newversion() {
+  const verString = process.argv[3] || '1.1';
+  const app = await api('GET', `/v1/apps/${APP_ID}?include=appStoreVersions&fields[appStoreVersions]=versionString,platform,appVersionState,appStoreState`);
+  const iosVers = (app.json.included || []).filter((x) => x.type === 'appStoreVersions' && x.attributes.platform === 'IOS');
+  const editable = iosVers.find((v) => !LIVE_STATES.has(v.attributes.appVersionState || v.attributes.appStoreState));
+  if (editable) {
+    console.log('editable version already exists: v' + editable.attributes.versionString, '(' + (editable.attributes.appVersionState || editable.attributes.appStoreState) + ') — nothing to create');
+    return;
+  }
+  const res = await api('POST', '/v1/appStoreVersions', {
+    data: {
+      type: 'appStoreVersions',
+      attributes: { platform: 'IOS', versionString: verString },
+      relationships: { app: { data: { type: 'apps', id: APP_ID } } },
+    },
+  });
+  console.log('✓ created App Store version v' + verString, '→', res.json.data.id);
+}
+
+// Set the "What's New" release notes on the (editable) version's en-US loc.
+async function whatsnew() {
+  const { verLocId } = await discover();
+  await api('PATCH', `/v1/appStoreVersionLocalizations/${verLocId}`, {
+    data: { type: 'appStoreVersionLocalizations', id: verLocId, attributes: { whatsNew: META.whatsNew } },
+  });
+  console.log('✓ What\'s New set:\n' + META.whatsNew.split('\n').map((l) => '    ' + l).join('\n'));
+}
 
 async function metadata() {
   const { verLocId, infoLocId } = await discover();
@@ -140,12 +192,22 @@ async function metadata() {
     } },
   });
   console.log('✓ version localization: description, keywords, promo, support+marketing URLs');
-  await api('PATCH', `/v1/appInfoLocalizations/${infoLocId}`, {
-    data: { type: 'appInfoLocalizations', id: infoLocId, attributes: {
-      subtitle: META.subtitle, privacyPolicyUrl: META.privacyPolicyUrl,
-    } },
-  });
-  console.log('✓ app-info localization: subtitle, privacy policy URL');
+  // App-INFO fields (subtitle, privacyPolicyUrl) are APP-level, not version-level:
+  // they lock (409 INVALID_STATE) whenever a version is live. On an update where
+  // these are unchanged from the live listing, that 409 is expected and benign —
+  // tolerate it. (To actually CHANGE them you must do it while no version is live,
+  // or they ride the currently-live values.)
+  try {
+    await api('PATCH', `/v1/appInfoLocalizations/${infoLocId}`, {
+      data: { type: 'appInfoLocalizations', id: infoLocId, attributes: {
+        subtitle: META.subtitle, privacyPolicyUrl: META.privacyPolicyUrl,
+      } },
+    });
+    console.log('✓ app-info localization: subtitle, privacy policy URL');
+  } catch (e) {
+    if (/409|INVALID_STATE/.test(e.message)) console.log('• app-info (subtitle, privacy URL) locked by the live version — unchanged, skipped (expected)');
+    else throw e;
+  }
 }
 
 // Raw PUT of a byte slice to Apple's blob storage (the reserve step hands back
@@ -330,7 +392,7 @@ async function release() {
 }
 
 const cmd = process.argv[2] || 'orient';
-const fns = { orient, metadata, screenshots, categories, build, pricing, finalize, submit, release };
+const fns = { orient, newversion, whatsnew, metadata, screenshots, categories, build, pricing, finalize, submit, release };
 (async () => {
   try {
     if (!fns[cmd]) { console.error('unknown command:', cmd, '\navailable:', Object.keys(fns).join(', ')); process.exit(1); }
