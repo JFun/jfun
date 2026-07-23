@@ -133,7 +133,10 @@ const META = {
   // Hosting: Firebase (docs/cut → cut-jfun.web.app, cleanUrls). Replaced the
   // github.io/jfun Pages URLs for v1.1 (Pages stays live as a same-source mirror).
   supportUrl: 'https://cut-jfun.web.app/support',
-  marketingUrl: 'https://cut-jfun.web.app/support',
+  // marketingUrl intentionally CLEARED — it's an optional promo-site field and
+  // Cut has no marketing page (the only public pages are support + privacy; the
+  // site root just redirects to support). null clears it on the listing.
+  marketingUrl: null,
   privacyPolicyUrl: 'https://cut-jfun.web.app/privacy',
   // v1.1 "What's New" (release notes). Plain ASCII — ASC rejects box-drawing /
   // may reject em-dashes. Describes the deep-backbone chapter in player terms.
