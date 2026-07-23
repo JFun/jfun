@@ -150,7 +150,9 @@ App-level (left sidebar), then the version page:
    tracking* → no ATT prompt. (Must match the privacy page.)
 3. **Age Rating:** answer every question None/No → typically **4+**.
 4. **App Information:** Category (Games → e.g. Puzzle + **Casual**; ASC has NO "Arcade"
-   subcategory). Content Rights: "no third-party content."
+   subcategory). **Content Rights IS in the API** (unlike App Privacy / Age Rating) — the
+   app-level `contentRightsDeclaration` attribute; `asc-api.cjs finalize` sets it to
+   `DOES_NOT_USE_THIRD_PARTY_CONTENT` (original game: own engine/art/audio, open-licensed fonts).
 5. **Version page:** screenshots, description (plain ASCII — no em-dashes/asterisks or the
    field rejects them), keywords (name+subtitle+keywords indexed together, zero overlap,
    singular forms), promo text, support URL, copyright `<year> Qili Chen`. Select the

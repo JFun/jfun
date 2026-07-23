@@ -288,6 +288,13 @@ async function pricing() {
 
 async function finalize() {
   const { verId } = await discover();
+  // Content Rights — APP-level attribute (unlike App Privacy/Age Rating, this IS in the
+  // API). An original game (own engine/art/procedural audio, open-licensed fonts) uses no
+  // third-party content. Enum: DOES_NOT_USE_THIRD_PARTY_CONTENT | USES_THIRD_PARTY_CONTENT.
+  await api('PATCH', `/v1/apps/${APP_ID}`, {
+    data: { type: 'apps', id: APP_ID, attributes: { contentRightsDeclaration: 'DOES_NOT_USE_THIRD_PARTY_CONTENT' } },
+  });
+  console.log('✓ content rights: DOES_NOT_USE_THIRD_PARTY_CONTENT');
   // Copyright — version-level attribute.
   await api('PATCH', `/v1/appStoreVersions/${verId}`, {
     data: { type: 'appStoreVersions', id: verId, attributes: { copyright: '2026 Rattle' } },
