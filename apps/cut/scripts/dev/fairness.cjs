@@ -28,6 +28,8 @@ const path = require('path');
 // workspace-linked; path fallback keeps worktrees without node_modules working.
 let LC; try { LC = require('@jfun/levelcheck'); }
 catch (_) { LC = require(path.resolve(__dirname, '../../../../packages/levelcheck')); }
+let DIFF; try { DIFF = require('@jfun/difficulty'); }
+catch (_) { DIFF = require(path.resolve(__dirname, '../../../../packages/difficulty')); }
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const CDP_PORT = 9461;
@@ -390,37 +392,65 @@ const landProbe = (idx) => `(function(){
     // adversarial review caught; geom.nAnchors resurrects the gate honestly.
     const oneCord = L.geom ? (L.geom.nAnchors<=1 && !L.geom.nPulleys) : (L.nRopes<=1);
     const undisc = ok && !exempt && oneCord && !L.nBalloons && L.winBy && L.winBy!=='top' && L.winBy!=='pop' && L.single===0;
-    // GEOMETRY gate (@jfun/levelcheck, BLOCKING): every must-be-visible object
-    // fully inside the play field — the machine version of the device-caught
-    // "bucket is not fully displayed" bug.
-    let geomBad = [];
+    // @jfun/levelcheck gates through the shared runGates BUNDLE (severity routing
+    // in one place, instead of hand-wiring each judge here):
+    //   GEOMETRY / frame-fit (BLOCKING) — every must-be-visible object fully
+    //     inside the play field (the machine version of the device-caught
+    //     "bucket is not fully displayed" bug).
+    //   ORDER-DISCOVERABILITY (ADVISORY) — a multi-cut win found by the TOP-DOWN
+    //     cascade should be readable off anchor HEIGHT (monotone, ≥2% of screen
+    //     height per step). Only casc↓ is instrumented (its cut segments sit AT
+    //     the anchors, so segment-y ≈ the visible anchor height; casc↑ cuts at
+    //     the crate end, where segment-y says nothing about which anchor). Some
+    //     families read via a different cue (2-rope tips read by basket side),
+    //     so this warns, not fails.
+    // Facts are conditional — pass `frame` only when a basket exists, `order`
+    // only for a qualifying casc↓ win; runGates judges whatever it is given.
+    const gateFacts = {};
     if (L.geom && L.geom.basket)
-      geomBad = LC.frameFit([Object.assign({ name: 'basket' }, L.geom.basket)], { w: L.geom.W, h: L.geom.H }, { margin: 2 });
-    // ORDER-DISCOVERABILITY (@jfun/levelcheck, ADVISORY): a multi-cut win found
-    // by the TOP-DOWN cascade should be readable off anchor HEIGHT — monotone
-    // with a visible gap (>=2% of screen height per step). Only casc↓ is
-    // instrumented (its cut segments sit AT the anchors, so segment-y ≈ the
-    // visible anchor height; casc↑ cuts at the crate end, where segment-y says
-    // nothing about which anchor). Some families read via a different cue
-    // (2-rope tips read by basket side), so this warns, not fails.
-    const ordCheck = (ok && L.winBy === 'casc↓' && Array.isArray(L.winOrd) && L.winOrd.length >= 3)
-      ? LC.monotoneOrder(L.winOrd, { minGap: 0.02 }) : null;
-    const ordWarn = ordCheck && !ordCheck.ok;
+      gateFacts.frame = { items: [Object.assign({ name: 'basket' }, L.geom.basket)], frame: { w: L.geom.W, h: L.geom.H }, margin: 2 };
+    if (ok && L.winBy === 'casc↓' && Array.isArray(L.winOrd) && L.winOrd.length >= 3)
+      gateFacts.order = { values: L.winOrd, minGap: 0.02 };
+    const gates = LC.runGates(gateFacts);
+    const geomFail = gates.blocking.find(g => g.name === 'frame-fit' && !g.ok) || null;
+    const ordWarn = gates.advisory.some(g => g.name === 'order-discoverable' && !g.ok);
     if (ordWarn) orderWarns.push(`L${L.level}: winning ${L.winBy} order [${L.winOrd.join(', ')}] is not height-readable (needs monotone steps ≥0.02H) — verify the player has another cue`);
     // par (cuts in the first win) is meaningful for singles (1) and the clean
     // anchor-end casc↓; suppressed for 'all' (cut-everything) and casc↑ (its
     // bottom-end cuts can leave pin-anchored dangles it re-cuts — inflated).
     const showPar = L.winPar != null && (L.winBy === 'top' || L.winBy === 'bottom' || L.winBy === 'pop' || L.winBy === 'casc↓');
-    console.log(`  L${String(L.level).padStart(2)} ${tag}  ${band(L.singleRate)}  wins≥${L.wins}  single ${L.single}/${L.singleTried}  firstWin@${L.firstWin==null?'—':L.firstWin}${L.winBy?' by '+L.winBy:''}${showPar?'  par '+L.winPar:''}${L.lazyWin?'  ⚠ lazy-cut wins':''}${undisc?'  ⚠⚠ UNDISCOVERABLE-SOLVE':''}${ordWarn?'  ⚠ order-gap':''}${geomBad.length?'  ✗ GEOMETRY':''}${exempt&&!ok?'  ('+exempt+')':''}`);
+    console.log(`  L${String(L.level).padStart(2)} ${tag}  ${band(L.singleRate)}  wins≥${L.wins}  single ${L.single}/${L.singleTried}  firstWin@${L.firstWin==null?'—':L.firstWin}${L.winBy?' by '+L.winBy:''}${showPar?'  par '+L.winPar:''}${L.lazyWin?'  ⚠ lazy-cut wins':''}${undisc?'  ⚠⚠ UNDISCOVERABLE-SOLVE':''}${ordWarn?'  ⚠ order-gap':''}${geomFail?'  ✗ GEOMETRY':''}${exempt&&!ok?'  ('+exempt+')':''}`);
     if (!ok && !exempt) fails.push(`L${L.level}: certified UNSOLVABLE — only ${L.wins} win(s) found across the seeded cut sweep (single/all/cascade/pop)`);
     if (undisc) fails.push(`L${L.level}: UNDISCOVERABLE-SOLVE — single-rope level won only by '${L.winBy}' (cut height silently decides; retune the geometry so a plain cut wins)`);
     // Deep-chapter contract (L54+): the whole point is that brute force LOSES.
     // A lazy cut-all win there is a design defect, not a footnote — BLOCKING.
     // (Base-campaign levels legitimately win by cut-all, so scope to 54+.)
     if (L.lazyWin && L.level >= 54) fails.push(`L${L.level}: lazy cut-all WINS — violates the deep-chapter brute-force-must-fail contract (reshape hazards so the free drop dies)`);
-    for (const gb of geomBad) fails.push(`L${L.level}: GEOMETRY — ${gb.name} ${gb.problems.join('; ')} (must sit fully inside the play field)`);
+    if (geomFail) fails.push(`L${L.level}: GEOMETRY — ${geomFail.detail} (must sit fully inside the play field)`);
   }
   if (orderWarns.length) console.log('  advisory (order discoverability):\n  - ' + orderWarns.join('\n  - '));
+
+  // SAWTOOTH ORDERING GATE (@jfun/difficulty checkOrder) — the distribution-
+  // matching net Cut lacked. Cut's difficulty order was hand-built by a one-time
+  // reorder (a python case-block splice) with NO regression net, so a future
+  // insert or reorder can silently sag the campaign into a monotone ramp — the
+  // exact sag that reorder fixed. Pin the SHAPE over the full campaign: per-level
+  // difficulty = the measured single-cut BAND (easy 1 … seq/pop 5 — the same
+  // 1-4(+5) scale the hand-built band curve used), higher = harder. The certifier
+  // is deterministic (fixed-DT Verlet, no RNG in the sim), so this sequence is
+  // stable run-to-run, which is why it can BLOCK. Only meaningful full-campaign,
+  // so skip on sub-ranges. finaleMax holds because the deep-backbone chapter (the
+  // hardest, seq/pop) closes the campaign.
+  if (!fine) {
+    const BI = { 'easy': 1, 'med': 2, 'hard': 3, 'v.hard': 4, 'seq/pop': 5 };
+    const diffs = data.out.map(L => BI[band(L.singleRate).trim()]);
+    const MIN_FLIPS = 28;   // the shipped campaign has 44 (deterministic); 28 = a 36% margin — catches a real sag, never false-fails a minor edit
+    const ord = DIFF.checkOrder(diffs, { minFlips: MIN_FLIPS, finaleMax: true });
+    const finaleBand = band(data.out[data.out.length - 1].singleRate).trim();
+    console.log(`  sawtooth ordering: ${ord.flips} easy↔hard direction changes (need ≥${MIN_FLIPS}), finale band '${finaleBand}' ${ord.ok ? '✓' : '✗'}`);
+    if (!ord.ok) fails.push(`SAWTOOTH — difficulty order degraded: ${ord.violations.map(v => v.type + ' (' + v.detail + ')').join('; ')} (a reorder or insert flattened the easy↔hard alternation; restore the sawtooth)`);
+  }
+
   if (fails.length) { console.error('\nFAIRNESS FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
   console.log('  ALL CERTIFIED — every level winnable within the seeded cut sweep');
 })().catch(e => { console.error(e); process.exit(1); });
