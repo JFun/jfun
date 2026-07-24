@@ -101,7 +101,15 @@ NOW, and byte-compares serialized levels + decision traces. That is what
 - **Quarter** — its exhaustive verifier IS its evaluate (proven-min par +
   jittered-replay robustness → null unless certified); the planned seed→carve→
   certify→accept generator is literally `generateCampaign` with that evaluate.
-- **Cut** — imperative case-block levels, no genome: honestly served by
-  `runGates` (already wired) and `checkOrder` over its band permutation only.
-  Inventing a Cut genome to force generation parity would be the contortion the
-  framework exists to avoid.
+- **Cut** — imperative case-block levels, no genome, so it CANNOT generate:
+  adopted the framework where it honestly fits (`fairness.cjs`). Its per-level
+  levelcheck judges (frame-fit blocking, cascade-order advisory) now run through
+  the shared `runGates` bundle — verdict-identical to the old hand-wiring on all
+  61 levels — and its hand-built difficulty sawtooth, which had NO regression
+  net, is now pinned by `checkOrder` over the measured single-cut bands (44
+  direction changes; a monotone sag collapses to 0 and fails). The robustness
+  sweep keeps a direct `methodWindows` call: Cut's verdict has a pulse-gate
+  exemption and no density floor, and `runGates`' bundle would change it —
+  faithfulness beats forcing everything through one entry point. Inventing a Cut
+  genome to force generation parity would be the contortion the framework exists
+  to avoid.

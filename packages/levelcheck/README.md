@@ -99,9 +99,11 @@ use the scalars channel there instead.
 
 ## Per-game adapters in the wild
 
-- **Cut** (`apps/cut/scripts/dev/fairness.cjs`): frame-fit on the basket per
-  level (blocking); cascade-win anchor-height readability (advisory ⚠);
-  `node fairness.cjs distinct` prints the closest-pair report.
+- **Cut** (`apps/cut/scripts/dev/fairness.cjs`): the per-level frame-fit
+  (blocking) + cascade-order readability (advisory) run through the shared
+  `runGates` bundle; `node fairness.cjs distinct` prints the closest-pair report;
+  and the campaign's difficulty order is pinned by `@jfun/difficulty`'s
+  `checkOrder` over the measured single-cut bands (the sawtooth regression net).
 - **Tilt / Rattle / Quarter** (not yet wired): their engines run in Node so
   facts come straight from the level specs — Rattle's natural feature vector is
   `mechanics` (element mix) + `scalars` ({count, taps, need}); Tilt's is
