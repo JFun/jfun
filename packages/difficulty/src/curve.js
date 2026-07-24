@@ -39,14 +39,28 @@
 
      cfg (all optional, defaults = Rattle's cozy curve):
        len          total levels (for the baseline slope)         [106]
-       segments     baseline anchors [{ untilFrac|until, from, to }] — piecewise
-                    lerp of the base win-rate. `until` is an absolute level,
-                    `untilFrac` a fraction of len. Defaults teach→mid→late.
+       segments     baseline anchors [{ untilFrac|until, from, to, fromLevel? }] —
+                    piecewise lerp of the base win-rate. `until` is an absolute
+                    level, `untilFrac` a fraction of len. `fromLevel` pins the
+                    lerp's START level exactly (default: the previous segment's
+                    `until`) — without it a tier that starts at 9 lerps from 8,
+                    an ~1e-3 skew that can flip a band-boundary accept.
        cycle        sawtooth period                                [10]
        breatherBump +WR at cycle start (positions 0..1)            [+0.05]
        hardBeatDip  −WR at cycle end (positions ≥ cycle-2)         [−0.16]
+       breathers    [{ pos, bump }] — explicit per-position bumps that REPLACE
+                    the fixed pos≤1 breatherBump when present (Rattle's shipped
+                    cadence bumps pos 9 and 0, not 0 and 1). NOTE: breathers[]
+                    also disables the legacy hardBeatDip — dips belong to
+                    beatFor, or model them as negative-bump entries    [off]
+       beatFor      (n) → { tgt, … } | null — labeled hard-beat schedule (see
+                    ./cadence.js makeBeatSchedule). When set, a beat's tgt is
+                    returned AUTHORITATIVELY (unclamped — a finale may sit below
+                    `floor`) and the legacy hardBeatDip sawtooth is disabled:
+                    beats own the dips. This supersedes the stale 2-position
+                    sawtooth that diverged from Rattle's shipped cadence.
        sawFrom      level at/after which the sawtooth applies      [17]
-       floor, ceil  clamp                                          [0.50, 0.95] */
+       floor, ceil  clamp (non-beat levels only)                   [0.50, 0.95] */
   function makeTargetCurve(cfg) {
     cfg = cfg || {};
     const len = cfg.len || 106;
@@ -54,24 +68,32 @@
     const sawFrom = cfg.sawFrom == null ? 17 : cfg.sawFrom;
     const breatherBump = cfg.breatherBump == null ? 0.05 : cfg.breatherBump;
     const hardBeatDip = cfg.hardBeatDip == null ? -0.16 : cfg.hardBeatDip;
+    const breathers = cfg.breathers || null;
+    const beatFor = cfg.beatFor || null;
     const floor = cfg.floor == null ? 0.50 : cfg.floor;
     const ceil = cfg.ceil == null ? 0.95 : cfg.ceil;
     const segs = (cfg.segments || [
       { until: 8, from: 0.94, to: 0.88 },
       { until: 24, from: 0.86, to: 0.78 },
       { untilFrac: 1, from: 0.78, to: 0.70 },
-    ]).map(s => ({ until: s.until != null ? s.until : Math.round((s.untilFrac || 1) * len), from: s.from, to: s.to }));
+    ]).map(s => ({ until: s.until != null ? s.until : Math.round((s.untilFrac || 1) * len), from: s.from, to: s.to, fromLevel: s.fromLevel }));
 
     return function targetWR(n) {
+      if (beatFor) { const b = beatFor(n); if (b) return b.tgt; }   // beats are authoritative
       let base = segs[segs.length - 1].to, prevUntil = 1;
       for (const s of segs) {
-        if (n <= s.until) { base = ramp(s.from, s.to, (n - prevUntil) / Math.max(1, s.until - prevUntil)); break; }
+        if (n <= s.until) {
+          const anchor = s.fromLevel != null ? s.fromLevel : prevUntil;
+          base = ramp(s.from, s.to, (n - anchor) / Math.max(1, s.until - anchor));
+          break;
+        }
         prevUntil = s.until;
       }
       let mod = 0;
       if (n >= sawFrom) {
         const pos = (n - 1) % cycle;
-        if (pos >= cycle - 2) mod = hardBeatDip;
+        if (breathers) { const b = breathers.find(x => x.pos === pos); if (b) mod = b.bump; }
+        else if (!beatFor && pos >= cycle - 2) mod = hardBeatDip;
         else if (pos <= 1) mod = breatherBump;
       }
       return clamp(base + mod, floor, ceil);
@@ -96,8 +118,16 @@
      Rule of thumb: for a fully-gradable 3★ set floor >= starThreshold.three + 1.
      See starGrade + gradableBudget + docs/handbook/09-difficulty.md.
 
-     cfg: teach [{until, slack}], cycle, breather, normal, ramping, hardBeat,
-          backHalf [{after, minus}], floor. Defaults = Rattle (floor 1). */
+     cfg: teach [{until, slack} | {fromLevel, until, from, to}] — a ramped teach
+          entry lerps (rounded) across its own range, for tiers that own their
+          ramp when the global cycle misaligns (Rattle's toy tier, slack 3→1);
+          cycle, breather, normal, ramping, hardBeat, backHalf [{after, minus}],
+          floor. Defaults = Rattle (floor 1).
+          beatFor (n)→beat|null + beatSlack [1] + breatherPos [[0,1]]: when
+          beatFor is set the cycle-position table is replaced by the beat
+          schedule — s = beat ? beatSlack : (pos ∈ breatherPos ? breather :
+          normal) — so slack follows the SAME labeled cadence as the target
+          curve instead of a parallel position table that can drift from it. */
   function makeSlackSchedule(cfg) {
     cfg = cfg || {};
     const cycle = cfg.cycle || 10;
@@ -108,14 +138,19 @@
     const ramping = cfg.ramping == null ? 1 : cfg.ramping;      // pos 6..7
     const hardBeat = cfg.hardBeat == null ? 1 : cfg.hardBeat;   // pos 8..9
     const backHalf = cfg.backHalf || [{ after: 40, minus: 1 }, { after: 80, minus: 1 }];
+    const beatFor = cfg.beatFor || null;
+    const beatSlack = cfg.beatSlack == null ? 1 : cfg.beatSlack;
+    const breatherPos = cfg.breatherPos || [0, 1];
 
     return function slackFor(n) {
       let s;
       const t = teach.find(x => n <= x.until);
-      if (t) s = t.slack;
+      if (t) s = t.slack != null ? t.slack
+        : Math.round(ramp(t.from, t.to, (n - t.fromLevel) / Math.max(1, t.until - t.fromLevel)));
       else {
         const pos = (n - 1) % cycle;
-        if (pos <= 1) s = breather;
+        if (beatFor) s = beatFor(n) ? beatSlack : (breatherPos.indexOf(pos) >= 0 ? breather : normal);
+        else if (pos <= 1) s = breather;
         else if (pos <= 5) s = normal;
         else if (pos <= 7) s = ramping;
         else s = hardBeat;

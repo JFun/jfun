@@ -108,4 +108,19 @@ use the scalars channel there instead.
   mechanics + grid landmarks. frameFit/monotoneOrder don't apply there (see the
   Fits column) — adopt distinctness first.
 
+## One-call bundle for generation loops
+
+`runGates(facts)` routes the judges by the studio's default severity for a
+generation loop's per-candidate check — frame-fit + robustness (incl. the
+taught-method-absent Gallows tell and the win-density lottery floor) BLOCKING;
+order + distinctness ADVISORY. Every knob lives inside the facts subgroups;
+`sweep.advisory: true` downgrades the robustness group (the pulse-gate
+carve-out). `poolDistinct(feature, poolFeatures, opts)` is the generation-time
+anti-clone probe — ONE candidate against the already-accepted pool
+(nearDuplicates ranks within a single set and doesn't cover this). Both are
+conveniences over the pure judges: if a game needs exemptions the facts can't
+express, go back to hand-wiring the judges instead. Consumed by `@jfun/difficulty`'s
+`generateCampaign` through the plugin's `gates` slot — difficulty never requires
+levelcheck (the charter wall stays physical; the game wires the two).
+
 Run tests: `node packages/levelcheck/test.cjs`

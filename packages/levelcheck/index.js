@@ -8,4 +8,5 @@ module.exports = Object.assign({},
   require("./src/geometry.js"),
   require("./src/order.js"),
   require("./src/distinct.js"),
-  require("./src/robustness.js"));
+  require("./src/robustness.js"),
+  require("./src/gates.js"));
