@@ -140,4 +140,50 @@ ok(LC.nearDuplicates([{ id: 1, mechanics: ["a"], points: [[0, 0]] }, { id: 2, me
 throws(() => LC.hashFromLuma(new Array(64).fill(NaN)), "NaN luma throws");
 throws(() => LC.hamming("gggggggggggggggg", "0000000000000000"), "non-hex hash throws");
 
+// --- gates bundle (runGates severity routing + poolDistinct) ---
+{
+  // frame violation lands in BLOCKING; readable order lands in ADVISORY
+  const g = LC.runGates({
+    frame: { items: [{ name: "basket", l: 74, r: 101.6, t: 50, b: 95 }], frame: { w: 100, h: 100 } },
+    order: { values: [0.05, 0.09, 0.13], minGap: 0.02 },
+  });
+  ok(g.blocking.length === 1 && g.blocking[0].name === "frame-fit" && !g.blocking[0].ok, "frame violation routed BLOCKING");
+  ok(g.advisory.length === 1 && g.advisory[0].name === "order-discoverable" && g.advisory[0].ok, "order routed ADVISORY");
+}
+{
+  // robustness: taught method with a real band passes; an ABSENT taught method
+  // (the Gallows tell) fails; advisory:true downgrades (the pulse-gate carve-out)
+  const samples = [];
+  for (let x = 0; x < 200; x += 10) samples.push({ x, win: x >= 60 && x <= 160, method: "casc" });
+  const good = LC.runGates({ sweep: { samples, taught: "casc", minWidth: 60, minRun: 2 } });
+  ok(good.blocking.every(b => b.ok), "taught method with a wide band passes blocking");
+  const gallows = LC.runGates({ sweep: { samples, taught: "top", minWidth: 60, minRun: 2 } });
+  ok(gallows.blocking.some(b => b.name === "taught-method-window" && !b.ok && /NEVER wins/.test(b.detail)), "absent taught method = the Gallows tell, blocking");
+  const pulse = LC.runGates({ sweep: { samples, taught: "top", minWidth: 60, minRun: 2, advisory: true } });
+  ok(pulse.blocking.length === 0 && pulse.advisory.some(a => a.name === "taught-method-window"), "advisory:true downgrades the sweep group (pulse-gate carve-out)");
+  const lotterySamples = []; for (let x = 0; x < 250; x += 10) lotterySamples.push({ x, win: x === 70 });
+  const lottery = LC.runGates({ sweep: { samples: lotterySamples, minWidth: 60, minRun: 2 } });
+  ok(lottery.blocking.some(b => b.name === "win-density" && !b.ok), "1-in-25 win = lottery (density < 0.05), blocking");
+}
+{
+  // poolDistinct: candidate vs accepted pool (nearDuplicates ranks within ONE set;
+  // this is the generation-time probe)
+  const pool = [
+    { id: "L1", mechanics: ["rope", "spike"], points: [[0.2, 0.3], [0.8, 0.9]] },
+    { id: "L2", mechanics: ["wind"], points: [[0.5, 0.5]] },
+  ];
+  const clone = LC.poolDistinct({ mechanics: ["rope", "spike"], points: [[0.2, 0.3], [0.8, 0.9]] }, pool);
+  ok(clone.flagged && clone.closest === "L1" && clone.minDist === 0, "planted clone flagged against the pool");
+  const fresh = LC.poolDistinct({ mechanics: ["magnet", "star"], points: [[0.1, 0.9]] }, pool);
+  ok(!fresh.flagged, "distinct candidate passes");
+  ok(!LC.poolDistinct({ mechanics: ["a"] }, []).flagged, "empty pool is trivially distinct");
+  { // weights passthrough: mech-identical/layout-far reads as a clone only when layout is zero-weighted
+    const cand = { mechanics: ["rope"], points: [[0.9, 0.9]] }, one = [{ id: "L1", mechanics: ["rope"], points: [[0.1, 0.1]] }];
+    ok(LC.poolDistinct(cand, one, { weights: { wMech: 1, wLayout: 0 } }).flagged, "weights passed through (mech-only → clone)");
+    ok(!LC.poolDistinct(cand, one).flagged, "default weights count layout distance");
+  }
+  const viaGates = LC.runGates({ distinct: { feature: pool[0], pool } });
+  ok(viaGates.advisory.some(a => a.name === "pool-distinct" && !a.ok), "distinctness routed ADVISORY through runGates");
+}
+
 console.log(`  @jfun/levelcheck: ${n} assertions passed`);
